@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase/server";
+import { cache } from "react";
 
 export type Character = {
   key: string;
@@ -18,4 +19,6 @@ export async function getCharacters(): Promise<Character[]> {
   if (error) throw new Error(error.message);
   return data ?? [];
 }
+
+export const getCharactersCached = cache(getCharacters);
 

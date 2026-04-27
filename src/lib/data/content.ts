@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase/server";
+import { cache } from "react";
 
 export type Category = {
   slug: string;
@@ -50,6 +51,22 @@ export async function getProducts(params: { category?: string } = {}): Promise<P
   return data ?? [];
 }
 
+export const getProductsCached = cache(getProducts);
+
+export async function getProductsBySlugs(slugs: string[]): Promise<Product[]> {
+  if (slugs.length === 0) return [];
+  const supabase = supabaseServer();
+  const { data, error } = await supabase
+    .from("products")
+    .select("slug,title,quote,category_slug,badge,price_krw,character_key")
+    .in("slug", slugs)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export const getProductsBySlugsCached = cache(getProductsBySlugs);
+
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const supabase = supabaseServer();
   const { data, error } = await supabase
@@ -62,15 +79,21 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   return data ?? null;
 }
 
-export async function getReviewsByProductSlug(productSlug: string): Promise<Review[]> {
+export const getProductBySlugCached = cache(getProductBySlug);
+
+export async function getReviewsByProductSlug(productSlug: string, opts: { limit?: number } = {}): Promise<Review[]> {
   const supabase = supabaseServer();
-  const { data, error } = await supabase
+  let q = supabase
     .from("reviews")
     .select("id,product_slug,user_mask,stars,body,tags,created_at")
     .eq("product_slug", productSlug)
     .order("created_at", { ascending: false });
+  if (typeof opts.limit === "number") q = q.limit(opts.limit);
+  const { data, error } = await q;
 
   if (error) throw new Error(error.message);
   return data ?? [];
 }
+
+export const getReviewsByProductSlugCached = cache(getReviewsByProductSlug);
 

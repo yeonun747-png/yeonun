@@ -1368,6 +1368,36 @@ ul {
   padding: 22px;
   background: linear-gradient(165deg, #ecc5d0 0%, #dd8fa1 100%);
 }
+.y-cd-hero-illust {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  color: #dc8fa3;
+}
+.y-cd-hero-illust svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+.y-cd-hero.byeol .y-cd-hero-illust {
+  color: var(--y-byeol-deep);
+}
+.y-cd-hero.yeo .y-cd-hero-illust {
+  color: var(--y-yeo-deep);
+}
+.y-cd-hero.un .y-cd-hero-illust {
+  color: var(--y-un-deep);
+}
+.y-cd-hero.byeol {
+  background: linear-gradient(165deg, var(--y-byeol-mid) 0%, var(--y-byeol-bg) 100%);
+}
+.y-cd-hero.yeo {
+  background: linear-gradient(165deg, var(--y-yeo-mid) 0%, var(--y-yeo-bg) 100%);
+}
+.y-cd-hero.un {
+  background: linear-gradient(165deg, var(--y-un-mid) 0%, var(--y-un-bg) 100%);
+}
 .y-cd-hero-han {
   position: absolute;
   right: -20px;
@@ -1379,6 +1409,15 @@ ul {
   line-height: 0.8;
   pointer-events: none;
   letter-spacing: -0.05em;
+}
+.y-cd-hero.byeol .y-cd-hero-han {
+  color: rgba(255, 255, 255, 0.22);
+}
+.y-cd-hero.yeo .y-cd-hero-han {
+  color: rgba(255, 255, 255, 0.2);
+}
+.y-cd-hero.un .y-cd-hero-han {
+  color: rgba(255, 255, 255, 0.2);
 }
 .y-cd-hero-content {
   position: relative;
@@ -1470,16 +1509,16 @@ ul {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 12px;
-  background: white;
-  border: 0.5px solid var(--y-line);
-  border-radius: 12px;
+  padding: 14px 14px;
+  background: var(--y-card-2);
+  border: none;
+  border-radius: 14px;
 }
 .y-cd-incl-icon {
   width: 34px;
   height: 34px;
-  border-radius: 12px;
-  background: var(--y-card-2);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1488,7 +1527,7 @@ ul {
   font-size: 16px;
   font-weight: 600;
   color: var(--y-rose);
-  border: 0.5px solid var(--y-line);
+  border: 0.5px solid rgba(236, 231, 220, 0.9);
 }
 .y-cd-incl-text {
   flex: 1;
@@ -1513,6 +1552,7 @@ ul {
   padding: 20px;
   position: relative;
   overflow: hidden;
+  max-height: 230px; /* 목업처럼 높이 고정 */
 }
 .y-cd-preview-label {
   font-size: 9.5px;
@@ -1528,6 +1568,7 @@ ul {
   color: var(--y-ink);
   line-height: 1.85;
   letter-spacing: -0.01em;
+  overflow: hidden;
 }
 .y-cd-preview-fade {
   position: absolute;
@@ -2084,6 +2125,24 @@ ul {
   height: 100%;
 }
 
+/* 카드 일러스트는 currentColor 기반으로 테마색 적용 */
+.y-content-card.yeon .y-content-illust,
+.y-content-card.yeon-deep .y-content-illust {
+  color: #dc8fa3;
+}
+.y-content-card.byeol .y-content-illust,
+.y-content-card.byeol-deep .y-content-illust {
+  color: var(--y-byeol-deep);
+}
+.y-content-card.yeo .y-content-illust,
+.y-content-card.yeo-deep .y-content-illust {
+  color: var(--y-yeo-deep);
+}
+.y-content-card.un .y-content-illust,
+.y-content-card.un-deep .y-content-illust {
+  color: var(--y-un-deep);
+}
+
 /* 시즌 섹션(2026 신년 특별) 배경 */
 .y-season-block {
   background: linear-gradient(180deg, #fff6f0 0%, var(--y-bg) 100%);
@@ -2144,7 +2203,7 @@ ul {
   pointer-events: none;
 }
 .y-content-card.yeon .y-content-han {
-  color: rgba(140, 42, 64, 0.18);
+  color: rgba(221, 88, 120, 0.18);
 }
 .y-content-card.yeon-deep .y-content-han {
   color: rgba(255, 255, 255, 0.3);

@@ -63,15 +63,15 @@ function Motif({ k }: { k: CharKey }) {
       <div className="yCharMotif" aria-hidden="true">
         <svg viewBox="0 0 280 350" preserveAspectRatio="xMidYMid slice">
           <g transform="translate(80,90)" opacity="0.4">
-            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(140, 42, 64, 0.22)" transform="rotate(-30)" />
-            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(140, 42, 64, 0.18)" transform="rotate(30)" />
-            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(140, 42, 64, 0.18)" transform="rotate(-90)" />
-            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(140, 42, 64, 0.22)" transform="rotate(90)" />
-            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(140, 42, 64, 0.2)" transform="rotate(0)" />
-            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(140, 42, 64, 0.2)" transform="rotate(60)" />
-            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(140, 42, 64, 0.22)" transform="rotate(120)" />
-            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(140, 42, 64, 0.2)" transform="rotate(150)" />
-            <circle cx="0" cy="0" r="10" fill="rgba(140, 42, 64, 0.55)" />
+            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(221, 88, 120, 0.22)" transform="rotate(-30)" />
+            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(221, 88, 120, 0.18)" transform="rotate(30)" />
+            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(221, 88, 120, 0.18)" transform="rotate(-90)" />
+            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(221, 88, 120, 0.22)" transform="rotate(90)" />
+            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(221, 88, 120, 0.2)" transform="rotate(0)" />
+            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(221, 88, 120, 0.2)" transform="rotate(60)" />
+            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(221, 88, 120, 0.22)" transform="rotate(120)" />
+            <ellipse cx="0" cy="0" rx="38" ry="14" fill="rgba(221, 88, 120, 0.2)" transform="rotate(150)" />
+            <circle cx="0" cy="0" r="10" fill="rgba(221, 88, 120, 0.42)" />
           </g>
         </svg>
       </div>

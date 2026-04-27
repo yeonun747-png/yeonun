@@ -1,7 +1,6 @@
 import Link from "next/link";
 
-import { getProducts } from "@/lib/data/content";
-import { getReviewsByProductSlug } from "@/lib/data/content";
+import { getProductsBySlugsCached, getReviewsByProductSlugCached } from "@/lib/data/content";
 import { HomeFaq } from "@/components/HomeFaq";
 import type { Product } from "@/lib/data/content";
 
@@ -44,7 +43,8 @@ function weeklyMeta(slug: string): {
         <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
           <path
             d="M 100 95 C 100 75, 80 65, 70 75 C 60 65, 40 75, 40 95 C 40 110, 100 130, 100 130 C 100 130, 160 110, 160 95 C 160 75, 140 65, 130 75 C 120 65, 100 75, 100 95 Z"
-            fill="rgba(140, 42, 64, 0.25)"
+            fill="currentColor"
+            opacity="0.25"
             transform="translate(0,-10) scale(0.6)"
           />
         </svg>
@@ -58,9 +58,9 @@ function weeklyMeta(slug: string): {
       tagOn: "사주 궁합",
       illust: (
         <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
-          <circle cx="80" cy="75" r="32" fill="rgba(140, 42, 64, 0.18)" />
-          <circle cx="120" cy="75" r="32" fill="rgba(140, 42, 64, 0.18)" />
-          <circle cx="100" cy="75" r="14" fill="rgba(140, 42, 64, 0.32)" />
+          <circle cx="80" cy="75" r="32" fill="currentColor" opacity="0.18" />
+          <circle cx="120" cy="75" r="32" fill="currentColor" opacity="0.18" />
+          <circle cx="100" cy="75" r="14" fill="currentColor" opacity="0.32" />
         </svg>
       ),
     };
@@ -72,11 +72,12 @@ function weeklyMeta(slug: string): {
       tagOn: "미래 인연",
       illust: (
         <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
-          <path d="M 50 120 L 100 50 L 150 120" stroke="rgba(140, 42, 64, 0.3)" strokeWidth="1.5" fill="none" />
-          <circle cx="100" cy="50" r="8" fill="rgba(140, 42, 64, 0.4)" />
+          <path d="M 50 120 L 100 50 L 150 120" stroke="currentColor" opacity="0.3" strokeWidth="1.5" fill="none" />
+          <circle cx="100" cy="50" r="8" fill="currentColor" opacity="0.4" />
           <path
             d="M 95 50 L 100 40 L 105 50 L 110 45 L 105 55 L 110 50 L 100 60 L 90 50 L 95 55 L 90 45 Z"
-            fill="rgba(140, 42, 64, 0.5)"
+            fill="currentColor"
+            opacity="0.5"
             transform="translate(0,-5)"
           />
         </svg>
@@ -360,13 +361,16 @@ function badgeClassFor(badge: string | null) {
 }
 
 function cardVariantForSlug(slug: string, base: string) {
+  // DB 값이 'yeonhwa' 등으로 들어오면 UI 테마 키(yeon/byeol/yeo/un)로 정규화
+  const normBase =
+    base === "yeonhwa" || base === "yeon-hwa" ? "yeon" : base;
   // 목업에서 특정 카드들은 deep/cream/warm 등으로 강제됨
   if (slug === "lifetime-master") return "yeo-deep";
   if (slug === "newyear-2026") return "byeol-deep";
   if (slug === "wealth-graph") return "cream";
   if (slug === "calendar-2026") return "warm";
   if (slug === "naming-baby") return "un-deep";
-  return base;
+  return normBase;
 }
 
 function HomeContentGrid({ items }: { items: { slug: string; title: string; quote: string; badge: string | null; price_krw: number; character_key: string; tags?: string[] }[] }) {
@@ -408,12 +412,33 @@ function HomeContentGrid({ items }: { items: { slug: string; title: string; quot
 
 export async function HomeMoreSections() {
   // 홈에서 보여줄 대표 상품/리뷰는 우선 DB에서 가져와서 “목업 섹션”에 꽂는다.
-  const products = await getProducts();
   const weeklyOrder = ["reunion-maybe", "mind-now", "compat-howfar", "future-spouse"];
-  const bySlug = new Map(products.map((p) => [p.slug, p] as const));
+  const homeSectionSlugs = Array.from(
+    new Set([
+      ...weeklyOrder,
+      // # 평생을 풀어드립니다
+      "lifetime-master",
+      "saju-classic",
+      "wealth-graph",
+      "career-timing",
+      // # 2026 신년 특별
+      "newyear-2026",
+      "tojeong-2026",
+      "zimi-2026-flow",
+      "calendar-2026",
+      // # 깊이 있는 풀이
+      "zimi-chart",
+      "naming-baby",
+      "taekil-goodday",
+      "dream-lastnight",
+    ]),
+  );
+
+  const homeProducts = await getProductsBySlugsCached(homeSectionSlugs);
+  const bySlug = new Map(homeProducts.map((p) => [p.slug, p] as const));
   const featured = weeklyOrder.map((s) => bySlug.get(s)).filter(isProduct).slice(0, 4);
 
-  const reviews = await getReviewsByProductSlug(featured[0]?.slug ?? "reunion-maybe");
+  const reviews = await getReviewsByProductSlugCached(featured[0]?.slug ?? "reunion-maybe", { limit: 6 });
 
   return (
     <>
