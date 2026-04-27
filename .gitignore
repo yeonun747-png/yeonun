@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# local workspace leftover (do not commit)
+/web/
+
 # production
 /build
 
