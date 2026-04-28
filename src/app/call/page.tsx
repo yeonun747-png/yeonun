@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { computeManseFromFormInput } from "@/lib/manse-ryeok";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -33,10 +34,13 @@ export default function CallPage() {
   const [lastUserClipUrl, setLastUserClipUrl] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [ttsBusy, setTtsBusy] = useState(false);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [listening, setListening] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaChunksRef = useRef<BlobPart[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const ttsSrcRef = useRef<AudioBufferSourceNode | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +139,86 @@ export default function CallPage() {
     } finally {
       setTtsBusy(false);
     }
+  }
+
+  function buildManseContext(): string {
+    try {
+      const raw = localStorage.getItem("yeonun_saju_v1");
+      if (!raw) return "";
+      const j = JSON.parse(raw) as any;
+      const r = computeManseFromFormInput({
+        userYear: String(j.year || ""),
+        userMonth: String(j.month || ""),
+        userDay: String(j.day || ""),
+        userBirthHour: j.hour != null ? String(j.hour) : null,
+        userBirthMinute: j.minute != null ? String(j.minute) : null,
+        userCalendarType: j.calendarType === "lunar-leap" ? "lunar-leap" : j.calendarType === "lunar" ? "lunar" : "solar",
+        userName: String(j.name || ""),
+      });
+      if (!r) return "";
+      const m = r.manse;
+      const one = (p: any) => `${p.gan}${p.ji}`;
+      return `연주 ${one(m.year)} / 월주 ${one(m.month)} / 일주 ${one(m.day)} / 시주 ${one(m.hour)}`;
+    } catch {
+      return "";
+    }
+  }
+
+  async function sendTurn(text: string) {
+    if (!sessionId) return;
+    const userText = String(text || "").trim();
+    if (!userText) return;
+    setMessages((prev) => [...prev, { role: "user", text: userText }]);
+    try {
+      const res = await fetch(`/api/voice/sessions/${sessionId}/turn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: userText, manse_context: buildManseContext() }),
+      });
+      const data = (await res.json().catch(() => ({}))) as any;
+      if (!res.ok) {
+        setMessages((prev) => [...prev, { role: "assistant", text: data?.error || res.statusText }]);
+        return;
+      }
+      const out = String(data?.text || "").trim();
+      if (out) {
+        setMessages((prev) => [...prev, { role: "assistant", text: out }]);
+        await playTts(out);
+      }
+    } catch {
+      setMessages((prev) => [...prev, { role: "assistant", text: "네트워크 오류가 발생했어요." }]);
+    }
+  }
+
+  function startListening() {
+    if (listening) return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      setMessages((prev) => [...prev, { role: "assistant", text: "이 브라우저는 음성 인식을 지원하지 않습니다. (Chrome 권장)" }]);
+      return;
+    }
+    const rec = new SR();
+    recognitionRef.current = rec;
+    rec.lang = "ko-KR";
+    rec.interimResults = false;
+    rec.continuous = false;
+    let finalText = "";
+    rec.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0]?.transcript || "";
+        if (event.results[i].isFinal) finalText += t;
+      }
+    };
+    rec.onerror = () => {
+      setListening(false);
+    };
+    rec.onend = () => {
+      setListening(false);
+      const t = finalText.trim();
+      if (t) sendTurn(t);
+    };
+    setListening(true);
+    rec.start();
   }
 
   const endCall = () => {
@@ -272,7 +356,7 @@ export default function CallPage() {
           <div className="y-call-caption" aria-label="자막">
             <div className="y-call-caption-head">내가 방금 한 말</div>
             <div className="y-call-caption-body">
-              {lastUserClipUrl ? "녹음이 저장되었습니다. 아래에서 재생할 수 있어요." : "마이크 버튼을 눌러 말을 걸어보세요."}
+              {messages.length > 0 ? messages[messages.length - 1]?.text : lastUserClipUrl ? "녹음이 저장되었습니다. 아래에서 재생할 수 있어요." : "말하기를 눌러 대화를 시작해보세요."}
             </div>
           </div>
         </section>
@@ -315,6 +399,12 @@ export default function CallPage() {
                 <circle cx="12" cy="12" r="6" />
               </svg>
             </button>
+            <button className={`y-call-ctrl ${listening ? "muted" : ""}`} type="button" onClick={startListening} aria-label="말하기">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2 a4 4 0 0 1 4 4 v6 a4 4 0 0 1-8 0 V6 a4 4 0 0 1 4-4z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              </svg>
+            </button>
             <button className="y-call-end" type="button" onClick={endCall}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
@@ -335,6 +425,16 @@ export default function CallPage() {
           {lastUserClipUrl ? (
             <div style={{ marginTop: 10 }}>
               <audio controls src={lastUserClipUrl} style={{ width: "100%" }} />
+            </div>
+          ) : null}
+
+          {messages.length > 0 ? (
+            <div style={{ marginTop: 10, color: "rgba(255,255,255,0.75)", fontSize: 12, lineHeight: 1.45 }}>
+              {messages.slice(-4).map((m, idx) => (
+                <div key={idx} style={{ marginTop: 6 }}>
+                  <strong style={{ color: "white" }}>{m.role === "user" ? "나" : meta.name}</strong> · {m.text}
+                </div>
+              ))}
             </div>
           ) : null}
 
