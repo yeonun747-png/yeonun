@@ -10,6 +10,7 @@ type TurnBody = {
   text?: string;
   manse_context?: string;
   user_ref?: string;
+  trigger?: "opening" | "user";
 };
 
 function requiredEnv(name: string): string {
@@ -52,8 +53,9 @@ async function callAnthropic(params: { system: string; user: string }) {
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = (await request.json().catch(() => ({}))) as TurnBody;
+  const trigger = body.trigger === "opening" ? "opening" : "user";
   const userText = String(body.text ?? "").trim();
-  if (!userText) return NextResponse.json({ error: "text is required" }, { status: 400 });
+  if (trigger !== "opening" && !userText) return NextResponse.json({ error: "text is required" }, { status: 400 });
 
   // 1) 세션 조회 → 캐릭터 키 확인
   const supabase = supabaseServer();
@@ -92,18 +94,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     manseBlock +
     "\n\n[출력 규칙]\n- 한국어로만 답변\n- 4~8문장\n- 마지막은 짧은 질문 1개로 마무리";
 
-  // 3) 사용자 턴 기록
-  await supabase.from("voice_turns").insert({
-    session_id: id,
-    role: "user",
-    text: userText,
-  });
+  // 3) 사용자 턴 기록 (opening은 사용자 발화가 없으므로 기록하지 않음)
+  if (trigger !== "opening") {
+    await supabase.from("voice_turns").insert({
+      session_id: id,
+      role: "user",
+      text: userText,
+    });
+  }
 
   // 4) LLM 호출
   let assistantText = "";
   let modelUsed: string | null = null;
   try {
-    const out = await callAnthropic({ system, user: userText });
+    const userPrompt =
+      trigger === "opening"
+        ? "사용자가 방금 입장했습니다. 먼저 인사하고, 본인의 주특기/상담 영역을 살려 만세력(있다면)을 근거로 2~3문장 정도의 첫 설명을 한 뒤, 지금 어떤 마음/상황으로 왔는지 짧은 질문 1개로 이어가세요."
+        : userText;
+    const out = await callAnthropic({ system, user: userPrompt });
     assistantText = out.text || "";
     modelUsed = out.model;
   } catch (e) {

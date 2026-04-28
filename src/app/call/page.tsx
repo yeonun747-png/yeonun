@@ -31,16 +31,13 @@ export default function CallPage() {
   const [ended, setEnded] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [voiceExternalId, setVoiceExternalId] = useState<string | null>(null);
-  const [lastUserClipUrl, setLastUserClipUrl] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
   const [ttsBusy, setTtsBusy] = useState(false);
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const [listening, setListening] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaChunksRef = useRef<BlobPart[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const ttsSrcRef = useRef<AudioBufferSourceNode | null>(null);
   const recognitionRef = useRef<any>(null);
+  const greetedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,44 +60,10 @@ export default function CallPage() {
   }, [characterKey, meta.name]);
 
   useEffect(() => {
-    return () => {
-      if (lastUserClipUrl) URL.revokeObjectURL(lastUserClipUrl);
-    };
-  }, [lastUserClipUrl]);
+    return () => {};
+  }, []);
 
-  async function toggleRecord() {
-    if (recording) {
-      try {
-        mediaRecorderRef.current?.stop();
-      } catch {
-        // ignore
-      }
-      setRecording(false);
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      mediaRecorderRef.current = rec;
-      mediaChunksRef.current = [];
-      rec.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) mediaChunksRef.current.push(e.data);
-      };
-      rec.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(mediaChunksRef.current, { type: rec.mimeType || "audio/webm" });
-        if (lastUserClipUrl) URL.revokeObjectURL(lastUserClipUrl);
-        setLastUserClipUrl(URL.createObjectURL(blob));
-        mediaChunksRef.current = [];
-      };
-      rec.start();
-      setRecording(true);
-    } catch {
-      // 마이크 권한 거부 등
-    }
-  }
-
-  async function playTts(text: string) {
+  async function playTts(text: string, opts?: { onEnd?: () => void }) {
     if (!voiceExternalId || ttsBusy) return;
     setTtsBusy(true);
     if (typeof window !== "undefined" && !audioCtxRef.current) {
@@ -133,6 +96,9 @@ export default function CallPage() {
       src.buffer = audioBuf;
       src.connect(ctx.destination);
       ttsSrcRef.current = src;
+      src.onended = () => {
+        opts?.onEnd?.();
+      };
       src.start(0);
     } catch {
       // ignore
@@ -157,23 +123,30 @@ export default function CallPage() {
       });
       if (!r) return "";
       const m = r.manse;
-      const one = (p: any) => `${p.gan}${p.ji}`;
-      return `연주 ${one(m.year)} / 월주 ${one(m.month)} / 일주 ${one(m.day)} / 시주 ${one(m.hour)}`;
+      const one = (p: any) =>
+        `${p.gan}${p.ji} · 십성 ${p.sibsung}/${p.jiSibsung} · 오행 ${p.ohang} · 음양 ${p.eumyang} · 운성 ${p.sibiunsung} · 신살 ${p.sibisinsal}`;
+      return [
+        `연주: ${one(m.year)}`,
+        `월주: ${one(m.month)}`,
+        `일주: ${one(m.day)}`,
+        `시주: ${one(m.hour)}`,
+      ].join("\n");
     } catch {
       return "";
     }
   }
 
-  async function sendTurn(text: string) {
+  async function sendTurn(text: string, opts?: { trigger?: "opening" | "user" }) {
     if (!sessionId) return;
     const userText = String(text || "").trim();
-    if (!userText) return;
-    setMessages((prev) => [...prev, { role: "user", text: userText }]);
+    const trigger = opts?.trigger === "opening" ? "opening" : "user";
+    if (trigger !== "opening" && !userText) return;
+    if (trigger !== "opening") setMessages((prev) => [...prev, { role: "user", text: userText }]);
     try {
       const res = await fetch(`/api/voice/sessions/${sessionId}/turn`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: userText, manse_context: buildManseContext() }),
+        body: JSON.stringify({ text: userText, trigger, manse_context: buildManseContext() }),
       });
       const data = (await res.json().catch(() => ({}))) as any;
       if (!res.ok) {
@@ -183,14 +156,14 @@ export default function CallPage() {
       const out = String(data?.text || "").trim();
       if (out) {
         setMessages((prev) => [...prev, { role: "assistant", text: out }]);
-        await playTts(out);
+        await playTts(out, { onEnd: () => startListening(true) });
       }
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", text: "네트워크 오류가 발생했어요." }]);
     }
   }
 
-  function startListening() {
+  function startListening(autoRestart: boolean) {
     if (listening) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
@@ -215,11 +188,27 @@ export default function CallPage() {
     rec.onend = () => {
       setListening(false);
       const t = finalText.trim();
-      if (t) sendTurn(t);
+      if (t) {
+        sendTurn(t, { trigger: "user" });
+        return;
+      }
+      if (autoRestart) {
+        // 말이 없으면 잠깐 쉬고 다시 듣기 (reunionf82의 silence break 느낌)
+        setTimeout(() => startListening(true), 350);
+      }
     };
     setListening(true);
     rec.start();
   }
+
+  // 입장 시 자동 오프닝 → TTS 종료 후 자동 STT
+  useEffect(() => {
+    if (!sessionId || !voiceExternalId) return;
+    if (greetedRef.current) return;
+    greetedRef.current = true;
+    sendTurn("", { trigger: "opening" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, voiceExternalId]);
 
   const endCall = () => {
     setEnded(true);
@@ -356,7 +345,7 @@ export default function CallPage() {
           <div className="y-call-caption" aria-label="자막">
             <div className="y-call-caption-head">내가 방금 한 말</div>
             <div className="y-call-caption-body">
-              {messages.length > 0 ? messages[messages.length - 1]?.text : lastUserClipUrl ? "녹음이 저장되었습니다. 아래에서 재생할 수 있어요." : "말하기를 눌러 대화를 시작해보세요."}
+              {messages.length > 0 ? messages[messages.length - 1]?.text : "잠시만요…"}
             </div>
           </div>
         </section>
@@ -394,17 +383,6 @@ export default function CallPage() {
                 <path d="M12 19v3" />
               </svg>
             </button>
-            <button className={`y-call-ctrl ${recording ? "muted" : ""}`} type="button" onClick={toggleRecord} aria-label="녹음">
-              <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="6" />
-              </svg>
-            </button>
-            <button className={`y-call-ctrl ${listening ? "muted" : ""}`} type="button" onClick={startListening} aria-label="말하기">
-              <svg viewBox="0 0 24 24">
-                <path d="M12 2 a4 4 0 0 1 4 4 v6 a4 4 0 0 1-8 0 V6 a4 4 0 0 1 4-4z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              </svg>
-            </button>
             <button className="y-call-end" type="button" onClick={endCall}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
@@ -413,20 +391,7 @@ export default function CallPage() {
               </svg>
               상담 종료
             </button>
-            <button className="y-call-ctrl" type="button" aria-label="테스트 응답" disabled={!voiceExternalId || ttsBusy} onClick={() => playTts("네, 말씀해 주세요.")}>
-              <svg viewBox="0 0 24 24">
-                <path d="M11 5L6 9H3v6h3l5 4V5z" />
-                <path d="M16 8a4 4 0 0 1 0 8" />
-                <path d="M18.5 5.5a7 7 0 0 1 0 13" />
-              </svg>
-            </button>
           </div>
-
-          {lastUserClipUrl ? (
-            <div style={{ marginTop: 10 }}>
-              <audio controls src={lastUserClipUrl} style={{ width: "100%" }} />
-            </div>
-          ) : null}
 
           {messages.length > 0 ? (
             <div style={{ marginTop: 10, color: "rgba(255,255,255,0.75)", fontSize: 12, lineHeight: 1.45 }}>
