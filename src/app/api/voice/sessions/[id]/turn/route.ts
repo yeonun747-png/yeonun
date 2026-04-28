@@ -19,35 +19,63 @@ function requiredEnv(name: string): string {
   return v;
 }
 
-async function callAnthropic(params: { system: string; user: string }) {
+async function callAnthropic(params: { system: string; user: string; max_tokens: number }) {
   const apiKey = requiredEnv("ANTHROPIC_API_KEY");
-  const model = String(process.env.VOICE_LLM_MODEL || "claude-3-5-sonnet-20241022").trim();
+  // 기본은 Claude 4.6 Sonnet 최신을 사용.
+  // 배포 환경에서 모델명이 바뀌거나 권한이 없을 때 404가 날 수 있어, 아래에서 fallback 재시도를 한다.
+  // Anthropic 최신 SDK 기준 모델명: "claude-sonnet-4-6" / "claude-opus-4-6"
+  const primaryModel = String(process.env.VOICE_LLM_MODEL || "claude-sonnet-4-6").trim();
+  const fallbackModels = [
+    String(process.env.VOICE_LLM_MODEL_FALLBACK || "").trim(),
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "claude-sonnet-latest",
+    "claude-opus-latest",
+  ].filter(Boolean);
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 800,
-      temperature: 0.5,
-      system: params.system,
-      messages: [{ role: "user", content: params.user }],
-    }),
-  });
+  const tryOnce = async (model: string) => {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: Math.max(64, Math.min(1200, Math.floor(params.max_tokens))),
+        temperature: 0.45,
+        system: params.system,
+        messages: [{ role: "user", content: params.user }],
+      }),
+    });
+    const textBody = await res.text().catch(() => "");
+    if (!res.ok) {
+      // model not found 같은 케이스를 감지하기 위해 원문을 포함해 던진다.
+      throw new Error(`Anthropic error ${res.status}: ${textBody.slice(0, 800)}`);
+    }
+    const j = (JSON.parse(textBody || "{}") as any) ?? {};
+    const parts = Array.isArray(j?.content) ? j.content : [];
+    const text = parts.map((p: any) => (p?.type === "text" ? String(p.text || "") : "")).join("").trim();
+    return { text: text || "", model };
+  };
 
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`Anthropic error ${res.status}: ${t.slice(0, 500)}`);
+  try {
+    return await tryOnce(primaryModel);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // 모델 미존재(404)면 fallback 모델들을 순서대로 재시도한다.
+    if (/Anthropic error 404:/i.test(msg)) {
+      for (const m of fallbackModels) {
+        try {
+          return await tryOnce(m);
+        } catch {
+          // try next
+        }
+      }
+    }
+    throw e;
   }
-
-  const j = (await res.json().catch(() => null)) as any;
-  const parts = Array.isArray(j?.content) ? j.content : [];
-  const text = parts.map((p: any) => (p?.type === "text" ? String(p.text || "") : "")).join("").trim();
-  return { text: text || "", model };
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -111,7 +139,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       trigger === "opening"
         ? "사용자가 방금 입장했습니다. 먼저 인사하고, 본인의 주특기/상담 영역을 살려 만세력(있다면)을 근거로 2~3문장 정도의 첫 설명을 한 뒤, 지금 어떤 마음/상황으로 왔는지 짧은 질문 1개로 이어가세요."
         : userText;
-    const out = await callAnthropic({ system, user: userPrompt });
+    // opening은 짧게 뽑아야 체감 지연이 줄어든다.
+    const maxTokens = trigger === "opening" ? 240 : 800;
+    const out = await callAnthropic({ system, user: userPrompt, max_tokens: maxTokens });
     assistantText = out.text || "";
     modelUsed = out.model;
   } catch (e) {

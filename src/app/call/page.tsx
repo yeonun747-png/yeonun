@@ -38,10 +38,12 @@ export default function CallPage() {
   const [sttLevel, setSttLevel] = useState(0);
   const [ttsLevel, setTtsLevel] = useState(0);
   const [unlocked, setUnlocked] = useState(false);
+  const [micReady, setMicReady] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const ttsSrcRef = useRef<AudioBufferSourceNode | null>(null);
   const recognitionRef = useRef<any>(null);
   const greetedRef = useRef(false);
+  const sentFinalRef = useRef(false);
   const micStreamRef = useRef<MediaStream | null>(null);
   const micAnalyserRef = useRef<AnalyserNode | null>(null);
   const ttsAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -110,8 +112,10 @@ export default function CallPage() {
         analyser.smoothingTimeConstant = 0.7;
         src.connect(analyser);
         micAnalyserRef.current = analyser;
+        setMicReady(true);
       } catch {
         // 권한 거부 등 -> 레벨은 0으로 유지
+        setMicReady(false);
       }
     };
     start();
@@ -125,6 +129,7 @@ export default function CallPage() {
       }
       micStreamRef.current = null;
       micAnalyserRef.current = null;
+      setMicReady(false);
     };
   }, [unlocked]);
 
@@ -149,6 +154,9 @@ export default function CallPage() {
     const tick = () => {
       setSttLevel(sampleLevel(micAnalyserRef.current));
       setTtsLevel(sampleLevel(ttsAnalyserRef.current));
+      // 상태에 따라 active 라인 자동 전환
+      if (ttsLevel > 0.12) setActiveLine("tts");
+      else if (listening || sttLevel > 0.12) setActiveLine("stt");
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -156,7 +164,7 @@ export default function CallPage() {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, [unlocked]);
+  }, [unlocked, listening, sttLevel, ttsLevel]);
 
   // barge-in: 사용자가 말하기 시작(마이크 레벨 상승)하면 진행 중 TTS를 즉시 끊고 STT를 이어간다.
   useEffect(() => {
@@ -254,6 +262,21 @@ export default function CallPage() {
     }
   }
 
+  function speakLocal(text: string) {
+    try {
+      if (typeof window === "undefined") return;
+      if (!("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(String(text || ""));
+      u.lang = "ko-KR";
+      u.rate = 1.05;
+      u.pitch = 1.0;
+      window.speechSynthesis.speak(u);
+    } catch {
+      // ignore
+    }
+  }
+
   async function sendTurn(text: string, opts?: { trigger?: "opening" | "user" }) {
     if (!sessionId) return;
     const userText = String(text || "").trim();
@@ -273,6 +296,12 @@ export default function CallPage() {
       }
       const out = String(data?.text || "").trim();
       if (out) {
+        // 로컬 TTS가 진행 중이면 끊고 캐릭터 TTS로 전환
+        try {
+          window.speechSynthesis?.cancel?.();
+        } catch {
+          // ignore
+        }
         await playTts(out, { onEnd: () => startListening(true) });
       }
     } catch {
@@ -290,25 +319,39 @@ export default function CallPage() {
     const rec = new SR();
     recognitionRef.current = rec;
     rec.lang = "ko-KR";
-    rec.interimResults = false;
-    rec.continuous = false;
+    rec.interimResults = true;
+    rec.continuous = true;
+    rec.maxAlternatives = 1;
     let finalText = "";
+    sentFinalRef.current = false;
     rec.onresult = (event: any) => {
+      let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const t = event.results[i][0]?.transcript || "";
         if (event.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      const display = (finalText + interim).trim();
+      if (display) setLastSttText(display);
+
+      const finalized = finalText.trim();
+      if (!sentFinalRef.current && finalized) {
+        sentFinalRef.current = true;
+        try {
+          rec.stop();
+        } catch {
+          // ignore
+        }
+        sendTurn(finalized, { trigger: "user" });
       }
     };
     rec.onerror = () => {
       setListening(false);
+      if (autoRestart) setTimeout(() => startListening(true), 450);
     };
     rec.onend = () => {
       setListening(false);
-      const t = finalText.trim();
-      if (t) {
-        sendTurn(t, { trigger: "user" });
-        return;
-      }
+      // final은 onresult에서 이미 처리한다.
       if (autoRestart) {
         // 말이 없으면 잠깐 쉬고 다시 듣기 (reunionf82의 silence break 느낌)
         setTimeout(() => startListening(true), 350);
@@ -328,6 +371,10 @@ export default function CallPage() {
     if (!sessionId || !voiceExternalId) return;
     if (greetedRef.current) return;
     greetedRef.current = true;
+    // 오프닝을 기다리기 전에 먼저 듣기를 켜서 사용자가 먼저 말해도 놓치지 않게 한다.
+    startListening(true);
+    // reunionf82처럼 “즉시 한 마디”로 체감 지연을 줄인다.
+    speakLocal(`${meta.name}입니다. 잠시만요.`);
     sendTurn("", { trigger: "opening" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked, sessionId, voiceExternalId]);
@@ -517,7 +564,7 @@ export default function CallPage() {
           <div className="y-call-caption" aria-label="자막">
             <div className="y-call-caption-head">내가 방금 한 말</div>
             <div className="y-call-caption-body">
-              {lastSttText ? lastSttText : listening ? "듣는 중…" : "잠시만요…"}
+              {lastSttText ? lastSttText : listening ? "듣는 중…" : unlocked ? (micReady ? "듣는 중…" : "마이크 연결 중…") : "잠시만요…"}
             </div>
           </div>
         </section>
