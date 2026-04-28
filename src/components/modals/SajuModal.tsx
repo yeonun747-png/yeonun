@@ -173,8 +173,6 @@ export function SajuModal() {
               </div>
             </div>
 
-            <div className="y-saju-hint">출생시간이 정확할수록 만세력 계산이 정확해집니다.</div>
-
             <div style={{ marginTop: 14 }}>
               <button type="button" className="y-my-login-btn" style={{ width: "100%" }} onClick={save}>
                 저장하고 계산하기
