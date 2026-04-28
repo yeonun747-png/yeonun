@@ -22,6 +22,7 @@ type StoredSaju = {
 };
 
 const STORAGE_KEY = "yeonun_saju_v1";
+const SAJU_UPDATED_EVENT = "yeonun:saju-updated";
 
 function pad2(v: string | number) {
   const s = String(v);
@@ -36,15 +37,28 @@ export function MySajuCardClient() {
   const [saved, setSaved] = useState<StoredSaju | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const j = JSON.parse(raw) as StoredSaju;
-      if (!j?.year || !j?.month || !j?.day) return;
-      setSaved(j);
-    } catch {
-      // ignore
-    }
+    const load = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const j = JSON.parse(raw) as StoredSaju;
+        if (!j?.year || !j?.month || !j?.day) return;
+        setSaved(j);
+      } catch {
+        // ignore
+      }
+    };
+    load();
+    const onCustom = () => load();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) load();
+    };
+    window.addEventListener(SAJU_UPDATED_EVENT, onCustom as EventListener);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(SAJU_UPDATED_EVENT, onCustom as EventListener);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const computed = useMemo(() => {

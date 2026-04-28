@@ -48,6 +48,8 @@ export function SajuModal() {
         gender,
       };
       localStorage.setItem(__YEONUN_SAJU_STORAGE_KEY__, JSON.stringify(payload));
+      // 같은 탭에서 /my 카드가 즉시 갱신되도록 커스텀 이벤트를 쏜다.
+      window.dispatchEvent(new Event("yeonun:saju-updated"));
     } catch {
       // ignore
     }
@@ -171,14 +173,7 @@ export function SajuModal() {
               </div>
             </div>
 
-            <div className="y-saju-field">
-              <div className="y-saju-label">출생 지역 (선택)</div>
-              <input className="y-saju-input" placeholder="서울특별시" />
-            </div>
-
-            <div className="y-saju-hint">
-              진태양시 보정이 자동 적용됩니다. 출생 지역의 경도를 반영해 정확한 사주 명식을 계산합니다.
-            </div>
+            <div className="y-saju-hint">출생시간이 정확할수록 만세력 계산이 정확해집니다.</div>
 
             <div style={{ marginTop: 14 }}>
               <button type="button" className="y-my-login-btn" style={{ width: "100%" }} onClick={save}>
