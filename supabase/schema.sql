@@ -255,9 +255,15 @@ create table if not exists public.voice_sessions (
   duration_sec int not null default 0,
   cost_krw int not null default 0,
   summary text null,
+  memory_summary text null,
+  memory_updated_at timestamptz null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- 기존 DB에 테이블만 있고 컬럼이 없을 때
+alter table public.voice_sessions add column if not exists memory_summary text null;
+alter table public.voice_sessions add column if not exists memory_updated_at timestamptz null;
 
 create table if not exists public.voice_turns (
   id uuid primary key default gen_random_uuid(),
