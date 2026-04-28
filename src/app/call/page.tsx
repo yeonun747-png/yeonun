@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { computeManseFromFormInput } from "@/lib/manse-ryeok";
+import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -36,6 +37,7 @@ export default function CallPage() {
   const [lastSttText, setLastSttText] = useState<string>("");
   const [sttLevel, setSttLevel] = useState(0);
   const [ttsLevel, setTtsLevel] = useState(0);
+  const [unlocked, setUnlocked] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const ttsSrcRef = useRef<AudioBufferSourceNode | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -69,8 +71,25 @@ export default function CallPage() {
     return () => {};
   }, []);
 
-  // 마이크 입력 레벨을 항상 측정해 STT 파형을 실제 볼륨로 움직인다.
+  // meet에서 클릭(사용자 제스처)로 권한을 선요청했다면, call 입장 시 추가 터치 없이 시작한다.
   useEffect(() => {
+    try {
+      const v = sessionStorage.getItem(__YEONUN_VOICE_UNLOCK_KEY__);
+      if (v === "1") {
+        setUnlocked(true);
+        sessionStorage.removeItem(__YEONUN_VOICE_UNLOCK_KEY__);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // unlocked가 false인 경우(직접 /call 진입 등) 최소 안내 오버레이는 유지한다.
+  // (reunionf82처럼 완전 무터치 자동은 브라우저/권한 상태에 따라 불가능할 수 있음)
+
+  // 마이크 입력 레벨을 측정해 STT 파형을 실제 볼륨로 움직인다. (언락 이후 시작)
+  useEffect(() => {
+    if (!unlocked) return;
     let cancelled = false;
     const start = async () => {
       try {
@@ -107,7 +126,7 @@ export default function CallPage() {
       micStreamRef.current = null;
       micAnalyserRef.current = null;
     };
-  }, []);
+  }, [unlocked]);
 
   // analyser로부터 RMS 레벨(0~1) 계산
   function sampleLevel(analyser: AnalyserNode | null): number {
@@ -126,6 +145,7 @@ export default function CallPage() {
 
   // STT/TTS 레벨 루프
   useEffect(() => {
+    if (!unlocked) return;
     const tick = () => {
       setSttLevel(sampleLevel(micAnalyserRef.current));
       setTtsLevel(sampleLevel(ttsAnalyserRef.current));
@@ -136,7 +156,22 @@ export default function CallPage() {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, []);
+  }, [unlocked]);
+
+  // barge-in: 사용자가 말하기 시작(마이크 레벨 상승)하면 진행 중 TTS를 즉시 끊고 STT를 이어간다.
+  useEffect(() => {
+    if (!unlocked) return;
+    if (ttsLevel < 0.08) return;
+    if (sttLevel < 0.18) return;
+    try {
+      ttsSrcRef.current?.stop();
+    } catch {
+      // ignore
+    }
+    // 말이 이미 시작된 상황이라 듣기 재시작
+    startListening(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlocked, sttLevel, ttsLevel]);
 
   async function playTts(text: string, opts?: { onEnd?: () => void }) {
     if (!voiceExternalId || ttsBusy) return;
@@ -247,9 +282,9 @@ export default function CallPage() {
 
   function startListening(autoRestart: boolean) {
     if (listening) return;
+    if (!unlocked) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
-      setMessages((prev) => [...prev, { role: "assistant", text: "이 브라우저는 음성 인식을 지원하지 않습니다. (Chrome 권장)" }]);
       return;
     }
     const rec = new SR();
@@ -280,17 +315,22 @@ export default function CallPage() {
       }
     };
     setListening(true);
-    rec.start();
+    try {
+      rec.start();
+    } catch {
+      setListening(false);
+    }
   }
 
   // 입장 시 자동 오프닝 → TTS 종료 후 자동 STT
   useEffect(() => {
+    if (!unlocked) return;
     if (!sessionId || !voiceExternalId) return;
     if (greetedRef.current) return;
     greetedRef.current = true;
     sendTurn("", { trigger: "opening" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, voiceExternalId]);
+  }, [unlocked, sessionId, voiceExternalId]);
 
   const endCall = () => {
     setEnded(true);
@@ -379,6 +419,42 @@ export default function CallPage() {
         </header>
 
         <section className="y-call-stage" aria-label="통화 중">
+          {!unlocked ? (
+            <div
+              role="button"
+              tabIndex={0}
+              onPointerDown={() => setUnlocked(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setUnlocked(true);
+              }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+                textAlign: "center",
+                color: "rgba(255,255,255,0.9)",
+                background: "rgba(0,0,0,0.35)",
+                backdropFilter: "blur(10px)",
+              }}
+              aria-label="터치하면 음성대화 시작"
+            >
+              <div style={{ maxWidth: 420 }}>
+                <div style={{ fontSize: 12, letterSpacing: "0.18em", color: "rgba(245,218,224,0.75)", marginBottom: 10 }}>
+                  VOICE · START
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>화면을 한 번 터치하면 대화가 시작돼요</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.72)", lineHeight: 1.5 }}>
+                  앱 외부에서 바로 들어온 경우(권한 선요청이 없는 경우)에는
+                  <br />
+                  최초 1회 터치가 필요합니다.
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="y-call-avatar-wrap">
             <div className="y-call-aura-1" />
             <div className="y-call-aura-2" />

@@ -5124,6 +5124,12 @@ ul {
   animation: yWaveTiny 1.6s infinite ease-in-out;
 }
 
+/* /call에서는 실제 볼륨 레벨로 막대 높이를 제어하므로 기본 애니메이션을 끈다. */
+.y-call-root .y-wave-line.active .y-wave-bar,
+.y-call-root .y-wave-line:not(.active) .y-wave-bar {
+  animation: none !important;
+}
+
 /* ===== 마이크 민감도 (목업) ===== */
 .y-call-mic {
   margin-bottom: 18px;
@@ -5175,6 +5181,10 @@ ul {
   border-radius: 12px;
   padding: 14px 16px;
   margin: 6px 24px 14px;
+  width: calc(100% - 48px);
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
   font-size: 13px;
   color: rgba(245, 218, 224, 0.92);
   line-height: 1.6;
@@ -5188,6 +5198,8 @@ ul {
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* 항상 2줄 영역을 차지하도록 고정 */
+  height: calc(1.6em * 2);
 }
 .y-call-caption-head {
   font-size: 9.5px;

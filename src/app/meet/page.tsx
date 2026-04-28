@@ -1,5 +1,6 @@
 import { BottomNav } from "@/components/BottomNav";
 import { TopNav } from "@/components/TopNav";
+import { MeetCallButton } from "@/components/meet/MeetCallButton";
 import { getCharacters } from "@/lib/data/characters";
 import Link from "next/link";
 
@@ -62,7 +63,7 @@ export default async function MeetPage() {
                 <p className="y-meet-quote">{c.greeting}</p>
                 <div className="y-meet-tags">#재회 #짝사랑 #이별후 #그사람마음</div>
                 <div className="y-meet-actions">
-                  <Link className="y-meet-call-btn" href={`/call?character_key=${encodeURIComponent(c.key)}`}>
+                  <MeetCallButton className="y-meet-call-btn" characterKey={c.key}>
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -77,7 +78,7 @@ export default async function MeetPage() {
                       <path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3v5z" />
                     </svg>
                     음성상담 · 무료 3분
-                  </Link>
+                  </MeetCallButton>
                   <Link className="y-meet-detail-btn" href={`/characters/${c.key}?sheet=1&from=meet`} scroll={false}>
                     자세히 보기
                   </Link>
