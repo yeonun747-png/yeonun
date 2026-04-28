@@ -62,7 +62,7 @@ export default async function MeetPage() {
                 <p className="y-meet-quote">{c.greeting}</p>
                 <div className="y-meet-tags">#재회 #짝사랑 #이별후 #그사람마음</div>
                 <div className="y-meet-actions">
-                  <Link className="y-meet-call-btn" href="/call">
+                  <Link className="y-meet-call-btn" href={`/call?character_key=${encodeURIComponent(c.key)}`}>
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"

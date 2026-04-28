@@ -1,30 +1,141 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+
+type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
+type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
+
+const CHARACTER_META: Record<CharacterKey, CharacterMeta> = {
+  yeon: { key: "yeon", name: "연화", han: "蓮", spec: "재회 · 연애 · 궁합" },
+  byeol: { key: "byeol", name: "별하", han: "星", spec: "자미두수 · 신년운세" },
+  yeo: { key: "yeo", name: "여연", han: "麗", spec: "정통 사주 · 평생운" },
+  un: { key: "un", name: "운서", han: "雲", spec: "작명 · 택일 · 꿈해몽" },
+};
+
+function asCharacterKey(v: string | null): CharacterKey {
+  const t = String(v ?? "").trim();
+  if (t === "byeol" || t === "yeo" || t === "un") return t;
+  return "yeon";
+}
 
 export default function CallPage() {
+  const sp = useSearchParams();
+  const characterKey = asCharacterKey(sp.get("character_key"));
+  const meta = CHARACTER_META[characterKey];
+
   const [muted, setMuted] = useState(false);
   const bars = useMemo(() => Array.from({ length: 12 }, (_, i) => i), []);
   const [activeLine, setActiveLine] = useState<"tts" | "stt">("tts");
   const [ended, setEnded] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [voiceExternalId, setVoiceExternalId] = useState<string | null>(null);
+  const [lastUserClipUrl, setLastUserClipUrl] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [ttsBusy, setTtsBusy] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaChunksRef = useRef<BlobPart[]>([]);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const ttsSrcRef = useRef<AudioBufferSourceNode | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/voice/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ character_key: "yeon", user_ref: "guest", summary: "연화 음성상담 시작" }),
+      body: JSON.stringify({ character_key: characterKey, user_ref: "guest", summary: `${meta.name} 음성상담 시작` }),
     })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled && data?.session?.id) setSessionId(data.session.id);
+        if (cancelled) return;
+        if (data?.session?.id) setSessionId(data.session.id);
+        const ext = data?.prompt_context?.cartesia_voice?.external_id;
+        if (typeof ext === "string" && ext.trim()) setVoiceExternalId(ext.trim());
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [characterKey, meta.name]);
+
+  useEffect(() => {
+    return () => {
+      if (lastUserClipUrl) URL.revokeObjectURL(lastUserClipUrl);
+    };
+  }, [lastUserClipUrl]);
+
+  async function toggleRecord() {
+    if (recording) {
+      try {
+        mediaRecorderRef.current?.stop();
+      } catch {
+        // ignore
+      }
+      setRecording(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      mediaRecorderRef.current = rec;
+      mediaChunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) mediaChunksRef.current.push(e.data);
+      };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(mediaChunksRef.current, { type: rec.mimeType || "audio/webm" });
+        if (lastUserClipUrl) URL.revokeObjectURL(lastUserClipUrl);
+        setLastUserClipUrl(URL.createObjectURL(blob));
+        mediaChunksRef.current = [];
+      };
+      rec.start();
+      setRecording(true);
+    } catch {
+      // 마이크 권한 거부 등
+    }
+  }
+
+  async function playTts(text: string) {
+    if (!voiceExternalId || ttsBusy) return;
+    setTtsBusy(true);
+    if (typeof window !== "undefined" && !audioCtxRef.current) {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (Ctx) audioCtxRef.current = new Ctx();
+    }
+    try {
+      await audioCtxRef.current?.resume?.();
+    } catch {
+      // ignore
+    }
+
+    try {
+      const res = await fetch("/api/tts/cartesia/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice_external_id: voiceExternalId, transcript: text }),
+      });
+      if (!res.ok) return;
+      const buf = await res.arrayBuffer();
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      const audioBuf = await ctx.decodeAudioData(buf.slice(0));
+      try {
+        ttsSrcRef.current?.stop();
+      } catch {
+        // ignore
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(ctx.destination);
+      ttsSrcRef.current = src;
+      src.start(0);
+    } catch {
+      // ignore
+    } finally {
+      setTtsBusy(false);
+    }
+  }
 
   const endCall = () => {
     setEnded(true);
@@ -46,7 +157,7 @@ export default function CallPage() {
         <main className="y-call-end-screen" aria-label="상담 종료 요약">
           <div className="y-call-end-hero">
             <div className="y-call-end-eyebrow">CALL ENDED · 상담 종료</div>
-            <h2 className="y-call-end-title">연화와 4분 12초</h2>
+            <h2 className="y-call-end-title">{meta.name}와 4분 12초</h2>
             <div className="y-call-end-time">04:12 · 2026.04.26 SUN</div>
           </div>
 
@@ -117,14 +228,14 @@ export default function CallPage() {
             <div className="y-call-aura-1" />
             <div className="y-call-aura-2" />
             <div className="y-call-aura-3" />
-            <div className="y-call-avatar">蓮</div>
+            <div className="y-call-avatar">{meta.han}</div>
           </div>
 
           <div className="y-call-name-block">
-            <div className="y-call-spec">재회 · 연애 · 궁합</div>
-            <div className="y-call-name">연화</div>
+            <div className="y-call-spec">{meta.spec}</div>
+            <div className="y-call-name">{meta.name}</div>
             <div className="y-call-status">
-              연화가 말하고 있어요
+              {meta.name}가 말하고 있어요
               <span className="pulse-dots" aria-hidden="true">
                 <span />
                 <span />
@@ -161,7 +272,7 @@ export default function CallPage() {
           <div className="y-call-caption" aria-label="자막">
             <div className="y-call-caption-head">내가 방금 한 말</div>
             <div className="y-call-caption-body">
-              그 사람이 자꾸 떠올라요. 헤어진 지 두 달 됐는데, 다시 만날 수 있을까 너무 궁금해요.
+              {lastUserClipUrl ? "녹음이 저장되었습니다. 아래에서 재생할 수 있어요." : "마이크 버튼을 눌러 말을 걸어보세요."}
             </div>
           </div>
         </section>
@@ -199,6 +310,11 @@ export default function CallPage() {
                 <path d="M12 19v3" />
               </svg>
             </button>
+            <button className={`y-call-ctrl ${recording ? "muted" : ""}`} type="button" onClick={toggleRecord} aria-label="녹음">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="6" />
+              </svg>
+            </button>
             <button className="y-call-end" type="button" onClick={endCall}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
@@ -207,7 +323,7 @@ export default function CallPage() {
               </svg>
               상담 종료
             </button>
-            <button className="y-call-ctrl" type="button" aria-label="스피커">
+            <button className="y-call-ctrl" type="button" aria-label="테스트 응답" disabled={!voiceExternalId || ttsBusy} onClick={() => playTts("네, 말씀해 주세요.")}>
               <svg viewBox="0 0 24 24">
                 <path d="M11 5L6 9H3v6h3l5 4V5z" />
                 <path d="M16 8a4 4 0 0 1 0 8" />
@@ -215,6 +331,12 @@ export default function CallPage() {
               </svg>
             </button>
           </div>
+
+          {lastUserClipUrl ? (
+            <div style={{ marginTop: 10 }}>
+              <audio controls src={lastUserClipUrl} style={{ width: "100%" }} />
+            </div>
+          ) : null}
 
           <div className="y-call-note">
             음성 응답이 1~2초 지연될 수 있어요 · 다른 작업(화면캡쳐·전화 등)은 하지 마세요
