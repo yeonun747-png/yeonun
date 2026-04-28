@@ -9,10 +9,7 @@ export async function POST(request: Request) {
 
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) {
-    return NextResponse.json(
-      { error: "Missing env: ADMIN_PASSWORD" },
-      { status: 500 },
-    );
+    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   if (password !== expected) {

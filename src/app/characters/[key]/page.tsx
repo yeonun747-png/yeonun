@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { TopNav } from "@/components/TopNav";
-import { getCharactersCached } from "@/lib/data/characters";
+import { getCharacterPersonaCached, getCharactersCached } from "@/lib/data/characters";
 import { getProductsBySlugsCached, getReviewsByProductSlugCached } from "@/lib/data/content";
 
 type Props = {
@@ -139,6 +139,15 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const catalog = await getProductsBySlugsCached(characterCatalogSlugs);
   const reviews = await getReviewsByProductSlugCached(catalog[0]?.slug ?? "reunion-maybe", { limit: 6 });
   const illustColor = illustColorForKey(c.key);
+  const persona = await getCharacterPersonaCached(c.key);
+  const specialties = persona?.specialties?.length
+    ? persona.specialties
+    : [
+        { name: "재회 분석", desc: "이별 후 인연이 다시 닿을 자리" },
+        { name: "짝사랑 풀이", desc: "그 사람의 본심과 행동 가이드" },
+        { name: "사주 궁합", desc: "두 사람의 합·충·형·파·해" },
+        { name: "미래 배우자", desc: "언제, 어떤 결의 사람을 만날지" },
+      ];
 
   const Body = (
     <main style={{ paddingBottom: 180 }}>
@@ -169,12 +178,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
           <h2 className="y-section-title">전문 영역</h2>
         </div>
         <section className="y-chd-skills" aria-label="전문 영역">
-          {[
-            { name: "재회 분석", desc: "이별 후 인연이 다시 닿을 자리" },
-            { name: "짝사랑 풀이", desc: "그 사람의 본심과 행동 가이드" },
-            { name: "사주 궁합", desc: "두 사람의 합·충·형·파·해" },
-            { name: "미래 배우자", desc: "언제, 어떤 결의 사람을 만날지" },
-          ].map((s) => (
+          {specialties.map((s) => (
             <div key={s.name} className="y-chd-skill">
               <div className="y-chd-skill-name">{s.name}</div>
               <div className="y-chd-skill-desc">{s.desc}</div>
@@ -188,19 +192,19 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         <section className="y-chd-persona" aria-label="페르소나">
           <div className="y-chd-persona-row">
             <div className="y-chd-persona-label">성정</div>
-            <div className="y-chd-persona-value">차분하고 다정하지만, 흐릿한 감정은 단호히 짚어드립니다.</div>
+            <div className="y-chd-persona-value">{persona?.temperament ?? "차분하고 다정하지만, 흐릿한 감정은 단호히 짚어드립니다."}</div>
           </div>
           <div className="y-chd-persona-row">
             <div className="y-chd-persona-label">말투</div>
-            <div className="y-chd-persona-value">존댓말 · 조곤조곤 · 가끔 시적인 비유</div>
+            <div className="y-chd-persona-value">{persona?.speech_style ?? "존댓말 · 조곤조곤 · 가끔 시적인 비유"}</div>
           </div>
           <div className="y-chd-persona-row">
             <div className="y-chd-persona-label">강점</div>
-            <div className="y-chd-persona-value">감정의 결을 읽는 깊이. 행동 가이드의 구체성.</div>
+            <div className="y-chd-persona-value">{persona?.strengths ?? "감정의 결을 읽는 깊이. 행동 가이드의 구체성."}</div>
           </div>
           <div className="y-chd-persona-row">
             <div className="y-chd-persona-label">대표 키워드</div>
-            <div className="y-chd-persona-value">#재회 #짝사랑 #이별후 #그사람마음 #속궁합</div>
+            <div className="y-chd-persona-value">{persona?.keywords?.join(" ") || "#재회 #짝사랑 #이별후 #그사람마음 #속궁합"}</div>
           </div>
         </section>
 

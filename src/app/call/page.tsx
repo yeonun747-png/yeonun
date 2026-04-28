@@ -1,12 +1,44 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export default function CallPage() {
   const [muted, setMuted] = useState(false);
   const bars = useMemo(() => Array.from({ length: 12 }, (_, i) => i), []);
   const [activeLine, setActiveLine] = useState<"tts" | "stt">("tts");
   const [ended, setEnded] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/voice/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ character_key: "yeon", user_ref: "guest", summary: "연화 음성상담 시작" }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.session?.id) setSessionId(data.session.id);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const endCall = () => {
+    setEnded(true);
+    if (!sessionId) return;
+    fetch(`/api/voice/sessions/${sessionId}/end`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        duration_sec: 252,
+        cost_krw: 0,
+        summary: "그 사람은 헤어진 후에도 마음을 닫지 못한 상태입니다.",
+      }),
+    }).catch(() => {});
+  };
 
   if (ended) {
     return (
@@ -167,7 +199,7 @@ export default function CallPage() {
                 <path d="M12 19v3" />
               </svg>
             </button>
-            <button className="y-call-end" type="button" onClick={() => setEnded(true)}>
+            <button className="y-call-end" type="button" onClick={endCall}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
                 <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3v5z" />

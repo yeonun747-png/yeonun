@@ -1,5 +1,6 @@
 import { BottomNav } from "@/components/BottomNav";
 import { TopNav } from "@/components/TopNav";
+import { MySajuCardClient } from "@/components/my/MySajuCardClient";
 import Link from "next/link";
 
 export default function MyPage() {
@@ -31,70 +32,7 @@ export default function MyPage() {
           </div>
         </div>
 
-        <div className="y-my-saju-card">
-          <div className="y-my-saju-head">
-            <div className="y-my-saju-title-block">
-              <div className="y-my-saju-icon">命</div>
-              <div>
-                <div className="y-my-saju-title">내 사주 명식</div>
-                <div className="y-my-saju-sub">1992. 7. 14. 03:25 · 남</div>
-              </div>
-            </div>
-          <Link className="y-my-saju-edit" href="/my?modal=saju">
-            수정 ›
-          </Link>
-          </div>
-
-          <div className="y-my-pillars">
-            <div className="y-my-pillar">
-              <div className="y-my-p-label">시</div>
-              <div className="y-my-p-cheon water">壬</div>
-              <div className="y-my-p-ji">寅</div>
-            </div>
-            <div className="y-my-pillar">
-              <div className="y-my-p-label">일</div>
-              <div className="y-my-p-cheon fire">丁</div>
-              <div className="y-my-p-ji">巳</div>
-            </div>
-            <div className="y-my-pillar">
-              <div className="y-my-p-label">월</div>
-              <div className="y-my-p-cheon fire">丁</div>
-              <div className="y-my-p-ji">未</div>
-            </div>
-            <div className="y-my-pillar">
-              <div className="y-my-p-label">년</div>
-              <div className="y-my-p-cheon water">壬</div>
-              <div className="y-my-p-ji">申</div>
-            </div>
-          </div>
-
-          <div className="y-my-saju-summary">
-            <div className="y-my-summary-item">
-              <div className="y-my-summary-label">일주</div>
-              <div className="y-my-summary-value">
-                <strong>정사 (丁巳)</strong>
-              </div>
-            </div>
-            <div className="y-my-summary-item">
-              <div className="y-my-summary-label">용신</div>
-              <div className="y-my-summary-value">
-                <strong>壬水</strong> · 정관
-              </div>
-            </div>
-            <div className="y-my-summary-item">
-              <div className="y-my-summary-label">현재 대운</div>
-              <div className="y-my-summary-value">癸卯 · 33→43세</div>
-            </div>
-            <div className="y-my-summary-item">
-              <div className="y-my-summary-label">신살</div>
-              <div className="y-my-summary-value">천을귀인 · 공망</div>
-            </div>
-          </div>
-
-        <Link className="y-my-saju-cta" href="/content?category=saju">
-          전체 만세력 분석 보기 →
-        </Link>
-        </div>
+        <MySajuCardClient />
 
         <div className="y-vip-card" aria-label="크레딧">
           <div className="y-vip-eyebrow">CREDIT · 음성 잔액</div>
