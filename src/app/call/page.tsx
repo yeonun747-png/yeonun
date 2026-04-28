@@ -32,12 +32,18 @@ export default function CallPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [voiceExternalId, setVoiceExternalId] = useState<string | null>(null);
   const [ttsBusy, setTtsBusy] = useState(false);
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const [listening, setListening] = useState(false);
+  const [lastSttText, setLastSttText] = useState<string>("");
+  const [sttLevel, setSttLevel] = useState(0);
+  const [ttsLevel, setTtsLevel] = useState(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const ttsSrcRef = useRef<AudioBufferSourceNode | null>(null);
   const recognitionRef = useRef<any>(null);
   const greetedRef = useRef(false);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  const ttsAnalyserRef = useRef<AnalyserNode | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +67,75 @@ export default function CallPage() {
 
   useEffect(() => {
     return () => {};
+  }, []);
+
+  // 마이크 입력 레벨을 항상 측정해 STT 파형을 실제 볼륨로 움직인다.
+  useEffect(() => {
+    let cancelled = false;
+    const start = async () => {
+      try {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) return;
+        if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
+        const ctx = audioCtxRef.current;
+        await ctx.resume?.();
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        micStreamRef.current = stream;
+        const src = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.7;
+        src.connect(analyser);
+        micAnalyserRef.current = analyser;
+      } catch {
+        // 권한 거부 등 -> 레벨은 0으로 유지
+      }
+    };
+    start();
+    return () => {
+      cancelled = true;
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      try {
+        micStreamRef.current?.getTracks?.().forEach((t) => t.stop());
+      } catch {
+        // ignore
+      }
+      micStreamRef.current = null;
+      micAnalyserRef.current = null;
+    };
+  }, []);
+
+  // analyser로부터 RMS 레벨(0~1) 계산
+  function sampleLevel(analyser: AnalyserNode | null): number {
+    if (!analyser) return 0;
+    const buf = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) {
+      const v = (buf[i] - 128) / 128;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / buf.length);
+    // 체감이 잘 되도록 약간 부스트/클램프
+    return Math.max(0, Math.min(1, rms * 2.2));
+  }
+
+  // STT/TTS 레벨 루프
+  useEffect(() => {
+    const tick = () => {
+      setSttLevel(sampleLevel(micAnalyserRef.current));
+      setTtsLevel(sampleLevel(ttsAnalyserRef.current));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
   }, []);
 
   async function playTts(text: string, opts?: { onEnd?: () => void }) {
@@ -92,11 +167,19 @@ export default function CallPage() {
       } catch {
         // ignore
       }
+      // TTS 레벨 측정 analyser 준비
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.7;
+      ttsAnalyserRef.current = analyser;
       const src = ctx.createBufferSource();
       src.buffer = audioBuf;
-      src.connect(ctx.destination);
+      src.connect(analyser);
+      analyser.connect(ctx.destination);
       ttsSrcRef.current = src;
       src.onended = () => {
+        // 끝나면 레벨을 자연스럽게 0으로
+        setTtsLevel(0);
         opts?.onEnd?.();
       };
       src.start(0);
@@ -141,7 +224,7 @@ export default function CallPage() {
     const userText = String(text || "").trim();
     const trigger = opts?.trigger === "opening" ? "opening" : "user";
     if (trigger !== "opening" && !userText) return;
-    if (trigger !== "opening") setMessages((prev) => [...prev, { role: "user", text: userText }]);
+    if (trigger !== "opening") setLastSttText(userText);
     try {
       const res = await fetch(`/api/voice/sessions/${sessionId}/turn`, {
         method: "POST",
@@ -150,16 +233,15 @@ export default function CallPage() {
       });
       const data = (await res.json().catch(() => ({}))) as any;
       if (!res.ok) {
-        setMessages((prev) => [...prev, { role: "assistant", text: data?.error || res.statusText }]);
+        // 사용자에게는 LLM 텍스트를 노출하지 않는다. (필요 시 콘솔로만)
         return;
       }
       const out = String(data?.text || "").trim();
       if (out) {
-        setMessages((prev) => [...prev, { role: "assistant", text: out }]);
         await playTts(out, { onEnd: () => startListening(true) });
       }
     } catch {
-      setMessages((prev) => [...prev, { role: "assistant", text: "네트워크 오류가 발생했어요." }]);
+      // ignore
     }
   }
 
@@ -321,11 +403,18 @@ export default function CallPage() {
             <div className={`y-wave-line tts ${activeLine === "tts" ? "active" : ""}`} onClick={() => setActiveLine("tts")}>
               <div className="y-wave-tag">
                 <span className="y-wave-dot tts" />
-                <span className="y-wave-name">연화</span>
+                <span className="y-wave-name">{meta.name}</span>
               </div>
               <div className="y-wave-bars">
                 {bars.map((i) => (
-                  <div key={`t${i}`} className="y-wave-bar tts" style={{ animationDelay: `${(i % 6) * 0.08}s` }} />
+                  <div
+                    key={`t${i}`}
+                    className="y-wave-bar tts"
+                    style={{
+                      height: `${8 + Math.round(ttsLevel * 30 * (0.5 + ((i % 6) / 6))) }px`,
+                      transition: "height 80ms linear",
+                    }}
+                  />
                 ))}
               </div>
             </div>
@@ -336,7 +425,14 @@ export default function CallPage() {
               </div>
               <div className="y-wave-bars">
                 {bars.map((i) => (
-                  <div key={`s${i}`} className="y-wave-bar stt" style={{ animationDelay: `${(i % 6) * 0.08}s` }} />
+                  <div
+                    key={`s${i}`}
+                    className="y-wave-bar stt"
+                    style={{
+                      height: `${8 + Math.round(sttLevel * 30 * (0.5 + ((i % 6) / 6))) }px`,
+                      transition: "height 80ms linear",
+                    }}
+                  />
                 ))}
               </div>
             </div>
@@ -345,7 +441,7 @@ export default function CallPage() {
           <div className="y-call-caption" aria-label="자막">
             <div className="y-call-caption-head">내가 방금 한 말</div>
             <div className="y-call-caption-body">
-              {messages.length > 0 ? messages[messages.length - 1]?.text : "잠시만요…"}
+              {lastSttText ? lastSttText : listening ? "듣는 중…" : "잠시만요…"}
             </div>
           </div>
         </section>
@@ -392,16 +488,6 @@ export default function CallPage() {
               상담 종료
             </button>
           </div>
-
-          {messages.length > 0 ? (
-            <div style={{ marginTop: 10, color: "rgba(255,255,255,0.75)", fontSize: 12, lineHeight: 1.45 }}>
-              {messages.slice(-4).map((m, idx) => (
-                <div key={idx} style={{ marginTop: 6 }}>
-                  <strong style={{ color: "white" }}>{m.role === "user" ? "나" : meta.name}</strong> · {m.text}
-                </div>
-              ))}
-            </div>
-          ) : null}
 
           <div className="y-call-note">
             음성 응답이 1~2초 지연될 수 있어요 · 다른 작업(화면캡쳐·전화 등)은 하지 마세요
