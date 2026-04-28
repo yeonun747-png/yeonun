@@ -177,13 +177,30 @@ export default function CallPage() {
       // ignore
     }
     // 말이 이미 시작된 상황이라 듣기 재시작
+    try {
+      recognitionRef.current?.stop?.();
+    } catch {
+      // ignore
+    }
+    setListening(false);
     startListening(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked, sttLevel, ttsLevel]);
 
+  function stopListening() {
+    try {
+      recognitionRef.current?.stop?.();
+    } catch {
+      // ignore
+    }
+    setListening(false);
+  }
+
   async function playTts(text: string, opts?: { onEnd?: () => void }) {
     if (!voiceExternalId || ttsBusy) return;
     setTtsBusy(true);
+    // 캐릭터 TTS를 내보내는 동안 STT가 캐릭터 음성을 듣지 않게 한다.
+    stopListening();
     if (typeof window !== "undefined" && !audioCtxRef.current) {
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       if (Ctx) audioCtxRef.current = new Ctx();
@@ -262,19 +279,15 @@ export default function CallPage() {
     }
   }
 
-  function speakLocal(text: string) {
-    try {
-      if (typeof window === "undefined") return;
-      if (!("speechSynthesis" in window)) return;
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(String(text || ""));
-      u.lang = "ko-KR";
-      u.rate = 1.05;
-      u.pitch = 1.0;
-      window.speechSynthesis.speak(u);
-    } catch {
-      // ignore
-    }
+  function buildOpeningText(): string {
+    const manse = buildManseContext().trim();
+    const base = `어서 오세요. 저는 ${meta.name}입니다. ${meta.spec} 중심으로 지금 흐름을 빠르게 짚어드릴게요.`;
+    const manseLine = manse
+      ? `명식 기준으로 보면 ${manse.split("\n").slice(0, 2).join(" / ")} 쪽이 먼저 눈에 들어옵니다.`
+      : `사주를 아직 입력하지 않으셨다면 마이에서 입력해주시면 더 정확해요.`;
+    const q = `지금 어떤 마음으로 오셨나요?`;
+    // 첫 음성은 최대한 빨라야 하므로 3~4문장으로 제한
+    return `${base} ${manseLine} ${q}`;
   }
 
   async function sendTurn(text: string, opts?: { trigger?: "opening" | "user" }) {
@@ -296,12 +309,6 @@ export default function CallPage() {
       }
       const out = String(data?.text || "").trim();
       if (out) {
-        // 로컬 TTS가 진행 중이면 끊고 캐릭터 TTS로 전환
-        try {
-          window.speechSynthesis?.cancel?.();
-        } catch {
-          // ignore
-        }
         await playTts(out, { onEnd: () => startListening(true) });
       }
     } catch {
@@ -371,10 +378,9 @@ export default function CallPage() {
     if (!sessionId || !voiceExternalId) return;
     if (greetedRef.current) return;
     greetedRef.current = true;
-    // 오프닝을 기다리기 전에 먼저 듣기를 켜서 사용자가 먼저 말해도 놓치지 않게 한다.
-    startListening(true);
-    // reunionf82처럼 “즉시 한 마디”로 체감 지연을 줄인다.
-    speakLocal(`${meta.name}입니다. 잠시만요.`);
+    // 1) 첫 음성은 LLM을 기다리지 않고 템플릿 → Cartesia로 즉시 출력
+    playTts(buildOpeningText(), { onEnd: () => startListening(true) });
+    // 2) 서버에도 opening 이벤트를 기록(텍스트 UI 노출 없음)
     sendTurn("", { trigger: "opening" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked, sessionId, voiceExternalId]);
