@@ -71,6 +71,20 @@ async function getVitoAccessToken(clientId: string, clientSecret: string): Promi
   return j.access_token;
 }
 
+/** 턴마다 authenticate 호출 제거 — 만료 전 재사용으로 STT까지 왕복 단축 */
+let vitoTokenCache: { key: string; token: string; expiresAt: number } | null = null;
+
+async function getVitoAccessTokenCached(clientId: string, clientSecret: string): Promise<string> {
+  const key = `${clientId}\0${clientSecret}`;
+  const now = Date.now();
+  if (vitoTokenCache?.key === key && vitoTokenCache.expiresAt > now + 30_000) {
+    return vitoTokenCache.token;
+  }
+  const token = await getVitoAccessToken(clientId, clientSecret);
+  vitoTokenCache = { key, token, expiresAt: now + 50 * 60 * 1000 };
+  return token;
+}
+
 function transcribeWithVito(pcmBuffer: Buffer, token: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const params = new URLSearchParams({
@@ -425,13 +439,56 @@ async function streamClaudeToCartesiaAndClient(args: {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Cartesia가 늦게 열리면 "무음"이 되므로, open을 확실히 기다린다.
-      // (Claude 스트림은 이미 시작되어도, Cartesia로 보낼 텍스트는 큐에 쌓이므로 유실되지 않는다.)
+      // Cartesia WS 핸드셰이크와 Claude 첫 토큰이 동시에 진행되도록 함(open 전 텍스트는 preOpenQueue에 적재).
+      const pumpClaude = async () => {
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const data = line.slice(6).trim();
+              if (!data || data === "[DONE]") continue;
+              try {
+                const evt = JSON.parse(data) as { type?: string; delta?: { type?: string; text?: string } };
+                if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta" && evt.delta.text) {
+                  const t = evt.delta.text;
+                  assistantText += t;
+                  pendingText += t;
+                  for (;;) {
+                    const { chunk, rest } = extractChunk(pendingText);
+                    if (!chunk) break;
+                    pendingText = rest;
+                    const trimmed = chunk.trim();
+                    if (!trimmed) continue;
+                    const toSend = sentAny ? ` ${trimmed}` : trimmed;
+                    sentAny = true;
+                    sendCartesia(toSend, false);
+                  }
+                }
+              } catch {
+                // ignore
+              }
+            }
+          }
+        } catch {
+          // ignore (client abort 등)
+        }
+      };
+
       try {
         debug("cartesia_wait_open", "start");
-        await waitCartesiaOpen();
+        await Promise.all([waitCartesiaOpen(), pumpClaude()]);
         debug("cartesia_wait_open", "ok");
       } catch (e) {
+        try {
+          await reader.cancel();
+        } catch {
+          // ignore
+        }
         const msg = e instanceof Error ? e.message : String(e);
         write({ type: "error", message: `Cartesia 연결 실패: ${msg}` });
         write({ type: "done" });
@@ -440,41 +497,6 @@ async function streamClaudeToCartesiaAndClient(args: {
       }
 
       try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (!data || data === "[DONE]") continue;
-            try {
-              const evt = JSON.parse(data) as { type?: string; delta?: { type?: string; text?: string } };
-              if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta" && evt.delta.text) {
-                const t = evt.delta.text;
-                assistantText += t;
-                pendingText += t;
-                for (;;) {
-                  const { chunk, rest } = extractChunk(pendingText);
-                  if (!chunk) break;
-                  pendingText = rest;
-                  const trimmed = chunk.trim();
-                  if (!trimmed) continue;
-                  const toSend = sentAny ? ` ${trimmed}` : trimmed;
-                  sentAny = true;
-                  sendCartesia(toSend, false);
-                }
-              }
-            } catch {
-              // ignore
-            }
-          }
-        }
-      } catch {
-        // ignore (client abort etc.)
-      } finally {
         const finalText = pendingText.trim();
         if (cartesiaOpen && !sentFinal) {
           /**
@@ -490,8 +512,6 @@ async function streamClaudeToCartesiaAndClient(args: {
           sendCartesia("", true);
           sentFinal = true;
         }
-        // final transcript 전송 직후 닫으면 Cartesia 오디오가 도착하기 전에 끊긴다.
-        // Cartesia done/close를 기다리되, 무한 대기를 막기 위해 짧은 타임아웃을 둔다.
         if (cartesiaOpen) {
           const baseTailMs = audioChunkCount > 0 ? 14_000 : 18_000;
           const tailMs = Math.min(
@@ -507,6 +527,7 @@ async function streamClaudeToCartesiaAndClient(args: {
         assistantText = assistantText.trim();
         write({ type: "assistantText", text: assistantText });
         write({ type: "done" });
+      } finally {
         try {
           cartesiaWs.close();
         } catch {
@@ -593,7 +614,7 @@ export async function POST(request: Request) {
       userTranscript = "";
     } else {
       try {
-        const token = await getVitoAccessToken(vitoClientId, vitoClientSecret);
+        const token = await getVitoAccessTokenCached(vitoClientId, vitoClientSecret);
         userTranscript = await transcribeWithVito(pcm, token);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -604,24 +625,26 @@ export async function POST(request: Request) {
     userTranscript = "";
   }
 
-  if (supabase && sessionId && userTranscript) {
-    await supabase.from("voice_turns").insert({
-      session_id: sessionId,
-      role: "user",
-      text: userTranscript,
-    });
-  }
-
   let recentTranscript = "";
   let recentTurnsRaw: any[] = [];
   if (supabase && sessionId) {
-    const { data } = await supabase
+    /** 이번 사용자 발화는 `[이번 입력]`으로 따로 넣으므로, 최근 대화 조회와 사용자 행 삽입은 독립 → 병렬로 STT 이후 지연 감소 */
+    const insertUser =
+      userTranscript.trim().length > 0
+        ? supabase.from("voice_turns").insert({
+            session_id: sessionId,
+            role: "user",
+            text: userTranscript,
+          })
+        : Promise.resolve({ error: null as unknown });
+    const selectRecent = supabase
       .from("voice_turns")
       .select("role,text,created_at")
       .eq("session_id", sessionId)
       .order("created_at", { ascending: false })
       .limit(10);
-    recentTurnsRaw = Array.isArray(data) ? (data as any[]) : [];
+    const [, recentRes] = await Promise.all([insertUser, selectRecent]);
+    recentTurnsRaw = Array.isArray(recentRes.data) ? (recentRes.data as any[]) : [];
     recentTranscript = buildRecentTranscript(recentTurnsRaw.reverse());
   }
 
