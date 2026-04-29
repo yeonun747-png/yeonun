@@ -1,12 +1,49 @@
 import { NextResponse } from "next/server";
 
-import { getCharacterModePrompt } from "@/lib/data/characters";
+import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALLOWED = new Set(["yeon", "byeol", "yeo", "un"]);
 const MAX_LEN = 600;
+
+/** 보이스 UUID는 자주 바뀌지 않음 — 반복 클릭 시 Supabase 왕복 제거 */
+const voiceIdMemo = new Map<string, { id: string; at: number }>();
+const VOICE_MEMO_MS = 10 * 60 * 1000;
+
+function pickVoiceExternalFromRow(data: unknown): string {
+  const row = data as { tts_voices?: { external_id?: string } | { external_id?: string }[] | null } | null;
+  const v = row?.tts_voices;
+  if (!v) return "";
+  const id = Array.isArray(v) ? v[0]?.external_id : v.external_id;
+  return String(id ?? "").trim();
+}
+
+async function resolveVoiceExternalId(character_key: string): Promise<string | null> {
+  const now = Date.now();
+  const hit = voiceIdMemo.get(character_key);
+  if (hit && now - hit.at < VOICE_MEMO_MS) return hit.id;
+
+  const envDefault = String(process.env.CARTESIA_DEFAULT_VOICE_EXTERNAL_ID ?? "").trim();
+  const supabase = supabaseServer();
+  const { data, error } = await supabase
+    .from("character_mode_prompts")
+    .select("tts_voices(external_id)")
+    .eq("character_key", character_key)
+    .eq("mode", "voice")
+    .maybeSingle();
+
+  if (error) {
+    if (envDefault) voiceIdMemo.set(character_key, { id: envDefault, at: now });
+    return envDefault || null;
+  }
+
+  const ext = pickVoiceExternalFromRow(data);
+  const voice_external_id = ext || envDefault;
+  if (voice_external_id) voiceIdMemo.set(character_key, { id: voice_external_id, at: now });
+  return voice_external_id || null;
+}
 
 export async function POST(request: Request) {
   const apiKey = String(process.env.CARTESIA_API_KEY ?? "").trim();
@@ -26,10 +63,7 @@ export async function POST(request: Request) {
   }
   const transcript = (transcriptRaw || "안녕하세요.").slice(0, MAX_LEN);
 
-  const prompt = await getCharacterModePrompt(character_key, "voice");
-  const voice_external_id =
-    String(prompt?.tts_voice?.external_id ?? "").trim() ||
-    String(process.env.CARTESIA_DEFAULT_VOICE_EXTERNAL_ID ?? "").trim();
+  const voice_external_id = await resolveVoiceExternalId(character_key);
 
   if (!voice_external_id) {
     return NextResponse.json(
@@ -58,7 +92,8 @@ export async function POST(request: Request) {
       output_format: {
         container: "wav",
         encoding: "pcm_s16le",
-        sample_rate: 44100,
+        /** 전송·디코딩 부담 감소로 체감 지연 완화 (짧은 한 마디용) */
+        sample_rate: 24000,
       },
     }),
   });

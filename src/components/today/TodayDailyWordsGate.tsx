@@ -11,7 +11,13 @@ import {
   YEONUN_AUTH_STUB_KEY,
 } from "@/lib/auth-stub";
 import { getKstParts } from "@/lib/datetime/kst";
-import { playCartesiaCharacterLine, stopCartesiaWebPlayback } from "@/lib/tts/cartesiaWebPlayer";
+import {
+  playCartesiaCharacterLine,
+  prefetchCartesiaCharacterLines,
+  stopCartesiaWebPlayback,
+  touchCartesiaCharacterLineCache,
+  warmCartesiaAudioContext,
+} from "@/lib/tts/cartesiaWebPlayer";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 const SAJU_UPDATED = "yeonun:saju-updated";
@@ -98,6 +104,8 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
   const [lineByKey, setLineByKey] = useState<Partial<Record<CharKey, string>>>({});
   const [sajuNonce, setSajuNonce] = useState(0);
   const playSeqRef = useRef(0);
+  /** pointerdown + click 이중 호출 방지 */
+  const ttsLastStartRef = useRef<{ key: CharKey; at: number } | null>(null);
 
   const syncSaju = () => {
     setHasSaju(readHasValidSaju());
@@ -156,6 +164,24 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
   }, []);
 
   const unlocked = authed === true && hasSaju;
+
+  useEffect(() => {
+    if (!unlocked) return;
+    warmCartesiaAudioContext();
+  }, [unlocked]);
+
+  const dailyLinesReady =
+    !!lineByKey.yeon && !!lineByKey.byeol && !!lineByKey.yeo && !!lineByKey.un;
+
+  useEffect(() => {
+    if (!unlocked || !dailyLinesReady) return;
+    prefetchCartesiaCharacterLines(
+      (["yeon", "byeol", "yeo", "un"] as const).map((k) => ({
+        characterKey: k,
+        transcript: lineByKey[k]!,
+      })),
+    );
+  }, [unlocked, dailyLinesReady, lineByKey.yeon, lineByKey.byeol, lineByKey.yeo, lineByKey.un]);
 
   useEffect(() => {
     if (!unlocked) {
@@ -225,6 +251,11 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
   }, [unlocked, sajuNonce]);
 
   const onListenTts = useCallback(async (key: CharKey, text: string) => {
+    const now = Date.now();
+    const prev = ttsLastStartRef.current;
+    if (prev && prev.key === key && now - prev.at < 280) return;
+    ttsLastStartRef.current = { key, at: now };
+
     const id = ++playSeqRef.current;
     stopCartesiaWebPlayback();
     setTtsPlayingKey(key);
@@ -254,6 +285,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
         <div className="y-daily-words-grid">
           {WORDS.map((w) => {
             const text = lineByKey[w.key] ?? w.text;
+            const canWarmTts = dailyLinesReady;
             return (
               <div key={w.key} className="y-daily-word-card">
                 <div className="y-dw-head">
@@ -266,6 +298,19 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
                   className="y-dw-listen"
                   aria-label={`${w.name.replace("에게서", "")}의 한 마디 목소리로 듣기`}
                   aria-busy={ttsPlayingKey === w.key}
+                  onPointerEnter={() => {
+                    if (!canWarmTts) return;
+                    touchCartesiaCharacterLineCache(w.key, text);
+                  }}
+                  onPointerDown={(e) => {
+                    if (e.button !== 0) return;
+                    void onListenTts(w.key, text);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    e.preventDefault();
+                    void onListenTts(w.key, text);
+                  }}
                   onClick={() => void onListenTts(w.key, text)}
                 >
                   목소리로 듣기
