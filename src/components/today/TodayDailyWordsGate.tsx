@@ -10,10 +10,12 @@ import {
   YEONUN_AUTH_STUB_EVENT,
   YEONUN_AUTH_STUB_KEY,
 } from "@/lib/auth-stub";
+import { getKstParts } from "@/lib/datetime/kst";
 import { playCartesiaCharacterLine, stopCartesiaWebPlayback } from "@/lib/tts/cartesiaWebPlayer";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 const SAJU_UPDATED = "yeonun:saju-updated";
+const DAILY_WORDS_CACHE_PREFIX = "yeonun:today-daily-words:v1:";
 
 function readHasValidSaju(): boolean {
   if (typeof window === "undefined") return false;
@@ -27,27 +29,83 @@ function readHasValidSaju(): boolean {
   }
 }
 
+function pad2(n: number) {
+  return String(Math.trunc(n)).padStart(2, "0");
+}
+
+type SajuApiBody = {
+  name: string;
+  calendarType: string;
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+  gender: string;
+};
+
+function parseStoredSaju(raw: string | null): SajuApiBody | null {
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw) as Record<string, unknown>;
+    const year = String(j.year ?? "").trim();
+    const month = String(j.month ?? "").trim();
+    const day = String(j.day ?? "").trim();
+    if (!year || !month || !day) return null;
+    const y = parseInt(year, 10);
+    const mo = parseInt(month, 10);
+    const d = parseInt(day, 10);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+    if (y < 1900 || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    const ct = String(j.calendarType ?? "solar");
+    const calendarType = ct === "lunar" || ct === "lunar-leap" ? ct : "solar";
+    const hour = j.hour != null ? String(j.hour).trim() : "";
+    const minute = String(j.minute ?? "0").trim() || "0";
+    const gender = j.gender === "male" || j.gender === "female" ? j.gender : "female";
+    return {
+      name: String(j.name ?? "").trim(),
+      calendarType,
+      year,
+      month,
+      day,
+      hour,
+      minute,
+      gender,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function stableSajuKey(b: SajuApiBody): string {
+  return [b.calendarType, b.year, b.month, b.day, b.hour, b.minute, b.gender].join("|");
+}
+
 const WORDS = [
-  { key: "yeon", han: "蓮", name: "연화에게서", text: "그 사람도 오늘 같은 마음이에요. 먼저 다가갈 필요는 없지만, 닫지도 말아요." },
-  { key: "byeol", han: "星", name: "별하에게서", text: "오늘 별의 자리가 흔들려요. 큰 결정은 내일로 미뤄도 늦지 않아요." },
-  { key: "yeo", han: "麗", name: "여연에게서", text: "오늘은 듣는 날입니다. 답은 그다음에 옵니다." },
-  { key: "un", han: "雲", name: "운서에게서", text: "오늘 본 꿈, 잊지 마세요. 한 글자씩 적어두면 사주의 흐름이 보여요." },
-] as const;
+  { key: "yeon" as const, han: "蓮", name: "연화에게서", text: "그 사람도 오늘 같은 마음이에요. 먼저 다가갈 필요는 없지만, 닫지도 말아요." },
+  { key: "byeol" as const, han: "星", name: "별하에게서", text: "오늘 별의 자리가 흔들려요. 큰 결정은 내일로 미뤄도 늦지 않아요." },
+  { key: "yeo" as const, han: "麗", name: "여연에게서", text: "오늘은 듣는 날입니다. 답은 그다음에 옵니다." },
+  { key: "un" as const, han: "雲", name: "운서에게서", text: "오늘 본 꿈, 잊지 마세요. 한 글자씩 적어두면 사주의 흐름이 보여요." },
+];
 
 type CharKey = (typeof WORDS)[number]["key"];
 
 /** 옵션 B: 로그인 + 사주 입력까지 완료해야 해금 */
 export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
   const [hasSaju, setHasSaju] = useState(false);
-  /** null = 세션 확인 중 */
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [ttsPlayingKey, setTtsPlayingKey] = useState<CharKey | null>(null);
+  const [lineByKey, setLineByKey] = useState<Partial<Record<CharKey, string>>>({});
+  const [sajuNonce, setSajuNonce] = useState(0);
   const playSeqRef = useRef(0);
 
-  const syncSaju = () => setHasSaju(readHasValidSaju());
+  const syncSaju = () => {
+    setHasSaju(readHasValidSaju());
+    setSajuNonce((n) => n + 1);
+  };
 
   useLayoutEffect(() => {
-    syncSaju();
+    setHasSaju(readHasValidSaju());
   }, []);
 
   useEffect(() => {
@@ -76,11 +134,14 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
     const onStub = () => refreshLoggedIn();
     window.addEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
 
-    const onSaju = () => syncSaju();
+    const onSaju = () => {
+      setHasSaju(readHasValidSaju());
+      setSajuNonce((n) => n + 1);
+    };
     window.addEventListener(SAJU_UPDATED, onSaju);
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key === __YEONUN_SAJU_STORAGE_KEY__) syncSaju();
+      if (e.key === __YEONUN_SAJU_STORAGE_KEY__) onSaju();
       if (e.key === YEONUN_AUTH_STUB_KEY) refreshLoggedIn();
     };
     window.addEventListener("storage", onStorage);
@@ -94,6 +155,75 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
     };
   }, []);
 
+  const unlocked = authed === true && hasSaju;
+
+  useEffect(() => {
+    if (!unlocked) {
+      setLineByKey({});
+      return;
+    }
+
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem(__YEONUN_SAJU_STORAGE_KEY__) : null;
+    const body = parseStoredSaju(raw);
+    if (!body) {
+      setLineByKey({});
+      return;
+    }
+
+    const kst = getKstParts(new Date());
+    const kstKey = `${kst.year}-${pad2(kst.month)}-${pad2(kst.day)}`;
+    const cacheKey = `${DAILY_WORDS_CACHE_PREFIX}${kstKey}:${stableSajuKey(body)}`;
+
+    try {
+      const hit = window.sessionStorage.getItem(cacheKey);
+      if (hit) {
+        const j = JSON.parse(hit) as { yeon?: string; byeol?: string; yeo?: string; un?: string };
+        if (j?.yeon && j?.byeol && j?.yeo && j?.un) {
+          setLineByKey({ yeon: j.yeon, byeol: j.byeol, yeo: j.yeo, un: j.un });
+          return;
+        }
+      }
+    } catch {
+      // 캐시 무시
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/today/daily-words", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const j = (await res.json()) as {
+          yeon?: string;
+          byeol?: string;
+          yeo?: string;
+          un?: string;
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok || j.error || !j.yeon || !j.byeol || !j.yeo || !j.un) {
+          setLineByKey({});
+          return;
+        }
+        const next = { yeon: j.yeon, byeol: j.byeol, yeo: j.yeo, un: j.un };
+        setLineByKey(next);
+        try {
+          window.sessionStorage.setItem(cacheKey, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      } catch {
+        if (!cancelled) setLineByKey({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [unlocked, sajuNonce]);
+
   const onListenTts = useCallback(async (key: CharKey, text: string) => {
     const id = ++playSeqRef.current;
     stopCartesiaWebPlayback();
@@ -103,8 +233,6 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
       setTtsPlayingKey(null);
     }
   }, []);
-
-  const unlocked = authed === true && hasSaju;
 
   const unlockHref =
     authed === true
@@ -124,24 +252,27 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
 
       {unlocked ? (
         <div className="y-daily-words-grid">
-          {WORDS.map((w) => (
-            <div key={w.key} className="y-daily-word-card">
-              <div className="y-dw-head">
-                <div className={`y-dw-avatar ${w.key}`}>{w.han}</div>
-                <div className="y-dw-name">{w.name}</div>
+          {WORDS.map((w) => {
+            const text = lineByKey[w.key] ?? w.text;
+            return (
+              <div key={w.key} className="y-daily-word-card">
+                <div className="y-dw-head">
+                  <div className={`y-dw-avatar ${w.key}`}>{w.han}</div>
+                  <div className="y-dw-name">{w.name}</div>
+                </div>
+                <div className="y-dw-text">{text}</div>
+                <button
+                  type="button"
+                  className="y-dw-listen"
+                  aria-label={`${w.name.replace("에게서", "")}의 한 마디 목소리로 듣기`}
+                  aria-busy={ttsPlayingKey === w.key}
+                  onClick={() => void onListenTts(w.key, text)}
+                >
+                  목소리로 듣기
+                </button>
               </div>
-              <div className="y-dw-text">{w.text}</div>
-              <button
-                type="button"
-                className="y-dw-listen"
-                aria-label={`${w.name.replace("에게서", "")}의 한 마디 목소리로 듣기`}
-                aria-busy={ttsPlayingKey === w.key}
-                onClick={() => void onListenTts(w.key, w.text)}
-              >
-                목소리로 듣기
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="y-daily-words-locked-wrap">
