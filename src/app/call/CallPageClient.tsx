@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { computeManseFromFormInput } from "@/lib/manse-ryeok";
 import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 import { VoiceLiveAudioRecorder } from "@/lib/voice-live/audio-recorder";
@@ -324,7 +325,7 @@ export default function CallPageClient() {
   function buildManseContext(): string {
     try {
       const raw = localStorage.getItem("yeonun_saju_v1");
-      if (!raw) return "";
+      if (!raw) return appendKstToManseContext("");
       const j = JSON.parse(raw) as any;
       const r = computeManseFromFormInput({
         userYear: String(j.year || ""),
@@ -335,13 +336,14 @@ export default function CallPageClient() {
         userCalendarType: j.calendarType === "lunar-leap" ? "lunar-leap" : j.calendarType === "lunar" ? "lunar" : "solar",
         userName: String(j.name || ""),
       });
-      if (!r) return "";
+      if (!r) return appendKstToManseContext("");
       const m = r.manse;
       const one = (p: any) =>
         `${p.gan}${p.ji} · 십성 ${p.sibsung}/${p.jiSibsung} · 오행 ${p.ohang} · 음양 ${p.eumyang} · 운성 ${p.sibiunsung} · 신살 ${p.sibisinsal}`;
-      return [`연주: ${one(m.year)}`, `월주: ${one(m.month)}`, `일주: ${one(m.day)}`, `시주: ${one(m.hour)}`].join("\n");
+      const lines = [`연주: ${one(m.year)}`, `월주: ${one(m.month)}`, `일주: ${one(m.day)}`, `시주: ${one(m.hour)}`].join("\n");
+      return appendKstToManseContext(lines);
     } catch {
-      return "";
+      return appendKstToManseContext("");
     }
   }
 
@@ -391,7 +393,10 @@ export default function CallPageClient() {
     if (listeningRef.current) return;
     if (!unlocked) return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      setLastSttText("이 브라우저는 음성 전사(STT)를 지원하지 않아요. Chrome/Edge에서 다시 시도해 주세요.");
+      return;
+    }
     const rec = new SR();
     recognitionRef.current = rec;
     rec.lang = "ko-KR";
@@ -444,10 +449,16 @@ export default function CallPageClient() {
         sendTurn(finalized, { trigger: "user" });
       }
     };
-    rec.onerror = () => {
+    rec.onerror = (ev: any) => {
       if (flushTimer) clearTimeout(flushTimer);
       intentionalStopRef.current = false;
       setListening(false);
+      try {
+        const reason = String(ev?.error || "").trim();
+        if (reason) setLastSttText(`STT 오류: ${reason}`);
+      } catch {
+        // ignore
+      }
       if (autoRestart) setTimeout(() => startListening(true), 450);
     };
     rec.onend = () => {
@@ -469,6 +480,16 @@ export default function CallPageClient() {
       setListening(false);
     }
   }
+
+  // 언락 직후 STT가 조용히 안 뜨는 케이스를 방지: TTS가 말하는 중이 아닐 때 한 번 시작을 시도
+  useEffect(() => {
+    if (!unlocked) return;
+    const id = setTimeout(() => {
+      if (!ttsSpeakingRef.current) startListening(true);
+    }, 600);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlocked]);
 
   // 입장 시 오프닝
   useEffect(() => {

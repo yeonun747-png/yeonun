@@ -1,6 +1,6 @@
 import { BottomNav } from "@/components/BottomNav";
 import { TopNav } from "@/components/TopNav";
-import { MySajuCardClient } from "@/components/my/MySajuCardClient";
+import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
 import Link from "next/link";
 
 export default function MyPage() {
@@ -32,7 +32,7 @@ export default function MyPage() {
           </div>
         </div>
 
-        <MySajuCardClient />
+        <MySajuCardBlock />
 
         <div className="y-vip-card" aria-label="크레딧">
           <div className="y-vip-eyebrow">CREDIT · 음성 잔액</div>

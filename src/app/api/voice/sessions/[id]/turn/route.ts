@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/supabase/server";
-import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
+import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -158,25 +158,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const memorySummary = String((session as any)?.memory_summary ?? "").trim();
 
   // 2) 프롬프트 조립: 공통 + 캐릭터 + (페르소나/만세력)
-  const [commonPrompt, characterPrompt, persona] = await Promise.all([
+  const [commonPrompt, characterPrompt] = await Promise.all([
     getServicePrompt("yeonun_common_system"),
     getCharacterModePrompt(character_key, "voice"),
-    getCharacterPersona(character_key),
   ]);
 
-  const personaBlock = persona
-    ? `\n\n[캐릭터 페르소나 스냅샷]\n${JSON.stringify(persona).slice(0, 3000)}`
-    : "";
   const manseBlock = String(body.manse_context ?? "").trim()
-    ? `\n\n[사용자 만세력/사주 명식]\n${String(body.manse_context).slice(0, 4000)}`
+    ? `\n\n[사용자 사주 명식 데이터]\n${String(body.manse_context).slice(0, 4000)}`
     : "";
+  const memoryBlock = memorySummary ? `\n\n[최근 상담 히스토리 요약]\n${memorySummary.slice(0, 2500)}` : "";
 
   const baseSystem =
     String(commonPrompt?.prompt ?? "").trim() +
     "\n\n" +
     String(characterPrompt?.prompt ?? "").trim() +
-    personaBlock +
     manseBlock +
+    memoryBlock +
     "\n\n[출력 규칙]\n- 한국어로만 답변\n- 4~8문장\n- 마지막은 짧은 질문 1개로 마무리";
   const system =
     trigger === "silence"
@@ -218,7 +215,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           : userText;
 
     const blocks: string[] = [];
-    if (memorySummary) blocks.push(`[메모리 요약]\n${memorySummary}`);
     if (transcript) blocks.push(`[최근 대화]\n${transcript}`);
     blocks.push("[요청]\n위 맥락을 이어서 답변하세요.");
     blocks.push(`[이번 입력]\n${baseUserPrompt}`);

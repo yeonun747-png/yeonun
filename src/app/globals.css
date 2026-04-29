@@ -897,6 +897,11 @@ ul {
 .y-modal.open {
   display: flex;
 }
+/* 사주 입력: 뒤의 내 사주 명식 카드가 읽히도록 덜 가림(블러·불투명도 완화) */
+.y-modal.y-modal--saju {
+  background: rgba(26, 24, 21, 0.22);
+  backdrop-filter: blur(2px);
+}
 @keyframes yModalFade {
   from {
     opacity: 0;
@@ -1073,6 +1078,15 @@ ul {
 }
 .y-saju-gender-card.active .han {
   color: var(--y-rose-deep);
+}
+.y-saju-save-block {
+  margin-top: 14px;
+}
+.y-saju-save-spacer {
+  /* 저장 버튼 위 약 3줄 분량 여백 */
+  height: 3lh;
+  min-height: 4.5rem;
+  flex-shrink: 0;
 }
 .y-saju-hint {
   margin-top: 14px;
@@ -1738,6 +1752,112 @@ ul {
   border-radius: 100px;
   border: 0.5px solid rgba(221, 88, 120, 0.3);
 }
+/* 오늘 탭 · 사주 미입력 시 FOR YOU CTA */
+.y-today-for-you {
+  margin: 0 20px 12px;
+  padding: 22px 20px 20px;
+  background: white;
+  border: 0.5px solid var(--y-line);
+  border-radius: 14px;
+}
+.y-today-for-you-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #c75b7a;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.y-today-for-you-title {
+  font-family: "Noto Serif KR", serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--y-ink);
+  line-height: 1.4;
+  margin: 0 0 8px;
+}
+.y-today-for-you-desc {
+  font-size: 11.5px;
+  color: var(--y-mute);
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+.y-today-for-you-btn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--y-ink);
+  color: #faf8f5;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.y-today-for-you-foot {
+  margin-top: 14px;
+  font-size: 11px;
+  color: var(--y-mute);
+  text-align: center;
+}
+.y-today-for-you-link {
+  color: var(--y-rose);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* 오늘 탭 · 오늘의 한 마디 잠금 (yeonun_v11.html 목업 동일) */
+.y-daily-words-locked-wrap {
+  padding: 0 20px 4px;
+}
+.y-daily-words-locked {
+  margin: 0;
+  background: var(--y-card);
+  border: 0.5px dashed var(--y-line-2);
+  border-radius: 12px;
+  padding: 24px 18px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.y-daily-words-locked-hanja {
+  font-family: "Noto Serif KR", serif;
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--y-line-2);
+  line-height: 1.2;
+  margin: 0 0 8px;
+  user-select: none;
+  letter-spacing: 0.12em;
+}
+.y-daily-words-locked-msg {
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--y-mute);
+  margin: 0 0 14px;
+}
+.y-daily-words-locked-line {
+  display: block;
+}
+.y-daily-words-unlock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 18px;
+  border-radius: 100px;
+  background: var(--y-rose-soft);
+  color: var(--y-rose-deep);
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: inherit;
+  text-decoration: none;
+  border: none;
+  box-shadow: none;
+}
+.y-daily-words-unlock-btn:active {
+  opacity: 0.92;
+}
 .y-luck-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1799,10 +1919,15 @@ ul {
   line-height: 1.3;
   letter-spacing: -0.01em;
 }
+/* 4명의 오늘의 한 마디 (yeonun_v11.html 목업 동일) */
 .y-daily-words-section {
   background: var(--y-card-2);
   padding: 24px 0 20px;
   margin-top: 8px;
+}
+.y-daily-words-section .ySectionHead.y-daily-words-head {
+  padding: 0 20px 14px;
+  align-items: baseline;
 }
 .y-daily-words-grid {
   display: grid;
@@ -1811,10 +1936,11 @@ ul {
   padding: 0 20px;
 }
 .y-daily-word-card {
-  background: white;
+  background: var(--y-card);
   border: 0.5px solid var(--y-line);
   border-radius: 12px;
   padding: 14px 14px 12px;
+  cursor: pointer;
 }
 .y-dw-head {
   display: flex;
@@ -1832,7 +1958,7 @@ ul {
   font-family: "Noto Serif KR", serif;
   font-size: 12px;
   font-weight: 500;
-  color: white;
+  color: #ffffff;
   flex-shrink: 0;
 }
 .y-dw-avatar.yeon {
@@ -1872,6 +1998,26 @@ ul {
 .y-dw-listen::before {
   content: "▸";
   font-size: 9px;
+}
+button.y-dw-listen {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  /* border:none 이 상단 점선까지 지움 → 목업처럼 위 구분선 복구 */
+  border-top: 0.5px dashed var(--y-line);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: inherit;
+  color: var(--y-rose);
+  appearance: none;
+  -webkit-appearance: none;
+}
+button.y-dw-listen:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 /* ===== My (마이) 화면 - 목업 CSS 일부 이식 ===== */
@@ -2051,6 +2197,17 @@ ul {
   font-weight: 600;
   color: var(--y-rose-deep);
   line-height: 1.2;
+}
+.y-my-p-cheon--placeholder,
+.y-my-p-ji--placeholder {
+  color: var(--y-mute);
+  font-weight: 500;
+  opacity: 0.42;
+}
+.y-my-summary-placeholder {
+  color: var(--y-mute);
+  font-weight: 500;
+  opacity: 0.42;
 }
 .y-my-saju-summary {
   display: grid;
@@ -5050,6 +5207,10 @@ ul {
 .y-wave-line.stt.active {
   border-color: rgba(111, 162, 141, 0.4);
 }
+.y-wave-line.tts {
+  display: flex;
+  flex-direction: column;
+}
 .y-wave-line:not(.active) {
   opacity: 0.55;
 }
@@ -5110,6 +5271,35 @@ ul {
   background: var(--y-rose);
   border-radius: 2px;
   height: 3px;
+}
+/* 캐릭터(TTS) 파형 박스 하단: 딤 트랙 상시, 채움은 왼쪽 고정·너비만 감소(오른쪽이 줄어듦) */
+.y-wave-tts-meter {
+  position: relative;
+  width: 100%;
+  height: 1px;
+  margin-top: 8px;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+.y-wave-tts-meter-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 1px;
+  pointer-events: none;
+}
+.y-wave-tts-meter-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 1px;
+  max-width: 100%;
+  background: rgba(232, 196, 168, 0.92);
+  border-radius: 1px;
+  pointer-events: none;
 }
 .y-wave-line .y-wave-bar.stt {
   width: 3px;
@@ -5180,11 +5370,11 @@ ul {
   background: rgba(255, 255, 255, 0.06);
   border-radius: 12px;
   padding: 14px 16px;
-  margin: 6px 24px 14px;
-  width: calc(100% - 48px);
-  max-width: 560px;
-  margin-left: auto;
-  margin-right: auto;
+  /* stage가 이미 좌우 24px padding을 가지므로, caption은 그 안에서 100% 폭을 쓴다 */
+  margin: 6px 0 14px;
+  /* .y-call-stage 가 align-items:center 인 flex라서, stretch를 명시해야 폭이 줄지 않는다 */
+  align-self: stretch;
+  width: 100%;
   font-size: 13px;
   color: rgba(245, 218, 224, 0.92);
   line-height: 1.6;
@@ -5319,6 +5509,15 @@ ul {
   color: rgba(245, 218, 224, 0.45);
   line-height: 1.5;
   text-align: center;
+}
+
+/* 목업(yeonun_v11.html) 클래스 호환 */
+.y-call-tip {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 10px;
+  color: rgba(245, 218, 224, 0.4);
+  letter-spacing: 0.04em;
 }
 
 /* ========= 상담 종료 / 요약 (목업 1:1) ========= */

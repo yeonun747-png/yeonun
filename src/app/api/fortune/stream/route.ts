@@ -9,20 +9,70 @@ export const revalidate = 0;
 async function createFortuneRequest(payload: Record<string, unknown>) {
   const supabase = supabaseServer();
   const characterKey = typeof payload.character_key === "string" ? payload.character_key : "yeon";
+  const userRef = typeof payload.user_ref === "string" ? payload.user_ref : null;
   const [commonPrompt, characterPrompt, persona] = await Promise.all([
     getServicePrompt("yeonun_fortune_text_system"),
     getCharacterModePrompt(characterKey, "fortune_text"),
     getCharacterPersona(characterKey),
   ]);
+
+  let recentSummary = "";
+  if (userRef) {
+    const { data: priorRequests } = await supabase
+      .from("fortune_requests")
+      .select("id,payload,created_at")
+      .eq("user_ref", userRef)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    const filtered = (priorRequests ?? []).filter((r: any) => {
+      const p = r?.payload && typeof r.payload === "object" ? r.payload : {};
+      return String((p as any).character_key ?? "") === characterKey;
+    });
+    const ids = filtered.map((r: any) => String(r.id)).filter(Boolean).slice(0, 6);
+    if (ids.length > 0) {
+      const { data: priorResults } = await supabase
+        .from("fortune_results")
+        .select("request_id,summary,completed_at")
+        .in("request_id", ids)
+        .order("completed_at", { ascending: false });
+      recentSummary = (priorResults ?? [])
+        .map((r: any) => String(r?.summary ?? "").trim())
+        .filter(Boolean)
+        .slice(0, 5)
+        .map((s: string, i: number) => `${i + 1}. ${s.length > 800 ? `${s.slice(0, 800)}…` : s}`)
+        .join("\n");
+    }
+  }
+
+  const manseContext = String(
+    payload.manse_context ??
+      payload.manseContext ??
+      payload.saju_context ??
+      payload.sajuContext ??
+      payload.manse_text ??
+      payload.manseText ??
+      "",
+  ).trim();
+  const finalSystemPrompt = [
+    String(commonPrompt?.prompt ?? "").trim(),
+    String(characterPrompt?.prompt ?? "").trim(),
+    manseContext ? `[사용자 사주 명식 데이터]\n${manseContext.slice(0, 5000)}` : "",
+    recentSummary ? `[최근 상담 히스토리 요약]\n${recentSummary.slice(0, 3000)}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
   const enrichedPayload = {
     ...payload,
     character_key: characterKey,
     common_system_prompt: commonPrompt?.prompt ?? null,
     character_system_prompt: characterPrompt?.prompt ?? null,
+    final_system_prompt: finalSystemPrompt,
+    recent_history_summary: recentSummary || null,
     persona_snapshot: persona ?? null,
   };
   const row = {
-    user_ref: typeof payload.user_ref === "string" ? payload.user_ref : null,
+    user_ref: userRef,
     product_slug: typeof payload.product_slug === "string" ? payload.product_slug : null,
     order_id: typeof payload.order_id === "string" ? payload.order_id : null,
     status: "streaming",

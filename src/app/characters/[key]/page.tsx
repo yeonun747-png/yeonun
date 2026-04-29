@@ -278,7 +278,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
 
       <div className="y-chd-foot">
-        <Link className="y-chd-call-btn" href="/call">
+        <Link className="y-chd-call-btn" href={`/call-dcc?character_key=${encodeURIComponent(c.key)}`}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
             <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3v5z" />

@@ -46,7 +46,7 @@ export function MeetCallButton({ characterKey, className, children }: Props) {
       await warmupAudioAndMic();
     } finally {
       // 이동은 항상 수행
-      router.push(`/call?character_key=${encodeURIComponent(characterKey)}`);
+      router.push(`/call-dcc?character_key=${encodeURIComponent(characterKey)}`);
       setBusy(false);
     }
   };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
 import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
@@ -17,6 +17,59 @@ export function SajuModal() {
   const [day, setDay] = useState("14");
   const [hour, setHour] = useState(""); // "" = 모름
   const [minute, setMinute] = useState("0");
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(__YEONUN_SAJU_STORAGE_KEY__);
+      if (!raw) return;
+      const j = JSON.parse(raw) as {
+        name?: string;
+        calendarType?: string;
+        year?: string;
+        month?: string;
+        day?: string;
+        hour?: string;
+        minute?: string;
+        gender?: string;
+      };
+      const ct = String(j.calendarType ?? "solar");
+      setMode(ct === "solar" ? "yang" : "eum");
+      setGender(j.gender === "male" ? "male" : "female");
+      setName(String(j.name ?? "").trim());
+
+      const maxY = new Date().getFullYear();
+      const yNum = parseInt(String(j.year ?? ""), 10);
+      if (Number.isFinite(yNum) && yNum >= 1900 && yNum <= maxY) {
+        setYear(String(yNum));
+      }
+      const mo = parseInt(String(j.month ?? ""), 10);
+      if (Number.isFinite(mo) && mo >= 1 && mo <= 12) {
+        setMonth(String(mo));
+      }
+      const dNum = parseInt(String(j.day ?? ""), 10);
+      if (Number.isFinite(dNum) && dNum >= 1 && dNum <= 31) {
+        setDay(String(dNum));
+      }
+
+      const hRaw = j.hour != null ? String(j.hour).trim() : "";
+      const hNum = parseInt(hRaw, 10);
+      if (hRaw !== "" && Number.isFinite(hNum) && hNum >= 0 && hNum <= 23) {
+        setHour(String(hNum));
+        const miRaw = j.minute != null ? String(j.minute).trim() : "0";
+        const miNum = parseInt(miRaw, 10);
+        if (Number.isFinite(miNum) && miNum >= 0 && miNum <= 59) {
+          setMinute(String(miNum));
+        } else {
+          setMinute("0");
+        }
+      } else {
+        setHour("");
+        setMinute("0");
+      }
+    } catch {
+      // 저장값이 깨졌으면 초기 기본값 유지
+    }
+  }, []);
 
   const yearOptions = useMemo(() => {
     const now = new Date();
@@ -57,7 +110,13 @@ export function SajuModal() {
   }
 
   return (
-    <div className="y-modal open" role="dialog" aria-modal="true" aria-label="만세력·사주 입력" onMouseDown={close}>
+    <div
+      className="y-modal y-modal--saju open"
+      role="dialog"
+      aria-modal="true"
+      aria-label="만세력·사주 입력"
+      onMouseDown={close}
+    >
       <div className="y-modal-sheet" onMouseDown={(e) => e.stopPropagation()}>
         <div className="y-modal-handle" />
 
@@ -173,7 +232,8 @@ export function SajuModal() {
               </div>
             </div>
 
-            <div style={{ marginTop: 14 }}>
+            <div className="y-saju-save-block">
+              <div className="y-saju-save-spacer" aria-hidden />
               <button type="button" className="y-my-login-btn" style={{ width: "100%" }} onClick={save}>
                 저장하고 계산하기
               </button>

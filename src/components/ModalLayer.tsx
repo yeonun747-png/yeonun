@@ -3,8 +3,9 @@
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 
+import { SajuModal } from "@/components/modals/SajuModal";
+
 const AuthModal = dynamic(() => import("@/components/modals/AuthModal").then((m) => m.AuthModal), { ssr: false });
-const SajuModal = dynamic(() => import("@/components/modals/SajuModal").then((m) => m.SajuModal), { ssr: false });
 const PaymentModal = dynamic(() => import("@/components/modals/PaymentModal").then((m) => m.PaymentModal), { ssr: false });
 
 export function ModalLayer() {
