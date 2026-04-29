@@ -144,9 +144,9 @@ export class VoiceLiveAudioStreamer {
       this.nodes.delete(src);
       if (this.nodes.size === 0) {
         this.cancelPendingInactive();
-        const waitMs = Math.max(60, Math.ceil(Math.max(0, this.nextStartAt - this.ctx.currentTime) * 1000) + 80);
-        /** 스트리밍 다음 base64 도착 전 짧은 공백에서 active가 꺼지면 클라 VAD/파형이 사용자 턴으로 오인함 */
-        const INACTIVE_GRACE_MS = 220;
+        const waitMs = Math.max(48, Math.ceil(Math.max(0, this.nextStartAt - this.ctx.currentTime) * 1000) + 56);
+        /** 스트리밍 청크 사이 공백에서 active가 꺼지면 안 됨 — 너무 길면 TTS 종료 후 일반 VAD까지 지연 */
+        const INACTIVE_GRACE_MS = 110;
         this.pendingInactiveTimer = window.setTimeout(() => {
           this.pendingInactiveTimer = null;
           if (this.alive && this.nodes.size === 0 && this.ctx.currentTime >= this.nextStartAt - 0.03) {

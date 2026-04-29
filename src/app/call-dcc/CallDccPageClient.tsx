@@ -373,7 +373,7 @@ export default function CallDccPageClient() {
         const analyser = ctx.createAnalyser();
         if (!analyser) throw new Error("createAnalyser 실패");
         analyser.fftSize = 1024;
-        analyser.smoothingTimeConstant = 0.45;
+        analyser.smoothingTimeConstant = 0.36;
         const meterSink = ctx.createGain();
         meterSink.gain.value = 0;
         micMeterSinkRef.current = meterSink;
@@ -493,21 +493,21 @@ export default function CallDccPageClient() {
     // (실측) 많은 기기에서 평상시 rms가 0.003~0.010 수준이라, 최소 threshold를 더 낮춰야 VAD가 걸린다.
     const THRESH_ON_MIN = 0.0035;
     const THRESH_OFF_MIN = 0.003;
-    /** TTS 재생 중 마이크로 끊을 때(에코와 트레이드오프) */
-    const BARGE_IN_THRESH_ON_MIN = 0.022;
-    /** 말끝 확정 후 PCM 추출·STT 요청까지 추가 대기(너무 길면 체감 지연) */
-    const HOLD_OFF_MS = 70;
-    /** RMS가 thrOff 위로만 남을 때(말끝 잡기 어려운 환경) 쓰는 상한 대기 */
-    const SPEECH_END_MS = 260;
-    const VAD_WARMUP_MS = 650;
+    /** TTS 재생 중 마이크로 끊을 때(에코와 트레이드오프) — 낮출수록 빠른 바지인 */
+    const BARGE_IN_THRESH_ON_MIN = 0.0185;
+    /** 말끝 확정 후 flush/STT까지 (너무 길면 글자화 체감 지연) */
+    const HOLD_OFF_MS = 38;
+    /** RMS가 thrOff 위로만 남을 때(말끝 잡기 어려운 환경) 상한 대기 */
+    const SPEECH_END_MS = 185;
+    const VAD_WARMUP_MS = 420;
     /** 말끝이 절대 안 잡히는 환경(배경 RMS가 thrOff보다 큼)에서도 턴이 나가게 */
     const MAX_UTTERANCE_MS = 52_000;
-    const MIN_GAP_MS = 280;
+    const MIN_GAP_MS = 190;
     /** 바지인만 짧게: 긴 턴 직후에도 끊기 반응이 나가게 */
-    const MIN_GAP_BARGE_MS = 120;
+    const MIN_GAP_BARGE_MS = 72;
     const FRAMES_ON = 1;
-    const BARGE_IN_FRAMES_ON = 2;
-    const FRAMES_OFF = 2;
+    const BARGE_IN_FRAMES_ON = 1;
+    const FRAMES_OFF = 1;
     let above = 0;
     let below = 0;
     const vadReadyAt = Date.now() + VAD_WARMUP_MS;

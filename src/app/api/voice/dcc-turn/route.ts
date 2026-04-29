@@ -38,7 +38,8 @@ const CHARACTER_SPEC_KO: Record<string, string> = {
 const VITO_AUTH_URL = "https://openapi.vito.ai/v1/authenticate";
 const VITO_STREAMING_URL = "wss://openapi.vito.ai/v1/transcribe:streaming";
 const VITO_SAMPLE_RATE = 16000;
-const VITO_PCM_CHUNK_BYTES = 4096;
+/** 스트리밍 업링크 루프 횟수 감소(동일 PCM 전송, 반환제로 서버 부하는 동일 범위) */
+const VITO_PCM_CHUNK_BYTES = 16384;
 
 const CARTESIA_WS_URL = "wss://api.cartesia.ai/tts/websocket";
 

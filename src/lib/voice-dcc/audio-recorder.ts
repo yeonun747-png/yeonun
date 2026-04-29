@@ -66,7 +66,7 @@ class VolMeter extends AudioWorkletProcessor {
   constructor() {
     super();
     this.volume = 0;
-    this.updateIntervalInMS = 25;
+    this.updateIntervalInMS = 16;
     this.nextUpdateFrame = this.updateIntervalInMS;
     this.port.onmessage = event => {
       if (event.data.updateIntervalInMS) {
@@ -171,6 +171,8 @@ export class VoiceDccAudioRecorder {
   private onRms: ((rms: number) => void) | null = null;
   private starting: Promise<void> | null = null;
   private sawAnyChunk = false;
+  /** 워클릿 flush 완료 시 resolve(stopAndGetBase64Pcm16) */
+  private pendingFlushDone: (() => void) | null = null;
 
   debugState() {
     return {
@@ -225,7 +227,14 @@ export class VoiceDccAudioRecorder {
       await this.ctx.resume();
 
       this.recordingWorklet = (await addNamedWorklet(this.ctx, "yeonun-dcc-audio-recorder-worklet", AUDIO_RECORDING_WORKLET, (ev) => {
-        const arrayBuffer = (ev.data as { data?: { int16arrayBuffer?: ArrayBuffer } })?.data?.int16arrayBuffer;
+        const payload = ev.data as { event?: string; data?: { int16arrayBuffer?: ArrayBuffer } };
+        if (payload?.event === "flushDone") {
+          const r = this.pendingFlushDone;
+          this.pendingFlushDone = null;
+          r?.();
+          return;
+        }
+        const arrayBuffer = payload?.data?.int16arrayBuffer;
         if (!arrayBuffer) return;
         const copy = new Uint8Array(arrayBuffer).slice();
         if (copy.byteLength > 0) {
@@ -256,13 +265,19 @@ export class VoiceDccAudioRecorder {
     if (this.starting) await this.starting.catch(() => undefined);
     const node = this.recordingWorklet;
     if (node?.port) {
-      try {
-        node.port.postMessage({ event: "flush" });
-      } catch {
-        // ignore
-      }
-      // onmessage 핸들러와 충돌하지 않게 짧게만 대기(워클릿이 동기로 flush 처리)
-      await new Promise<void>((r) => setTimeout(r, 85));
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          this.pendingFlushDone = resolve;
+          try {
+            node.port.postMessage({ event: "flush" });
+          } catch {
+            resolve();
+          }
+        }),
+        /** 워클릿 응답 실패 시 상한(기존 고정 85ms보다 짧게, 이벤트 우선) */
+        new Promise<void>((resolve) => setTimeout(resolve, 72)),
+      ]);
+      this.pendingFlushDone = null;
     }
     const merged = concatUint8(this.chunks);
     const out = merged.byteLength > 0 ? uint8ToBase64Chunked(merged) : "";
