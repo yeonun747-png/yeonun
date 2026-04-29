@@ -282,7 +282,6 @@ async function streamClaudeToCartesiaAndClient(args: {
       };
 
       let cartesiaOpen = false;
-      let cartesiaClosed = false;
       let assistantText = "";
       let pendingText = "";
       let sentAny = false;
@@ -292,7 +291,10 @@ async function streamClaudeToCartesiaAndClient(args: {
       const cartesiaDonePromise = new Promise<void>((resolve) => {
         resolveCartesiaDone = resolve;
       });
-      /** Cartesia가 세그먼트마다 done/close를내면 Claude 스트림 도중에도 resolve되어 TTS가 잘림 → sentFinal 이후만 인정 */
+      /**
+       * Claude 스트림 도중 Cartesia가 보내는 done/close는 무시하고, 최종 `""`+continue:false 이후의 done만 인정.
+       * @see https://docs.cartesia.ai/use-the-api/tts-websocket/contexts
+       */
       let cartesiaTurnDoneResolved = false;
       const resolveCartesiaTurnDone = (reason: string) => {
         if (cartesiaTurnDoneResolved || streamClosed) return;
@@ -313,7 +315,7 @@ async function streamClaudeToCartesiaAndClient(args: {
       };
 
       const sendCartesia = (transcript: string, isFinal: boolean) => {
-        if (cartesiaClosed) return;
+        if (streamClosed) return;
         if (!cartesiaOpen) {
           preOpenQueue.push({ transcript, isFinal });
           return;
@@ -373,7 +375,7 @@ async function streamClaudeToCartesiaAndClient(args: {
         }
       });
       cartesiaWs.on("message", (raw: Buffer | string) => {
-        if (streamClosed || cartesiaClosed) return;
+        if (streamClosed) return;
         // ws 라이브러리는 "text 프레임"도 Buffer로 넘길 수 있다.
         // Buffer면 utf8 JSON 파싱을 먼저 시도하고, 실패하면 raw pcm으로 처리한다.
         const text = Buffer.isBuffer(raw) ? raw.toString("utf8") : String(raw || "");
@@ -384,12 +386,14 @@ async function streamClaudeToCartesiaAndClient(args: {
             write({ type: "audio", base64: msg.data, format: "pcm_s16le", sampleRate: 24000 });
             return;
           }
+          if (msg.type === "flush_done" || msg.type === "timestamps" || msg.type === "phoneme_timestamps") {
+            return;
+          }
           if (msg.type === "done") {
             if (!sentFinal) {
               debug("cartesia_done_ignored", "before Claude final → Cartesia continue:false");
               return;
             }
-            cartesiaClosed = true;
             debug("cartesia_done", "done");
             resolveCartesiaTurnDone("cartesia_json_done");
           }
@@ -407,12 +411,10 @@ async function streamClaudeToCartesiaAndClient(args: {
           debug("cartesia_close_ignored", "before final send (streaming 세그먼트 구간일 수 있음)");
           return;
         }
-        cartesiaClosed = true;
         debug("cartesia_close", "closed");
         resolveCartesiaTurnDone("ws_close");
       });
       cartesiaWs.on("error", (e) => {
-        cartesiaClosed = true;
         debug("cartesia_error", e instanceof Error ? e.message : String(e));
         resolveCartesiaTurnDone("ws_error");
       });
@@ -474,12 +476,17 @@ async function streamClaudeToCartesiaAndClient(args: {
       } finally {
         const finalText = pendingText.trim();
         if (cartesiaOpen && !sentFinal) {
+          /**
+           * 공식: 스트리밍 입력은 continue true로 이어 붙이고, 컨텍스트 종료는 `transcript:""` + continue false.
+           * (cartesia-js `TTSWSContext.no_more_inputs` 와 동일. 마지막 긴 문장을 곧바로 continue:false 한 방에내면
+           * 버퍼/세그먼트 경계에서 합성이 일찍 끝나는 경우가 있어 분리.)
+           * @see https://docs.cartesia.ai/use-the-api/tts-websocket/contexts
+           */
           if (finalText) {
             const toSend = sentAny ? ` ${finalText}` : finalText;
-            sendCartesia(toSend, true);
-          } else {
-            sendCartesia("", true);
+            sendCartesia(toSend, false);
           }
+          sendCartesia("", true);
           sentFinal = true;
         }
         // final transcript 전송 직후 닫으면 Cartesia 오디오가 도착하기 전에 끊긴다.
