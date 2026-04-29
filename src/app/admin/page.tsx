@@ -251,7 +251,7 @@ export default async function AdminHomePage() {
           <CrudSection
             id="admin-personas"
             title="캐릭터 전문영역"
-            hint="캐릭터 카드·만남 등에 쓰이는 전문 분야·톤·키워드와 전문영역(JSON) 메타데이터입니다.
+            hint="캐릭터 카드·만남 등에 쓰이는 전문 분야·톤·키워드와 전문영역(JSON) 메타데이터입니다."
           >
             {characters.rows.map((c) => {
               const persona = personas.rows.find((p) => text(p.character_key) === text(c.key));
