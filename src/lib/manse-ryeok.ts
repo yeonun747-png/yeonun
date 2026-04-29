@@ -386,6 +386,63 @@ export function toHanjaJi(jiHangul: string) {
   return index >= 0 ? SIBIJI[index] : jiHangul;
 }
 
+/** 60갑자 순번(0=甲子 … 59=癸亥) */
+export function gapjaIndexFromGanJi(ganHangul: string, jiHangul: string): number {
+  for (let n = 0; n < 60; n++) {
+    if (SIBGAN_HANGUL[n % 10] === ganHangul && SIBIJI_HANGUL[n % 12] === jiHangul) return n;
+  }
+  return 0;
+}
+
+export function ganJiFromGapjaIndex(n: number): { gan: string; ji: string } {
+  const i = ((n % 60) + 60) % 60;
+  return { gan: SIBGAN_HANGUL[i % 10], ji: SIBIJI_HANGUL[i % 12] };
+}
+
+/** 양남·음녀 순행 / 음남·양녀 역행 — 월주 인접 간지부터 8대운(간지만, 대운수 보정 없음) */
+export function buildDaewoonGanJiSequence(manse: ManseRyeokData, gender: "male" | "female"): { gan: string; ji: string }[] {
+  const monthIdx = gapjaIndexFromGanJi(manse.month.gan, manse.month.ji);
+  const yearGanIdx = SIBGAN_HANGUL.indexOf(manse.year.gan);
+  const yearIsYang = yearGanIdx >= 0 && yearGanIdx % 2 === 0;
+  const forward = (yearIsYang && gender === "male") || (!yearIsYang && gender === "female");
+  let idx = forward ? (monthIdx + 1) % 60 : (monthIdx + 59) % 60;
+  const out: { gan: string; ji: string }[] = [];
+  for (let i = 0; i < 8; i++) {
+    out.push(ganJiFromGapjaIndex(idx));
+    idx = forward ? (idx + 1) % 60 : (idx + 59) % 60;
+  }
+  return out;
+}
+
+export function getJijangganForJi(jiHangul: string): string[] {
+  const list = JIJANGGAN[jiHangul];
+  return list ? [...list] : [];
+}
+
+/** 만 나이(한국식 세는 나이), 표시용 대운 연령대 슬롯(0~7) */
+export function koreanAgeFromBirthYear(birthYear: number, refYear = new Date().getFullYear()): number {
+  if (!Number.isFinite(birthYear)) return 1;
+  return refYear - birthYear + 1;
+}
+
+export function currentDaewoonAgeBand(koreanAge: number): { slot: number; ageFrom: number; ageTo: number } {
+  const slot = Math.min(7, Math.max(0, Math.floor((koreanAge - 1) / 10)));
+  return { slot, ageFrom: slot * 10 + 1, ageTo: slot * 10 + 10 };
+}
+
+export function getCurrentDaewoonPillar(
+  manse: ManseRyeokData,
+  gender: "male" | "female",
+  birthYear: number
+): { gan: string; ji: string; ageFrom: number; ageTo: number } | null {
+  const seq = buildDaewoonGanJiSequence(manse, gender);
+  if (!seq.length) return null;
+  const ka = koreanAgeFromBirthYear(birthYear);
+  const { slot, ageFrom, ageTo } = currentDaewoonAgeBand(ka);
+  const p = seq[slot] ?? seq[0];
+  return { gan: p.gan, ji: p.ji, ageFrom, ageTo };
+}
+
 export function elementClassFromGan(ganHangul: string): "wood" | "fire" | "earth" | "metal" | "water" {
   const e = OHENG[ganHangul];
   if (e === "목") return "wood";
@@ -393,5 +450,22 @@ export function elementClassFromGan(ganHangul: string): "wood" | "fire" | "earth
   if (e === "토") return "earth";
   if (e === "금") return "metal";
   return "water";
+}
+
+/** 천간·지지 한글 모두 오행 색 분류에 사용 가능 */
+export function elementClassFromStemOrBranch(hangul: string): "wood" | "fire" | "earth" | "metal" | "water" {
+  return elementClassFromGan(hangul);
+}
+
+export function stemEumyangHangul(ganHangul: string): string {
+  return EUMYANG_GAN[ganHangul] || "양";
+}
+
+export function branchEumyangHangul(jiHangul: string): string {
+  return EUMYANG_JI[jiHangul] || "양";
+}
+
+export function ohangHangulFromStemOrBranch(hangul: string): string {
+  return OHENG[hangul] || "목";
 }
 

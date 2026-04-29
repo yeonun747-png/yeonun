@@ -224,31 +224,235 @@ on conflict (slug) do update set
   label = excluded.label,
   sort_order = excluded.sort_order;
 
-insert into public.products(slug, title, quote, category_slug, badge, price_krw, character_key)
+insert into public.products(slug, title, quote, category_slug, badge, price_krw, character_key, home_section_slug, tags)
 values
-('reunion-maybe','그 사람과 다시 만날 수 있을까','5월에 인연이 다시 닿을 자리가 보여요.','love','HOT',14900,'yeon'),
-('lifetime-master','초년·장년·중년·말년 통합본','10년 대운 흐름까지 200쪽 분량.','saju','SIGNATURE',49900,'yeo'),
-('compat-howfar','두 사람, 어디까지 이어질까','겉궁합·속궁합·결혼 후 흐름.','compat',null,19900,'yeon'),
-('saju-classic','정통 사주풀이 종합','합·충·형·파·해 200항 정밀 분석.','saju',null,19900,'yeo'),
-('mind-now','그 사람은 지금 무슨 생각','일주가 보내는 신호를 읽어드려요.','love','NEW',9900,'yeon'),
-('future-spouse','미래 배우자 사주 분석','언제, 어디서, 어떤 결의 사람을 만날지.','love',null,19900,'yeon'),
-('wealth-graph','재물보감 · 인생 부의 그래프','언제 큰 재물이 들어오고 빠지는지.','career',null,24900,'yeo'),
-('career-timing','커리어 사주 · 이직·승진의 시기','올해 움직일 자리, 머무를 자리.','career',null,19900,'yeo'),
-('zimi-chart','자미두수 명반 풀이','12궁·14주성으로 보는 운명.','zimi',null,24900,'byeol'),
-('newyear-2026','2026 신년운세 1년표','월별 12장의 운세 카드.','newyear','2026',14900,'byeol'),
-('tojeong-2026','2026 토정비결','조선의 비결서가 알려주는 한 해의 리듬.','newyear',null,9900,'byeol'),
-('zimi-2026-flow','자미두수 · 2026 별의 흐름','12궁·14주성으로 보는 또 다른 운명.','zimi',null,24900,'byeol'),
-('calendar-2026','2026 길일·흉일 캘린더','중요한 결정의 날, 미리 골라두기.','newyear',null,12900,'yeon'),
-('naming-baby','아이 이름 작명 · 평생을 따라갈 글자','사주에 부족한 오행을 채워주는 이름.','naming','NEW',39900,'un'),
-('taekil-goodday','결혼·이사·개업 길일','두 사람의 사주 + 행사 의도가 만나는 날.','naming',null,19900,'un'),
-('dream-lastnight','어젯밤 꿈, 무엇을 말하나','동물·물·돈·죽음. 꿈의 상징을 읽어드려요.','dream',null,4900,'un')
+('reunion-maybe','그 사람과 다시 만날 수 있을까','5월에 인연이 다시 닿을 자리가 보여요.','love','HOT',14900,'yeon','weekly_love',array['#재회','#인연','#이별후']),
+('mind-now','그 사람은 지금 무슨 생각','일주가 보내는 신호를 읽어드려요.','love','NEW',9900,'yeon','weekly_love',array['#마음','#썸','#연락']),
+('compat-howfar','두 사람, 어디까지 이어질까','겉궁합·속궁합·결혼 후 흐름.','compat',null,19900,'yeon','weekly_love',array['#궁합','#연인','#결혼']),
+('future-spouse','미래 배우자 사주 분석','언제, 어디서, 어떤 결의 사람을 만날지.','love',null,19900,'yeon','weekly_love',array['#배우자','#정혼','#인연']),
+('lifetime-master','초년·장년·중년·말년 통합본','10년 대운 흐름까지 200쪽 분량.','saju','SIGNATURE',49900,'yeo','lifetime',array['#평생운','#대운','#통합']),
+('saju-classic','정통 사주풀이 종합','합·충·형·파·해 200항 정밀 분석.','saju',null,19900,'yeo','lifetime',array['#정통사주','#명리','#사주']),
+('wealth-graph','재물보감 · 인생 부의 그래프','언제 큰 재물이 들어오고 빠지는지.','career',null,24900,'yeo','lifetime',array['#재물운','#재테크','#입금']),
+('career-timing','커리어 사주 · 이직·승진의 시기','올해 움직일 자리, 머무를 자리.','career',null,19900,'yeo','lifetime',array['#커리어','#이직','#승진']),
+('newyear-2026','2026 신년운세 1년표','월별 12장의 운세 카드.','newyear','2026',14900,'byeol','season_2026',array['#신년운세','#2026','#월별']),
+('tojeong-2026','2026 토정비결','조선의 비결서가 알려주는 한 해의 리듬.','newyear',null,9900,'byeol','season_2026',array['#토정비결','#한해','#리듬']),
+('zimi-2026-flow','자미두수 · 2026 별의 흐름','12궁·14주성으로 보는 또 다른 운명.','zimi',null,24900,'byeol','season_2026',array['#자미두수','#별자리','#세운']),
+('calendar-2026','2026 길일·흉일 캘린더','중요한 결정의 날, 미리 골라두기.','newyear',null,12900,'byeol','season_2026',array['#길일','#캘린더','#택일']),
+('zimi-chart','자미두수 명반 풀이','12궁·14주성으로 보는 운명.','zimi',null,24900,'byeol','deep_dive',array['#자미두수','#12궁','#명반']),
+('naming-baby','아이 이름 작명 · 평생을 따라갈 글자','사주에 부족한 오행을 채워주는 이름.','naming','NEW',39900,'un','deep_dive',array['#작명','#신생아','#오행']),
+('dream-lastnight','어젯밤 꿈, 무엇을 말하나','동물·물·돈·죽음. 꿈의 상징을 읽어드려요.','dream',null,4900,'un','deep_dive',array['#꿈해몽','#해몽','#상징']),
+('child-saju','자녀 사주 · 부모와 맞물리는 운명','자녀 명식과 부모 궁합 흐름을 함께 봅니다.','saju',null,19900,'un','deep_dive',array['#자녀사주','#육아','#궁합']),
+('taekil-goodday','결혼·이사·개업 길일','두 사람의 사주 + 행사 의도가 만나는 날.','naming',null,19900,'un',null,array['#택일','#길일','#결혼식'])
 on conflict (slug) do update set
   title = excluded.title,
   quote = excluded.quote,
   category_slug = excluded.category_slug,
   badge = excluded.badge,
   price_krw = excluded.price_krw,
-  character_key = excluded.character_key;
+  character_key = excluded.character_key,
+  home_section_slug = excluded.home_section_slug,
+  tags = excluded.tags;
+
+-- 썸네일 SVG 기본값 (레포 public/product-thumbnails/*.svg, 재생성: node scripts/emit-product-thumbnail-sql.mjs)
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <rect
+    x="50"
+    y="40"
+    width="100"
+    height="80"
+    rx="4"
+    fill="rgba(142, 56, 18, 0.15)"
+    stroke="rgba(142, 56, 18, 0.35)"
+    stroke-width="0.6"
+  />
+  <rect x="50" y="40" width="100" height="18" fill="rgba(142, 56, 18, 0.4)" rx="4" />
+  <g fill="rgba(142, 56, 18, 0.5)">
+    <circle cx="65" cy="75" r="2" />
+    <circle cx="80" cy="75" r="2" />
+    <circle cx="95" cy="75" r="2" />
+    <circle cx="110" cy="75" r="2" />
+    <circle cx="125" cy="75" r="2" />
+    <circle cx="140" cy="75" r="2" />
+    <circle cx="65" cy="92" r="2" />
+    <circle cx="80" cy="92" r="2" />
+    <circle cx="95" cy="92" r="3.5" opacity="0.9" />
+    <circle cx="110" cy="92" r="2" />
+    <circle cx="125" cy="92" r="2" />
+    <circle cx="140" cy="92" r="2" />
+  </g>
+</svg>
+$yeonun$ where slug = 'calendar-2026';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <path d="M 30 110 L 60 90 L 90 100 L 130 70 L 170 80 L 195 55" stroke="rgba(45, 84, 68, 0.45)" stroke-width="1.2" fill="none" />
+  <circle cx="170" cy="80" r="3" fill="rgba(45, 84, 68, 0.55)" />
+  <circle cx="195" cy="55" r="4" fill="rgba(45, 84, 68, 0.7)" />
+</svg>
+$yeonun$ where slug = 'career-timing';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <circle cx="75" cy="72" r="22" fill="rgba(42, 49, 66, 0.12)" stroke="rgba(42, 49, 66, 0.25)" stroke-width="0.6" />
+  <circle cx="125" cy="72" r="22" fill="rgba(42, 49, 66, 0.12)" stroke="rgba(42, 49, 66, 0.25)" stroke-width="0.6" />
+  <path d="M 75 72 L 125 72" stroke="rgba(42, 49, 66, 0.2)" stroke-width="0.8" stroke-dasharray="2,2" />
+  <circle cx="100" cy="95" r="5" fill="rgba(42, 49, 66, 0.35)" />
+</svg>
+$yeonun$ where slug = 'child-saju';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <circle cx="80" cy="75" r="32" fill="currentColor" opacity="0.18" />
+  <circle cx="120" cy="75" r="32" fill="currentColor" opacity="0.18" />
+  <circle cx="100" cy="75" r="14" fill="currentColor" opacity="0.32" />
+</svg>
+$yeonun$ where slug = 'compat-howfar';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <path
+    d="M 30 90 Q 60 70 90 80 T 150 75 Q 175 65 195 75"
+    stroke="rgba(42, 49, 66, 0.35)"
+    stroke-width="0.8"
+    fill="none"
+  />
+  <path
+    d="M 20 110 Q 55 95 95 105 T 175 100"
+    stroke="rgba(42, 49, 66, 0.28)"
+    stroke-width="0.8"
+    fill="none"
+  />
+  <circle cx="155" cy="55" r="14" fill="rgba(42, 49, 66, 0.18)" />
+  <circle cx="160" cy="50" r="12" fill="rgba(255,255,255,0.4)" />
+  <g fill="rgba(42, 49, 66, 0.5)">
+    <circle cx="50" cy="50" r="1.2" />
+    <circle cx="80" cy="35" r="1" />
+    <circle cx="110" cy="55" r="1" />
+  </g>
+</svg>
+$yeonun$ where slug = 'dream-lastnight';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <path d="M 50 120 L 100 50 L 150 120" stroke="currentColor" opacity="0.3" stroke-width="1.5" fill="none" />
+  <circle cx="100" cy="50" r="8" fill="currentColor" opacity="0.4" />
+  <path
+    d="M 95 50 L 100 40 L 105 50 L 110 45 L 105 55 L 110 50 L 100 60 L 90 50 L 95 55 L 90 45 Z"
+    fill="currentColor"
+    opacity="0.5"
+    transform="translate(0,-5)"
+  />
+</svg>
+$yeonun$ where slug = 'future-spouse';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <path
+    d="M 0 130 L 30 95 L 60 110 L 90 75 L 120 95 L 150 60 L 180 80 L 200 70 L 200 150 L 0 150 Z"
+    fill="rgba(255,255,255,0.18)"
+  />
+  <path d="M 0 100 L 40 85 L 80 90 L 120 75 L 160 80 L 200 70" stroke="white" stroke-width="0.8" fill="none" opacity="0.5" />
+</svg>
+$yeonun$ where slug = 'lifetime-master';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <path
+    d="M 100 95 C 100 75, 80 65, 70 75 C 60 65, 40 75, 40 95 C 40 110, 100 130, 100 130 C 100 130, 160 110, 160 95 C 160 75, 140 65, 130 75 C 120 65, 100 75, 100 95 Z"
+    fill="currentColor"
+    opacity="0.25"
+    transform="translate(0,-10) scale(0.6)"
+  />
+</svg>
+$yeonun$ where slug = 'mind-now';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <g stroke="white" stroke-width="0.7" fill="none" opacity="0.5">
+    <path d="M 60 50 L 90 50 M 75 50 L 75 95 M 60 75 L 90 75 M 60 95 L 90 95" />
+    <path d="M 110 45 L 140 45 L 140 95 L 110 95 Z" />
+    <path d="M 110 70 L 140 70" />
+    <path d="M 125 45 L 125 95" />
+  </g>
+</svg>
+$yeonun$ where slug = 'naming-baby';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <circle cx="160" cy="40" r="22" fill="rgba(255,255,255,0.45)" />
+  <g fill="white" opacity="0.6">
+    <circle cx="40" cy="50" r="1.8" />
+    <circle cx="80" cy="30" r="1.5" />
+    <circle cx="120" cy="80" r="1.5" />
+    <circle cx="50" cy="100" r="2" />
+    <circle cx="180" cy="110" r="1.5" />
+  </g>
+</svg>
+$yeonun$ where slug = 'newyear-2026';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <circle cx="50" cy="60" r="6" fill="white" opacity="0.7" />
+  <circle cx="155" cy="80" r="6" fill="white" opacity="0.7" />
+  <path
+    d="M 50 60 Q 100 30, 155 80"
+    stroke="white"
+    stroke-width="1"
+    fill="none"
+    opacity="0.55"
+    stroke-dasharray="3,3"
+  />
+  <path d="M 50 60 Q 100 100, 155 80" stroke="white" stroke-width="1.5" fill="none" opacity="0.85" />
+</svg>
+$yeonun$ where slug = 'reunion-maybe';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <g transform="translate(70,75)" opacity="0.35">
+    <rect x="-30" y="-20" width="14" height="40" fill="rgba(45, 84, 68, 0.5)" />
+    <rect x="-12" y="-20" width="14" height="40" fill="rgba(45, 84, 68, 0.4)" />
+    <rect x="6" y="-20" width="14" height="40" fill="rgba(45, 84, 68, 0.5)" />
+    <rect x="24" y="-20" width="14" height="40" fill="rgba(45, 84, 68, 0.4)" />
+  </g>
+</svg>
+$yeonun$ where slug = 'saju-classic';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <circle cx="100" cy="75" r="36" fill="none" stroke="rgba(42, 49, 66, 0.4)" stroke-width="0.6" />
+  <line x1="100" y1="75" x2="100" y2="50" stroke="rgba(42, 49, 66, 0.55)" stroke-width="1.2" />
+  <line x1="100" y1="75" x2="120" y2="75" stroke="rgba(42, 49, 66, 0.55)" stroke-width="1.2" />
+  <circle cx="100" cy="75" r="2.5" fill="rgba(42, 49, 66, 0.7)" />
+  <g fill="rgba(42, 49, 66, 0.5)">
+    <circle cx="100" cy="42" r="1.2" />
+    <circle cx="133" cy="75" r="1.2" />
+    <circle cx="100" cy="108" r="1.2" />
+    <circle cx="67" cy="75" r="1.2" />
+  </g>
+</svg>
+$yeonun$ where slug = 'taekil-goodday';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <rect
+    x="60"
+    y="40"
+    width="80"
+    height="70"
+    rx="3"
+    fill="rgba(77, 61, 122, 0.2)"
+    stroke="rgba(77, 61, 122, 0.4)"
+    stroke-width="0.6"
+  />
+  <line x1="70" y1="55" x2="130" y2="55" stroke="rgba(77, 61, 122, 0.4)" stroke-width="0.6" />
+  <line x1="70" y1="68" x2="130" y2="68" stroke="rgba(77, 61, 122, 0.4)" stroke-width="0.6" />
+  <line x1="70" y1="81" x2="130" y2="81" stroke="rgba(77, 61, 122, 0.4)" stroke-width="0.6" />
+  <line x1="70" y1="94" x2="115" y2="94" stroke="rgba(77, 61, 122, 0.4)" stroke-width="0.6" />
+</svg>
+$yeonun$ where slug = 'tojeong-2026';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <circle cx="60" cy="100" r="20" fill="rgba(133, 79, 11, 0.18)" />
+  <circle cx="100" cy="80" r="24" fill="rgba(133, 79, 11, 0.22)" />
+  <circle cx="145" cy="105" r="18" fill="rgba(133, 79, 11, 0.18)" />
+</svg>
+$yeonun$ where slug = 'wealth-graph';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <g stroke="rgba(77, 61, 122, 0.4)" stroke-width="0.5" fill="none">
+    <path d="M 100 30 L 130 70 L 100 110 L 70 70 Z" />
+    <path d="M 100 30 L 70 70 M 100 30 L 130 70 M 130 70 L 100 110 M 70 70 L 100 110" />
+  </g>
+  <circle cx="100" cy="30" r="3" fill="rgba(77, 61, 122, 0.6)" />
+  <circle cx="130" cy="70" r="3" fill="rgba(77, 61, 122, 0.5)" />
+  <circle cx="100" cy="110" r="3" fill="rgba(77, 61, 122, 0.5)" />
+  <circle cx="70" cy="70" r="3" fill="rgba(77, 61, 122, 0.5)" />
+</svg>
+$yeonun$ where slug = 'zimi-2026-flow';
+update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <g stroke="rgba(77, 61, 122, 0.4)" stroke-width="0.5" fill="none">
+    <path d="M 100 30 L 130 70 L 100 110 L 70 70 Z" />
+    <path d="M 100 30 L 70 70 M 100 30 L 130 70 M 130 70 L 100 110 M 70 70 L 100 110" />
+  </g>
+  <circle cx="100" cy="30" r="3" fill="rgba(77, 61, 122, 0.6)" />
+  <circle cx="130" cy="70" r="3" fill="rgba(77, 61, 122, 0.5)" />
+  <circle cx="100" cy="110" r="3" fill="rgba(77, 61, 122, 0.5)" />
+  <circle cx="70" cy="70" r="3" fill="rgba(77, 61, 122, 0.5)" />
+</svg>
+$yeonun$ where slug = 'zimi-chart';
+
 
 insert into public.reviews(product_slug, user_mask, stars, body, tags)
 values

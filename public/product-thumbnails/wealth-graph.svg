@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <circle cx="60" cy="100" r="20" fill="rgba(133, 79, 11, 0.18)" />
+  <circle cx="100" cy="80" r="24" fill="rgba(133, 79, 11, 0.22)" />
+  <circle cx="145" cy="105" r="18" fill="rgba(133, 79, 11, 0.18)" />
+</svg>

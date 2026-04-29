@@ -1,6 +1,8 @@
 import { supabaseServer } from "@/lib/supabase/server";
 
+import { AdminThumbnailSvgField } from "@/components/admin/AdminThumbnailSvgField";
 import { TtsVoiceListPreview } from "@/components/admin/TtsVoiceListPreview";
+import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
 import { VoiceCharacterPromptTtsFields, type TtsVoiceOption } from "@/components/admin/VoiceCharacterPromptTtsFields";
 
 type Row = Record<string, unknown>;
@@ -30,6 +32,11 @@ function money(v: unknown) {
   return Number.isFinite(n) ? `${n.toLocaleString("ko-KR")}원` : "-";
 }
 
+/** 상품에 붙이는 카테고리 — 프론트 「전체」탭용 slug `all` 제외 */
+function categoriesAssignableToProducts(rows: Row[]) {
+  return rows.filter((c) => text(c.slug) !== "all");
+}
+
 function StatusPill({ children, tone = "base" }: { children: React.ReactNode; tone?: "base" | "good" | "warn" | "bad" | "rose" }) {
   return <span className={`y-admin-pill ${tone}`}>{children}</span>;
 }
@@ -46,7 +53,12 @@ function EmptyPanel({ label, error }: { label: string; error?: string }) {
 export default async function AdminHomePage() {
   const [products, characters, personas, servicePrompts, characterModePrompts, ttsVoices, categories, reviews, orders, payments, coupons, webhooks, voiceSessions, fortuneRequests] =
     await Promise.all([
-      readRows("products", "slug,title,quote,price_krw,category_slug,character_key,badge", "created_at", 50),
+      readRows(
+        "products",
+        "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg",
+        "created_at",
+        80
+      ),
       readRows("characters", "key,name,han,en,spec,greeting", "key", 20),
       readRows("character_personas", "character_key,color_hex,age_impression,voice_tone,honorific_style,field_core,emotional_distance,sentence_tempo,endings,specialties,temperament,speech_style,emotion_style,strengths,keywords,is_active", "character_key", 20),
       readRows("service_prompts", "key,title,prompt,is_active", "created_at", 10),
@@ -66,6 +78,8 @@ export default async function AdminHomePage() {
     .filter((r) => r.is_active !== false)
     .map((r) => ({ id: text(r.id), label: text(r.label), external_id: text(r.external_id) }))
     .sort((a, b) => text(a.label).localeCompare(text(b.label), "ko"));
+
+  const categoriesForProducts = categoriesAssignableToProducts(categories.rows);
 
   const kpis = [
     { label: "상품", value: products.rows.length, hint: products.ready ? "운영" : "확인 필요" },
@@ -135,25 +149,64 @@ export default async function AdminHomePage() {
             <div className="y-admin-card">
               <h3>상품 저장</h3>
               <form action="/admin/products" method="post" className="y-admin-form">
-                <input name="slug" placeholder="slug (reunion-maybe)" />
-                <input name="title" placeholder="상품명" />
-                <textarea name="quote" placeholder="상세 설명/카피" />
-                <input name="price_krw" inputMode="numeric" placeholder="가격 (14900)" />
-                <select name="category_slug">
-                  {categories.rows.map((c) => (
-                    <option key={text(c.slug)} value={text(c.slug)}>
-                      {text(c.label)} ({text(c.slug)})
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">slug</span>
+                  <input name="slug" placeholder="reunion-maybe" />
+                </label>
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">상품명</span>
+                  <input name="title" placeholder="표시 제목" />
+                </label>
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">설명 / 카피</span>
+                  <textarea name="quote" placeholder="상세 설명·카드 문구" />
+                </label>
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">가격 (원)</span>
+                  <input name="price_krw" inputMode="numeric" placeholder="14900" />
+                </label>
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">카테고리</span>
+                  <select name="category_slug" defaultValue="">
+                    <option value="" disabled>
+                      선택
                     </option>
-                  ))}
-                </select>
-                <select name="character_key">
-                  {characters.rows.map((c) => (
-                    <option key={text(c.key)} value={text(c.key)}>
-                      {text(c.name)} ({text(c.key)})
-                    </option>
-                  ))}
-                </select>
-                <input name="badge" placeholder="HOT / NEW / 2026 / SIGNATURE" />
+                    {categoriesForProducts.map((c) => (
+                      <option key={text(c.slug)} value={text(c.slug)}>
+                        {text(c.label)} ({text(c.slug)})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">캐릭터</span>
+                  <select name="character_key">
+                    {characters.rows.map((c) => (
+                      <option key={text(c.key)} value={text(c.key)}>
+                        {text(c.name)} ({text(c.key)})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">뱃지</span>
+                  <input name="badge" placeholder="HOT / NEW / 2026 / SIGNATURE · 없으면 비움" />
+                </label>
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">홈 섹션</span>
+                  <select name="home_section_slug" defaultValue="">
+                    <option value="">없음 (풀이 탭만)</option>
+                    <option value="weekly_love">이번주 인연</option>
+                    <option value="lifetime">평생을 풀어드립니다</option>
+                    <option value="season_2026">2026 신년 특별</option>
+                    <option value="deep_dive">깊이 있는 풀이</option>
+                  </select>
+                </label>
+                <label className="y-admin-field-stack">
+                  <span className="y-admin-stack-legend">태그</span>
+                  <input name="tags" placeholder="#재회 #인연 (공백·쉼표 구분)" />
+                </label>
+                <AdminThumbnailSvgField name="thumbnail_svg" rows={6} />
                 <button type="submit">상품 저장</button>
               </form>
             </div>
@@ -179,7 +232,7 @@ export default async function AdminHomePage() {
 
           <CrudSection id="admin-products" title="상품 목록" hint="slug 기준 upsert. 펼쳐서 바로 수정할 수 있습니다.">
             {products.rows.length === 0 ? <EmptyPanel label="상품" error={products.error} /> : products.rows.map((p) => (
-              <ProductEditor key={text(p.slug)} row={p} categories={categories.rows} characters={characters.rows} />
+              <ProductEditor key={text(p.slug)} row={p} categories={categoriesForProducts} characters={characters.rows} />
             ))}
           </CrudSection>
 
@@ -370,27 +423,85 @@ function CrudSection({ id, title, hint, children }: { id: string; title: string;
 }
 
 function ProductEditor({ row, categories, characters }: { row: Row; categories: Row[]; characters: Row[] }) {
+  const tagsArr = Array.isArray(row.tags) ? (row.tags as unknown[]).map((t) => String(t)) : [];
+  const tagsStr = tagsArr.join(" ");
+  const categorySlug = text(row.category_slug, "");
+  const categoryIsAll = categorySlug === "all";
   return (
     <details className="y-admin-editor" suppressHydrationWarning>
       <summary>
         <span>
           <strong>{text(row.title)}</strong>
-          <em>{text(row.slug)} · {text(row.category_slug)} · {text(row.character_key)} · {text(row.badge)}</em>
+          <em>
+            {text(row.slug)} · {text(row.category_slug)} · {text(row.character_key)} · 홈섹션 {text(row.home_section_slug, "—")} · {text(row.badge)}
+          </em>
         </span>
         <StatusPill tone="rose">{money(row.price_krw)}</StatusPill>
       </summary>
       <form action="/admin/products" method="post" className="y-admin-form y-admin-edit-form">
-        <input name="slug" defaultValue={text(row.slug, "")} placeholder="slug" />
-        <input name="title" defaultValue={text(row.title, "")} placeholder="상품명" />
-        <textarea name="quote" defaultValue={text(row.quote, "")} placeholder="상세 설명/카피" />
-        <input name="price_krw" defaultValue={text(row.price_krw, "")} inputMode="numeric" placeholder="가격" />
-        <select name="category_slug" defaultValue={text(row.category_slug, "")}>
-          {categories.map((c) => <option key={text(c.slug)} value={text(c.slug)}>{text(c.label)} ({text(c.slug)})</option>)}
-        </select>
-        <select name="character_key" defaultValue={text(row.character_key, "")}>
-          {characters.map((c) => <option key={text(c.key)} value={text(c.key)}>{text(c.name)} ({text(c.key)})</option>)}
-        </select>
-        <input name="badge" defaultValue={text(row.badge, "")} placeholder="badge" />
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">slug</span>
+          <input name="slug" defaultValue={text(row.slug, "")} />
+        </label>
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">상품명</span>
+          <input name="title" defaultValue={text(row.title, "")} />
+        </label>
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">설명 / 카피</span>
+          <textarea name="quote" defaultValue={text(row.quote, "")} />
+        </label>
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">가격 (원)</span>
+          <input name="price_krw" defaultValue={text(row.price_krw, "")} inputMode="numeric" />
+        </label>
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">카테고리</span>
+          <select name="category_slug" defaultValue={categorySlug}>
+            {categoryIsAll ? (
+              <option value="all">전체 (all) — 풀이 탭만, 실제 분류로 바꾸는 것을 권장</option>
+            ) : null}
+            {categories.map((c) => (
+              <option key={text(c.slug)} value={text(c.slug)}>
+                {text(c.label)} ({text(c.slug)})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">캐릭터</span>
+          <select name="character_key" defaultValue={text(row.character_key, "")}>
+            {characters.map((c) => (
+              <option key={text(c.key)} value={text(c.key)}>
+                {text(c.name)} ({text(c.key)})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">뱃지</span>
+          <input name="badge" defaultValue={text(row.badge, "")} placeholder="없으면 비움" />
+        </label>
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">홈 섹션</span>
+          <select name="home_section_slug" defaultValue={text(row.home_section_slug, "")}>
+            <option value="">(없음 · 풀이 탭만)</option>
+            <option value="weekly_love">weekly_love — 이번주 인연</option>
+            <option value="lifetime">lifetime — 평생을 풀어드립니다</option>
+            <option value="season_2026">season_2026 — 2026 신년 특별</option>
+            <option value="deep_dive">deep_dive — 깊이 있는 풀이</option>
+          </select>
+        </label>
+        <label className="y-admin-field-stack">
+          <span className="y-admin-stack-legend">태그</span>
+          <input name="tags" defaultValue={tagsStr} placeholder="공백·쉼표 · # 생략 가능" />
+        </label>
+        <AdminThumbnailSvgField
+          name="thumbnail_svg"
+          defaultValue={text(row.thumbnail_svg, "")}
+          rows={10}
+          previewVariant={cardVariantForSlug(text(row.slug, ""), text(row.character_key, "yeon"))}
+        />
         <div className="y-admin-edit-actions">
           <button type="submit">수정 저장</button>
           <button form={`delete-product-${text(row.slug)}`} type="submit" className="y-admin-danger">삭제</button>

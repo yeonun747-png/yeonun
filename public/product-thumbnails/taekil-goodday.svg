@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <circle cx="100" cy="75" r="36" fill="none" stroke="rgba(42, 49, 66, 0.4)" stroke-width="0.6" />
+  <line x1="100" y1="75" x2="100" y2="50" stroke="rgba(42, 49, 66, 0.55)" stroke-width="1.2" />
+  <line x1="100" y1="75" x2="120" y2="75" stroke="rgba(42, 49, 66, 0.55)" stroke-width="1.2" />
+  <circle cx="100" cy="75" r="2.5" fill="rgba(42, 49, 66, 0.7)" />
+  <g fill="rgba(42, 49, 66, 0.5)">
+    <circle cx="100" cy="42" r="1.2" />
+    <circle cx="133" cy="75" r="1.2" />
+    <circle cx="100" cy="108" r="1.2" />
+    <circle cx="67" cy="75" r="1.2" />
+  </g>
+</svg>

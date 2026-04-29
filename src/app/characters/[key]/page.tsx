@@ -3,101 +3,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { TopNav } from "@/components/TopNav";
+import { HomeContentGrid } from "@/components/HomeMoreSections";
 import { getCharacterPersonaCached, getCharactersCached } from "@/lib/data/characters";
-import { getProductsBySlugsCached, getReviewsByProductSlugCached } from "@/lib/data/content";
+import { getProductsByCharacterKeyCached, getReviewsByProductSlugCached } from "@/lib/data/content";
+import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
 
 type Props = {
   params: Promise<{ key: string }>;
   searchParams?: Promise<{ sheet?: string; from?: string }>;
 };
-
-function illustColorForKey(k: string) {
-  if (k === "byeol") return "rgba(77, 61, 122, 0.55)";
-  if (k === "yeo") return "rgba(45, 84, 68, 0.55)";
-  if (k === "un") return "rgba(42, 49, 66, 0.55)";
-  return "rgba(221, 88, 120, 0.42)";
-}
-
-function cardMetaForSlug(slug: string, color: string): { han: string; tagOn: string; illust: React.ReactNode } {
-  if (slug === "reunion-maybe") {
-    return {
-      han: "緣",
-      tagOn: "재회 분석",
-      illust: (
-        <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
-          <circle cx="50" cy="60" r="6" fill={color} opacity="0.22" />
-          <circle cx="155" cy="80" r="6" fill={color} opacity="0.22" />
-          <path d="M 50 60 Q 100 30, 155 80" stroke={color} strokeWidth="1" fill="none" opacity="0.18" strokeDasharray="3,3" />
-          <path d="M 50 60 Q 100 100, 155 80" stroke={color} strokeWidth="1.5" fill="none" opacity="0.28" />
-        </svg>
-      ),
-    };
-  }
-
-  if (slug === "mind-now") {
-    return {
-      han: "心",
-      tagOn: "마음 읽기",
-      illust: (
-        <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
-          <path
-            d="M 100 95 C 100 75, 80 65, 70 75 C 60 65, 40 75, 40 95 C 40 110, 100 130, 100 130 C 100 130, 160 110, 160 95 C 160 75, 140 65, 130 75 C 120 65, 100 75, 100 95 Z"
-            fill={color}
-            opacity="0.25"
-            transform="translate(0,-10) scale(0.6)"
-          />
-        </svg>
-      ),
-    };
-  }
-
-  if (slug === "compat-howfar") {
-    return {
-      han: "合",
-      tagOn: "사주 궁합",
-      illust: (
-        <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
-          <circle cx="80" cy="75" r="32" fill={color} opacity="0.18" />
-          <circle cx="120" cy="75" r="32" fill={color} opacity="0.18" />
-          <circle cx="100" cy="75" r="14" fill={color} opacity="0.32" />
-        </svg>
-      ),
-    };
-  }
-
-  if (slug === "future-spouse") {
-    return {
-      han: "緣",
-      tagOn: "미래 인연",
-      illust: (
-        <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
-          <path d="M 50 120 L 100 50 L 150 120" stroke={color} opacity="0.3" strokeWidth="1.5" fill="none" />
-          <circle cx="100" cy="50" r="8" fill={color} opacity="0.4" />
-          <path
-            d="M 95 50 L 100 40 L 105 50 L 110 45 L 105 55 L 110 50 L 100 60 L 90 50 L 95 55 L 90 45 Z"
-            fill={color}
-            opacity="0.5"
-            transform="translate(0,-5)"
-          />
-        </svg>
-      ),
-    };
-  }
-
-  return {
-    han: "緣",
-    tagOn: "풀이",
-    illust: (
-      <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
-        <path d="M 20 120 Q 90 70 180 110" stroke={color} strokeWidth="1" fill="none" opacity="0.18" />
-      </svg>
-    ),
-  };
-}
-
-function badgeClassFor(badge: string | null) {
-  return badge === "HOT" ? "hot" : badge === "NEW" ? "new" : badge === "SIGNATURE" ? "signature" : "";
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { key } = await params;
@@ -127,18 +41,11 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const from = sp.from;
   const closeHref = from === "meet" ? "/meet" : "/";
 
-  // 캐릭터 상세에 필요한 건 “해당 캐릭터의 대표 4개” 뿐이라서, 전체 products 조회를 피한다.
-  const characterCatalogSlugs =
-    c.key === "yeon"
-      ? ["reunion-maybe", "mind-now", "compat-howfar", "future-spouse"]
-      : c.key === "byeol"
-        ? ["reunion-maybe", "mind-now", "compat-howfar", "future-spouse"]
-        : c.key === "yeo"
-          ? ["reunion-maybe", "mind-now", "compat-howfar", "future-spouse"]
-          : ["reunion-maybe", "mind-now", "compat-howfar", "future-spouse"];
-  const catalog = await getProductsBySlugsCached(characterCatalogSlugs);
+  const catalog = await getProductsByCharacterKeyCached(c.key);
+  const thumbFallback = await readProductThumbnailsForSlugs(catalog.map((p) => p.slug));
   const reviews = await getReviewsByProductSlugCached(catalog[0]?.slug ?? "reunion-maybe", { limit: 6 });
-  const illustColor = illustColorForKey(c.key);
+  const backToCharacter = `/characters/${c.key}?sheet=1&from=${from ?? "home"}`;
+  const contentLinkExtra = `&ck=${encodeURIComponent(c.key)}&back=${encodeURIComponent(backToCharacter)}`;
   const persona = await getCharacterPersonaCached(c.key);
   const specialties = persona?.specialties?.length
     ? persona.specialties
@@ -216,38 +123,26 @@ export default async function CharacterPage({ params, searchParams }: Props) {
             전체
           </Link>
         </div>
-        <section style={{ paddingBottom: 24 }}>
-          <div className="y-content-grid" aria-label="추천 풀이">
-            {catalog.map((p) => (
-              <Link
-                key={p.slug}
-                href={`/content/${p.slug}?sheet=1&ck=${c.key}&back=${encodeURIComponent(`/characters/${c.key}?sheet=1&from=${from ?? "home"}`)}`}
-                className={`y-content-card ${c.key}`}
-              >
-                <div className="y-content-visual">
-                  {p.badge ? <span className={`y-content-badge ${badgeClassFor(p.badge)}`}>{p.badge}</span> : null}
-                  <div className="y-content-illust" aria-hidden="true">
-                    {cardMetaForSlug(p.slug, illustColor).illust}
-                  </div>
-                  <div className="y-content-han" aria-hidden="true">
-                    {c.han}
-                  </div>
-                  <span className="y-content-tag-on">{cardMetaForSlug(p.slug, illustColor).tagOn}</span>
-                </div>
-                <div className="y-content-meta">
-                  <h3 className="y-content-title">{p.title}</h3>
-                  <p className="y-content-quote">{p.quote}</p>
-                  <div className="y-content-tags-row">
-                    <div className="y-content-tags">#재회 #인연 #흐름</div>
-                    <div className="y-content-price">
-                      {p.price_krw.toLocaleString("ko-KR")}
-                      <span className="small">원</span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+        <section style={{ paddingBottom: 24 }} aria-label="캐릭터별 풀이 상품">
+          {catalog.length === 0 ? (
+            <p
+              style={{
+                padding: "0 22px 16px",
+                fontSize: 13,
+                color: "var(--y-mute)",
+                lineHeight: 1.55,
+              }}
+            >
+              이 안내자(<strong>{c.name}</strong>)에 연결된 풀이가 아직 없습니다. 어드민 상품에서 캐릭터를 맞춰 주세요.
+            </p>
+          ) : (
+            <HomeContentGrid
+              items={catalog}
+              fallbackSvgBySlug={thumbFallback}
+              extraSearchParams={contentLinkExtra}
+              hanDisplayChar={c.han}
+            />
+          )}
         </section>
 
         <div className="y-chd-catalog-head">

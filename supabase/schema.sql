@@ -90,6 +90,15 @@ create table if not exists public.products (
   updated_at timestamptz not null default now()
 );
 
+-- 홈 섹션(이번주 인연 등) / 풀이 탭 태그 / 썸네일 SVG(어드민에서 마크업 직접 관리)
+alter table public.products
+  add column if not exists home_section_slug text null,
+  add column if not exists tags text[] not null default '{}'::text[],
+  add column if not exists thumbnail_svg text null;
+comment on column public.products.home_section_slug is 'weekly_love | lifetime | season_2026 | deep_dive — 홈 노출 섹션 구분';
+comment on column public.products.tags is '풀이 카드용 해시태그(최대 3개 권장)';
+comment on column public.products.thumbnail_svg is '카드 일러스트용 SVG 마크업(viewBox 포함). 비우면 앱 기본 일러스트 사용';
+
 create table if not exists public.reviews (
   id uuid primary key default gen_random_uuid(),
   product_slug text not null references public.products(slug) on delete cascade,

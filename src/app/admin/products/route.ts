@@ -12,6 +12,18 @@ export async function POST(request: Request) {
   const character_key = String(form.get("character_key") ?? "").trim();
   const badgeRaw = String(form.get("badge") ?? "").trim();
   const price_krw = Number(String(form.get("price_krw") ?? "0").trim());
+  const homeSectionRaw = String(form.get("home_section_slug") ?? "").trim();
+  const home_section_slug = homeSectionRaw.length ? homeSectionRaw : null;
+  const tagsRaw = String(form.get("tags") ?? "").trim();
+  const tags = tagsRaw.length
+    ? tagsRaw
+        .split(/[,，\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => (s.startsWith("#") ? s : `#${s}`))
+    : [];
+  const thumbnail_svg_raw = String(form.get("thumbnail_svg") ?? "");
+  const thumbnail_svg = thumbnail_svg_raw.trim().length ? thumbnail_svg_raw : null;
 
   if (!slug || !title || !quote || !category_slug || !character_key || !Number.isFinite(price_krw)) {
     return NextResponse.redirect(new URL("/admin", request.url), 303);
@@ -26,6 +38,9 @@ export async function POST(request: Request) {
     character_key,
     badge: badgeRaw.length ? badgeRaw : null,
     price_krw,
+    home_section_slug,
+    tags,
+    thumbnail_svg,
   });
 
   return NextResponse.redirect(new URL("/admin", request.url), 303);

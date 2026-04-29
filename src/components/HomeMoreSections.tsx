@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { getProductsBySlugsCached, getReviewsByProductSlugCached } from "@/lib/data/content";
+import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
+import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
 import { HomeFaq } from "@/components/HomeFaq";
 import type { Product } from "@/lib/data/content";
 
@@ -344,6 +346,21 @@ function cardMetaForSlug(slug: string): CardMeta {
     };
   }
 
+  if (slug === "child-saju") {
+    return {
+      han: "子",
+      tagOn: "자녀 사주",
+      illust: (
+        <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+          <circle cx="75" cy="72" r="22" fill="rgba(42, 49, 66, 0.12)" stroke="rgba(42, 49, 66, 0.25)" strokeWidth="0.6" />
+          <circle cx="125" cy="72" r="22" fill="rgba(42, 49, 66, 0.12)" stroke="rgba(42, 49, 66, 0.25)" strokeWidth="0.6" />
+          <path d="M 75 72 L 125 72" stroke="rgba(42, 49, 66, 0.2)" strokeWidth="0.8" strokeDasharray="2,2" />
+          <circle cx="100" cy="95" r="5" fill="rgba(42, 49, 66, 0.35)" />
+        </svg>
+      ),
+    };
+  }
+
   // Deep section (fallback to keep UI stable)
   return { han: "緣", tagOn: "풀이", illust: <svg viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice" /> };
 }
@@ -360,35 +377,43 @@ function badgeClassFor(badge: string | null) {
           : "";
 }
 
-function cardVariantForSlug(slug: string, base: string) {
-  // DB 값이 'yeonhwa' 등으로 들어오면 UI 테마 키(yeon/byeol/yeo/un)로 정규화
-  const normBase =
-    base === "yeonhwa" || base === "yeon-hwa" ? "yeon" : base;
-  // 목업에서 특정 카드들은 deep/cream/warm 등으로 강제됨
-  if (slug === "lifetime-master") return "yeo-deep";
-  if (slug === "newyear-2026") return "byeol-deep";
-  if (slug === "wealth-graph") return "cream";
-  if (slug === "calendar-2026") return "warm";
-  if (slug === "naming-baby") return "un-deep";
-  return normBase;
-}
-
-function HomeContentGrid({ items }: { items: { slug: string; title: string; quote: string; badge: string | null; price_krw: number; character_key: string; tags?: string[] }[] }) {
+export function HomeContentGrid({
+  items,
+  fallbackSvgBySlug = {},
+  /** `sheet=1` 뒤에 붙일 쿼리. 예: `&ck=un&back=%2Fcharacters%2Fun%3Fsheet%3D1` */
+  extraSearchParams = "",
+  /** 캐릭터 상세 등: 카드 워터마크 한자를 상품별이 아닌 안내자 한자로 통일 */
+  hanDisplayChar,
+}: {
+  items: Product[];
+  /** DB에 thumbnail_svg가 없을 때 `public/product-thumbnails/{slug}.svg` 등에서 채운 문자열 */
+  fallbackSvgBySlug?: Record<string, string>;
+  extraSearchParams?: string;
+  hanDisplayChar?: string;
+}) {
+  const suffix = extraSearchParams.startsWith("&") ? extraSearchParams : extraSearchParams ? `&${extraSearchParams}` : "";
   return (
     <div className="y-content-grid" aria-label="추천 풀이">
       {items.map((p) => {
         const m = cardMetaForSlug(p.slug);
         const badgeClass = badgeClassFor(p.badge);
         const variant = cardVariantForSlug(p.slug, p.character_key);
+        const tagLine = (p.tags?.length ? p.tags : []).slice(0, 3).join(" ");
+        const inlineSvg = (p.thumbnail_svg?.trim() || fallbackSvgBySlug[p.slug]?.trim() || "").trim();
+        const han = hanDisplayChar?.trim() ? hanDisplayChar : m.han;
         return (
-          <Link key={p.slug} href={`/content/${p.slug}?sheet=1`} className={`y-content-card ${variant}`}>
+          <Link key={p.slug} href={`/content/${p.slug}?sheet=1${suffix}`} className={`y-content-card ${variant}`}>
             <div className="y-content-visual">
               {p.badge ? <span className={`y-content-badge ${badgeClass}`}>{p.badge}</span> : null}
               <div className="y-content-han" aria-hidden="true">
-                {m.han}
+                {han}
               </div>
               <div className="y-content-illust" aria-hidden="true">
-                {m.illust}
+                {inlineSvg ? (
+                  <span className="y-content-illust-svg" dangerouslySetInnerHTML={{ __html: inlineSvg }} />
+                ) : (
+                  m.illust
+                )}
               </div>
               <span className="y-content-tag-on">{m.tagOn}</span>
             </div>
@@ -396,7 +421,7 @@ function HomeContentGrid({ items }: { items: { slug: string; title: string; quot
               <h3 className="y-content-title">{p.title}</h3>
               <p className="y-content-quote">{p.quote}</p>
               <div className="y-content-tags-row">
-                <div className="y-content-tags">{(p.tags ?? []).slice(0, 3).join(" ") || "#재회 #인연 #흐름"}</div>
+                <div className="y-content-tags">{tagLine || "#재회 #인연 #흐름"}</div>
                 <div className="y-content-price">
                   {p.price_krw.toLocaleString("ko-KR")}
                   <span className="small">원</span>
@@ -429,14 +454,15 @@ export async function HomeMoreSections() {
       // # 깊이 있는 풀이
       "zimi-chart",
       "naming-baby",
-      "taekil-goodday",
       "dream-lastnight",
+      "child-saju",
     ]),
   );
 
   const homeProducts = await getProductsBySlugsCached(homeSectionSlugs);
   const bySlug = new Map(homeProducts.map((p) => [p.slug, p] as const));
   const featured = weeklyOrder.map((s) => bySlug.get(s)).filter(isProduct).slice(0, 4);
+  const thumbFallback = await readProductThumbnailsForSlugs(homeSectionSlugs);
 
   const reviews = await getReviewsByProductSlugCached(featured[0]?.slug ?? "reunion-maybe", { limit: 6 });
 
@@ -454,7 +480,7 @@ export async function HomeMoreSections() {
         <strong>다시 만날 사람, 곧 만날 사람.</strong> 사주가 알려주는 그 사람의 마음과 인연의 시기.
       </p>
 
-      <HomeContentGrid items={featured} />
+      <HomeContentGrid items={featured} fallbackSvgBySlug={thumbFallback} />
 
       <div className="y-section-divider" />
 
@@ -475,7 +501,8 @@ export async function HomeMoreSections() {
           bySlug.get("saju-classic"),
           bySlug.get("wealth-graph"),
           bySlug.get("career-timing"),
-        ].filter(Boolean) as any}
+        ].filter(Boolean) as Product[]}
+        fallbackSvgBySlug={thumbFallback}
       />
 
       <div className="y-season-block">
@@ -496,7 +523,8 @@ export async function HomeMoreSections() {
             bySlug.get("tojeong-2026"),
             bySlug.get("zimi-2026-flow"),
             bySlug.get("calendar-2026"),
-          ].filter(Boolean) as any}
+          ].filter(Boolean) as Product[]}
+          fallbackSvgBySlug={thumbFallback}
         />
       </div>
 
@@ -509,10 +537,11 @@ export async function HomeMoreSections() {
         </Link>
       </div>
       <p className="y-section-intro">
-        <strong>한 끗 더 깊이 들어가는 사람들을 위해.</strong> 자미두수·작명·꿈해몽까지.
+        <strong>한 끗 더 깊이 들어가는 사람들을 위해.</strong> 자미두수·작명·꿈해몽·자녀 사주까지.
       </p>
       <HomeContentGrid
-        items={[bySlug.get("zimi-chart"), bySlug.get("naming-baby"), bySlug.get("taekil-goodday"), bySlug.get("dream-lastnight")].filter(Boolean) as any}
+        items={[bySlug.get("zimi-chart"), bySlug.get("naming-baby"), bySlug.get("dream-lastnight"), bySlug.get("child-saju")].filter(Boolean) as Product[]}
+        fallbackSvgBySlug={thumbFallback}
       />
 
       <div className="y-reviews-block">

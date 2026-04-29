@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <g stroke="rgba(77, 61, 122, 0.4)" stroke-width="0.5" fill="none">
+    <path d="M 100 30 L 130 70 L 100 110 L 70 70 Z" />
+    <path d="M 100 30 L 70 70 M 100 30 L 130 70 M 130 70 L 100 110 M 70 70 L 100 110" />
+  </g>
+  <circle cx="100" cy="30" r="3" fill="rgba(77, 61, 122, 0.6)" />
+  <circle cx="130" cy="70" r="3" fill="rgba(77, 61, 122, 0.5)" />
+  <circle cx="100" cy="110" r="3" fill="rgba(77, 61, 122, 0.5)" />
+  <circle cx="70" cy="70" r="3" fill="rgba(77, 61, 122, 0.5)" />
+</svg>

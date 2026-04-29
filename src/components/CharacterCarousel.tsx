@@ -12,7 +12,6 @@ const CHAR: Record<
     en: string;
     quote: string;
     tags: string;
-    tagsExtra: string;
   }
 > = {
   yeon: {
@@ -23,7 +22,6 @@ const CHAR: Record<
     en: "YEONHWA · 蓮花",
     quote: "오랜만이에요. 그 사람이 자꾸 떠오르시죠? 들여다봐 드릴게요.",
     tags: "#재회 #짝사랑 #이별후 #그사람마음",
-    tagsExtra: "+5",
   },
   byeol: {
     key: "byeol",
@@ -33,7 +31,6 @@ const CHAR: Record<
     en: "BYEOLHA · 星河",
     quote: "2026년에 어떤 별이 흐르는지, 같이 보러 갈까요?",
     tags: "#자미두수 #2026운세 #토정비결 #올해",
-    tagsExtra: "+4",
   },
   yeo: {
     key: "yeo",
@@ -43,7 +40,6 @@ const CHAR: Record<
     en: "YEOYEON · 麗淵",
     quote: "바람이 닿지 않는 깊은 물처럼, 사주의 본질을 짚어드립니다.",
     tags: "#평생운 #대운 #직업 #재물",
-    tagsExtra: "+4",
   },
   un: {
     key: "un",
@@ -53,7 +49,6 @@ const CHAR: Record<
     en: "UNSEO · 雲棲",
     quote: "한 글자에 운명이 담깁니다. 천천히 풀어가시죠.",
     tags: "#작명 #택일 #꿈해몽 #자녀사주",
-    tagsExtra: "+3",
   },
 };
 
@@ -196,10 +191,7 @@ export function CharacterCarousel() {
 
               <div className="yCharMeta">
                 <p className="yCharQuote">{CHAR[k].quote}</p>
-                <div className="yCharTags">
-                  {CHAR[k].tags}
-                  <span className="yCharTagsExtra">{CHAR[k].tagsExtra}</span>
-                </div>
+                <div className="yCharTags">{CHAR[k].tags}</div>
               </div>
             </Link>
           ))}

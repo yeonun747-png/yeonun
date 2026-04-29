@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <g stroke="white" stroke-width="0.7" fill="none" opacity="0.5">
+    <path d="M 60 50 L 90 50 M 75 50 L 75 95 M 60 75 L 90 75 M 60 95 L 90 95" />
+    <path d="M 110 45 L 140 45 L 140 95 L 110 95 Z" />
+    <path d="M 110 70 L 140 70" />
+    <path d="M 125 45 L 125 95" />
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">
+  <path d="M 50 120 L 100 50 L 150 120" stroke="currentColor" opacity="0.3" stroke-width="1.5" fill="none" />
+  <circle cx="100" cy="50" r="8" fill="currentColor" opacity="0.4" />
+  <path
+    d="M 95 50 L 100 40 L 105 50 L 110 45 L 105 55 L 110 50 L 100 60 L 90 50 L 95 55 L 90 45 Z"
+    fill="currentColor"
+    opacity="0.5"
+    transform="translate(0,-5)"
+  />
+</svg>

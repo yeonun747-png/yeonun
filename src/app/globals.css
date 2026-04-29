@@ -712,14 +712,102 @@ a {
   pointer-events: none;
 }
 .y-admin-labeled-field textarea,
-.y-admin-labeled-field input {
+.y-admin-labeled-field input,
+.y-admin-labeled-field select {
   padding-top: 28px !important;
+}
+.y-admin-labeled-field select {
+  min-height: 48px;
+  appearance: auto;
 }
 .y-admin-labeled-field.compact input {
   min-height: 50px;
 }
+/* 상품 폼 등: 라벨을 입력칸 위(밖)에 두는 스타일 */
+.y-admin-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  grid-column: 1 / -1;
+}
+.y-admin-stack-legend {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--y-mute);
+  letter-spacing: 0.02em;
+}
 .y-admin-edit-form {
   padding: 0 14px 14px;
+}
+.y-admin-field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--y-mute);
+  margin: 10px 0 4px;
+}
+.y-admin-thumbnail-svg-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(112px, 168px);
+  gap: 12px;
+  align-items: start;
+  grid-column: 1 / -1;
+}
+@media (max-width: 720px) {
+  .y-admin-thumbnail-svg-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.y-admin-thumbnail-svg-field-input {
+  min-width: 0;
+}
+.y-admin-thumbnail-svg-grid > .y-admin-field-stack {
+  grid-column: unset;
+}
+.y-admin-svg-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.y-admin-svg-preview-caption {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--y-mute);
+  letter-spacing: 0.04em;
+}
+/* 어드민 SVG 미리보기: 실제 풀이 카드와 동일 DOM/CSS로 rgba·currentColor까지 일치 */
+.y-admin-svg-preview-faux-card.y-content-card {
+  overflow: hidden;
+  border-radius: 12px;
+  border: 0.5px solid var(--y-line);
+  width: 100%;
+  cursor: default;
+}
+.y-admin-svg-preview-faux-card .y-content-visual {
+  min-height: 108px;
+}
+.y-admin-svg-preview-empty-box {
+  border: 0.5px dashed var(--y-line);
+  border-radius: 12px;
+  aspect-ratio: 200 / 150;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(250, 250, 247, 0.75);
+}
+.y-admin-svg-preview-empty {
+  font-size: 11px;
+  color: var(--y-mute-2);
+  padding: 12px;
+  text-align: center;
+}
+.y-admin-code {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  width: 100%;
+  box-sizing: border-box;
 }
 .y-admin-edit-actions {
   display: grid;
@@ -1162,7 +1250,7 @@ ul {
 .ySortBar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
   padding: 12px 20px;
   background: var(--y-bg);
@@ -1170,6 +1258,7 @@ ul {
 .ySortTabs {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
 }
 .ySortTab {
   border: 0.5px solid var(--y-line);
@@ -1178,6 +1267,10 @@ ul {
   font-size: 12px;
   padding: 8px 12px;
   border-radius: 100px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .ySortTab.active {
   background: var(--y-ink);
@@ -1209,6 +1302,18 @@ ul {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   padding: 12px 20px 0;
+}
+.y-content-tab-wrap {
+  padding-top: 4px;
+}
+.y-content-tab-wrap .y-content-grid {
+  padding-bottom: 32px;
+}
+.y-content-empty {
+  margin: 24px 20px 40px;
+  font-size: 13px;
+  color: var(--y-mute);
+  text-align: center;
 }
 .yContentCard {
   background: var(--y-card);
@@ -2259,6 +2364,233 @@ button.y-dw-listen:disabled {
   font-family: inherit;
   cursor: pointer;
 }
+.y-my-saju-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.y-my-p-glyph-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.y-my-p-glyph-stack .y-my-p-cheon,
+.y-my-p-glyph-stack .y-my-p-ji {
+  font-size: 12px;
+  line-height: 1.25;
+  word-break: keep-all;
+}
+
+.y-modal.y-modal--manse-detail {
+  z-index: 210;
+}
+.y-manse-detail-sheet {
+  max-height: 88vh;
+  min-width: 0;
+}
+/* 만세력: 스크롤 트릭(margin-right -20px) 제거 + flex 축소 허용 → 표가 시트 밖으로 밀리지 않음 */
+.y-manse-detail-scroll.y-modal-scroll {
+  margin-right: 0;
+  padding-right: 16px;
+  min-width: 0;
+  overflow-x: hidden;
+}
+/* 제목(전체 만세력) 아래 구분선과 본문 사이 한 줄 여백 */
+.y-manse-detail-scroll {
+  padding: 14px 16px 28px;
+}
+.y-manse-detail-header {
+  margin: 0 0 16px;
+  padding: 0;
+}
+.y-manse-detail-header-body {
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+.y-manse-detail-header-name {
+  font-family: "Noto Serif KR", serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--y-ink);
+  line-height: 1.3;
+}
+.y-manse-detail-header-cal {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--y-mute);
+  font-weight: 500;
+  word-break: keep-all;
+}
+.y-manse-detail-header-time {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--y-ink);
+  opacity: 0.92;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  word-break: keep-all;
+}
+.y-manse-detail-table-wrap {
+  container-type: inline-size;
+  container-name: manse-sheet;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  margin-bottom: 4px;
+}
+.y-manse-detail-table {
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0;
+  box-sizing: border-box;
+}
+.y-manse-detail-table--matrix {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  /* 데이터: 마이 탭 내 사주 명식 기둥(y-my-p-glyph-stack)과 동일 12px */
+  font-size: 12px;
+}
+.y-manse-detail-table th,
+.y-manse-detail-table td {
+  border: 0.5px solid var(--y-line);
+  padding: 6px 4px;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.35;
+}
+.y-manse-detail-table--matrix th,
+.y-manse-detail-table--matrix td {
+  box-sizing: border-box;
+  padding: 0.35em 0.1em;
+  line-height: 1.15;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  hyphens: none;
+  max-width: 0;
+}
+.y-manse-detail-table thead th {
+  background: rgba(26, 24, 21, 0.04);
+  color: var(--y-mute);
+  font-weight: 600;
+}
+/* 머리글: th 패딩 제거 후 안쪽 flex 박스로 세로·가로 중앙 (표 첫 줄 글자가 위로 붙는 현상 방지) */
+.y-manse-detail-table--matrix thead th {
+  padding: 0;
+  vertical-align: middle;
+}
+.y-manse-thead-fill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 3.95em;
+  padding: 0.35em 0.1em;
+}
+.y-manse-thead-label {
+  /* 범례만 작게 — 요약 라벨(y-my-summary-label)과 동일 9px */
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--y-mute);
+  text-align: center;
+}
+.y-manse-col-gubun {
+  width: 12%;
+}
+.y-manse-detail-table--matrix thead th:not(.y-manse-col-gubun) {
+  width: 22%;
+}
+.y-manse-detail-table tbody th[scope="row"] {
+  color: var(--y-ink);
+  font-weight: 600;
+}
+.y-manse-gubun {
+  vertical-align: middle !important;
+  background: rgba(26, 24, 21, 0.03);
+}
+.y-manse-gubun-main {
+  display: block;
+  font-size: 9px;
+  line-height: 1.25;
+}
+.y-manse-detail-table--matrix .y-manse-gubun-main {
+  font-size: 1em;
+}
+/* 1열(구분) 행 제목: 첫 줄 범례(y-manse-thead-label)와 동일 톤 */
+.y-manse-detail-table--matrix tbody th.y-manse-gubun {
+  font-size: 9px;
+  color: var(--y-mute);
+}
+.y-manse-gubun-sub {
+  display: block;
+  font-size: 8px;
+  font-weight: 500;
+  color: var(--y-mute);
+  margin-top: 2px;
+}
+.y-manse-detail-table--matrix .y-manse-gubun-sub {
+  font-size: 0.78em;
+  margin-top: 0.15em;
+}
+.y-manse-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 0;
+}
+.y-manse-detail-table--matrix .y-manse-cell {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+.y-manse-cell-ko {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.y-manse-detail-table--matrix .y-manse-cell-ko {
+  font-size: 1em;
+}
+.y-manse-cell-hj {
+  font-family: "Noto Serif KR", serif;
+  font-size: 9px;
+  line-height: 1.15;
+  opacity: 0.92;
+}
+.y-manse-detail-table--matrix .y-manse-cell-hj {
+  font-size: 0.88em;
+}
+/* 마이 카드 천간 색과 동일 계열(오행) */
+.y-manse-elem-wood .y-manse-cell-ko,
+.y-manse-elem-wood .y-manse-cell-hj {
+  color: #5c7c40;
+}
+.y-manse-elem-fire .y-manse-cell-ko,
+.y-manse-elem-fire .y-manse-cell-hj {
+  color: #c9332c;
+}
+.y-manse-elem-earth .y-manse-cell-ko,
+.y-manse-elem-earth .y-manse-cell-hj {
+  color: #8c6b35;
+}
+.y-manse-elem-metal .y-manse-cell-ko,
+.y-manse-elem-metal .y-manse-cell-hj {
+  color: #8c7a45;
+}
+.y-manse-elem-water .y-manse-cell-ko,
+.y-manse-elem-water .y-manse-cell-hj {
+  color: #4a7565;
+}
 .y-vip-card {
   margin: 14px 20px;
   background: linear-gradient(135deg, var(--y-yeon-bg) 0%, var(--y-byeol-bg) 100%);
@@ -3026,9 +3358,6 @@ button.y-dw-listen:disabled {
   font-weight: 500;
   letter-spacing: 0.01em;
 }
-.yCharTagsExtra {
-  color: var(--y-mute);
-}
 
 /* ===== 홈 섹션/콘텐츠 카드 (목업 클래스: y-content-*) ===== */
 .y-section-intro {
@@ -3076,6 +3405,12 @@ button.y-dw-listen:disabled {
   inset: 0;
   pointer-events: none;
   overflow: hidden;
+}
+.y-content-illust-svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
 }
 .y-content-illust svg {
   position: absolute;
