@@ -248,7 +248,11 @@ export default async function AdminHomePage() {
             ))}
           </CrudSection>
 
-          <CrudSection id="admin-personas" title="캐릭터 페르소나/전문영역" hint="4명 고정 캐릭터의 UI 페르소나와 LLM/음성상담 시스템 프롬프트입니다.">
+          <CrudSection
+            id="admin-personas"
+            title="캐릭터 전문영역"
+            hint="캐릭터 카드·만남 등에 쓰이는 전문 분야·톤·키워드와 전문영역(JSON) 메타데이터입니다.
+          >
             {characters.rows.map((c) => {
               const persona = personas.rows.find((p) => text(p.character_key) === text(c.key));
               return <PersonaEditor key={text(c.key)} character={c} persona={persona} />;
