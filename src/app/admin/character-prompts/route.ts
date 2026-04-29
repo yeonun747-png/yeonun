@@ -13,12 +13,12 @@ export async function POST(request: Request) {
   const tts_voice_id = mode === "voice" && tts_voice_raw ? tts_voice_raw : null;
 
   const hash = mode === "voice" ? "voice" : mode === "fortune_text" ? "fortune" : "dashboard";
-  if (!character_key || !mode || !title || !prompt) return NextResponse.redirect(new URL(`/admin#${hash}`, request.url));
+  if (!character_key || !mode || !title || !prompt) return NextResponse.redirect(new URL(`/admin#${hash}`, request.url), 303);
 
   await supabaseServer()
     .from("character_mode_prompts")
     .upsert({ character_key, mode, title, prompt, is_active, tts_voice_id }, { onConflict: "character_key,mode" });
 
-  return NextResponse.redirect(new URL(`/admin#${hash}`, request.url));
+  return NextResponse.redirect(new URL(`/admin#${hash}`, request.url), 303);
 }
 

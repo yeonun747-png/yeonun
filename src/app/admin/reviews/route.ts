@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     .filter(Boolean);
 
   if (!product_slug || !user_mask || !body || !Number.isFinite(stars)) {
-    return NextResponse.redirect(new URL("/admin#content", request.url));
+    return NextResponse.redirect(new URL("/admin#content", request.url), 303);
   }
 
   const supabase = supabaseServer();
@@ -27,6 +27,6 @@ export async function POST(request: Request) {
     await supabase.from("reviews").insert(payload);
   }
 
-  return NextResponse.redirect(new URL("/admin#content", request.url));
+  return NextResponse.redirect(new URL("/admin#content", request.url), 303);
 }
 

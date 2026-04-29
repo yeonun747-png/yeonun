@@ -25,6 +25,22 @@ function asCharacterKey(v: string | null): CharacterKey {
   return "yeon";
 }
 
+/**
+ * 기본 퍼센트(낮게)에서 VAD 게인=1.0 → 예전 슬라이더 50%·게인 1.0과 동일.
+ * 0%는 더 둔함, 100%는 더 민감. 근거리 마이크는 원본 RMS가 커서 낮은 슬라이더에서도 발화가 잡힌다.
+ */
+const MIC_SENSITIVITY_DEFAULT_PERCENT = 14;
+
+function micPercentToVadGain(percent: number) {
+  const p = Math.max(0, Math.min(100, percent));
+  const a = MIC_SENSITIVITY_DEFAULT_PERCENT;
+  if (p <= a) {
+    const gLo = 0.14;
+    return gLo + (p / a) * (1 - gLo);
+  }
+  return 1 + ((p - a) / (100 - a)) * 0.52;
+}
+
 type NdjsonMsg =
   | { type: "userTranscript"; text: string }
   | { type: "audio"; base64: string; format?: "pcm_s16le"; sampleRate?: number }
@@ -45,6 +61,8 @@ export default function CallDccPageClient() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [fetchedVoiceExternalId, setFetchedVoiceExternalId] = useState<string | null>(null);
   const [micLevel, setMicLevel] = useState(0);
+  /** 0=둔함(잡음·에코에 덜 반응) … 100=민감. VAD·파형만; STT 녹음 PCM은 원본 */
+  const [micSensitivityPercent, setMicSensitivityPercent] = useState(MIC_SENSITIVITY_DEFAULT_PERCENT);
   const [ttsLevel, setTtsLevel] = useState(0);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   /** 캐릭터 TTS 이번 턴 남은 분량(스케줄된 PCM 큐 기준, 1=전부 남음) */
@@ -70,6 +88,7 @@ export default function CallDccPageClient() {
   const turnAbortRef = useRef<AbortController | null>(null);
   const assistantSpeakingRef = useRef(false);
   const rmsRef = useRef(0);
+  const micVadGainRef = useRef(micPercentToVadGain(MIC_SENSITIVITY_DEFAULT_PERCENT));
   // 초기 노이즈 플로어를 낮게 잡고(실측 rms 0.003~0.01), 적응형으로 천천히 올린다.
   const noiseFloorRef = useRef(0.003);
   const speechRef = useRef(false);
@@ -381,19 +400,20 @@ export default function CallDccPageClient() {
         };
         const tick = () => {
           if (cancelled) return;
-          const rms = sampleRms();
-          rmsRef.current = rms;
+          const raw = sampleRms();
+          rmsRef.current = raw;
+          const g = micVadGainRef.current;
           if (!speechRef.current && !assistantSpeakingRef.current) {
             // 노이즈 플로어는 급격히 커지지 않게 상한/하한을 둔다.
               const nf = noiseFloorRef.current;
               // 말소리(rms 상승)를 노이즈로 학습해버리면 VAD가 영원히 안 걸린다.
-              // "충분히 조용할 때만" 천천히 노이즈 플로어를 업데이트한다.
-              if (rms <= Math.max(0.006, nf * 1.15)) {
-                const next = nf * 0.96 + rms * 0.04;
+              // "충분히 조용할 때만" 천천히 노이즈 플로어를 업데이트한다. (원본 RMS)
+              if (raw <= Math.max(0.006, nf * 1.15)) {
+                const next = nf * 0.96 + raw * 0.04;
                 noiseFloorRef.current = Math.max(0.0015, Math.min(0.02, next));
               }
           }
-          setMicLevel(Math.max(0, Math.min(1, rms * 3.4)));
+          setMicLevel(Math.max(0, Math.min(1, raw * 3.4 * g)));
           rafRef.current = requestAnimationFrame(tick);
         };
         rafRef.current = requestAnimationFrame(tick);
@@ -525,7 +545,7 @@ export default function CallDccPageClient() {
               existingMediaStreamSource: shared ?? undefined,
               onRms: (rms) => {
                 rmsRef.current = rms;
-                setMicLevel(Math.max(0, Math.min(1, rms * 3.4)));
+                setMicLevel(Math.max(0, Math.min(1, rms * 3.4 * micVadGainRef.current)));
               },
             })
             .catch(() => {});
@@ -623,12 +643,13 @@ export default function CallDccPageClient() {
 
     const tick = () => {
       if (cancelled) return;
-      const rms = rmsRef.current;
+      const raw = rmsRef.current;
+      const vadRms = raw * micVadGainRef.current;
       const now = Date.now();
       if (!speechRef.current) {
         const floor = noiseFloorRef.current;
-        if (!assistantSpeakingRef.current && rms <= Math.max(0.012, floor * 1.35)) {
-          const next = floor * 0.94 + rms * 0.06;
+        if (!assistantSpeakingRef.current && raw <= Math.max(0.012, floor * 1.35)) {
+          const next = floor * 0.94 + raw * 0.06;
           noiseFloorRef.current = Math.max(0.0015, Math.min(0.02, next));
         }
         // 초기 노이즈플로어가 높게 잡히면 영원히 트리거가 안 걸릴 수 있어 multiplier를 낮춘다.
@@ -651,7 +672,7 @@ export default function CallDccPageClient() {
         vadStateRef.current.speech = speechNow;
         if (now < vadReadyAt && !aiSpeaking) {
           above = 0;
-        } else if (rms >= thrOn) above += 1;
+        } else if (vadRms >= thrOn) above += 1;
         else above = 0;
         if (above >= framesOnTarget && now - lastHotAtRef.current >= minGapMs) {
           // lastHotAtRef는 speech-start 스팸 방지용
@@ -659,8 +680,8 @@ export default function CallDccPageClient() {
           speechRef.current = true;
           above = 0;
           below = 0;
-          vadEnvRef.current = Math.max(rms, 0.0004);
-          vadPeakRef.current = Math.max(rms, THRESH_ON_MIN);
+          vadEnvRef.current = Math.max(vadRms, 0.0004);
+          vadPeakRef.current = Math.max(vadRms, THRESH_ON_MIN);
           vadLastActiveAtRef.current = now;
           utteranceStartRef.current = now;
           setActiveLine("stt");
@@ -684,13 +705,13 @@ export default function CallDccPageClient() {
         const floor = noiseFloorRef.current;
         // 고정 thrOff만 쓰면 "말한 뒤에도 RMS가 thrOff보다 큰" 기기에서 말끝이 영원히 안 옴 → bytes/audio 0
         let env = vadEnvRef.current;
-        if (rms >= env) env = rms;
-        else env = Math.max(rms, env * 0.907);
+        if (vadRms >= env) env = vadRms;
+        else env = Math.max(vadRms, env * 0.907);
         vadEnvRef.current = env;
-        const peak = Math.max(vadPeakRef.current, rms);
+        const peak = Math.max(vadPeakRef.current, vadRms);
         vadPeakRef.current = peak;
         const activeThr = Math.max(THRESH_OFF_MIN, floor * 1.2, peak * 0.38);
-        if (rms >= activeThr) {
+        if (vadRms >= activeThr) {
           vadLastActiveAtRef.current = now;
         }
         const thrOff = Math.max(THRESH_OFF_MIN * 0.92, floor * 1.015, Math.min(env * 0.34, activeThr));
@@ -707,7 +728,7 @@ export default function CallDccPageClient() {
         if (now - utteranceStartRef.current > MAX_UTTERANCE_MS) {
           clearSilenceTimer();
           void runEndOfUtterance();
-        } else if (rms <= thrOff) {
+        } else if (vadRms <= thrOff) {
           // 말소리가 잠깐만 thrOff 아래로 내려와도 먼저 잡음(SPEECH_END_MS 전에 STT로 넘김)
           below += 1;
           if (below >= FRAMES_OFF && !silenceTimerRef.current) scheduleSpeechEnd();
@@ -863,12 +884,26 @@ export default function CallDccPageClient() {
           <div className="y-call-mic" aria-label="마이크 민감도">
             <div className="y-call-mic-row">
               <span className="label">마이크 민감도</span>
-              <span className="value">50%</span>
+              <span className="value">{micSensitivityPercent}%</span>
             </div>
-            <div className="y-call-mic-track" role="presentation">
-              <div className="y-call-mic-fill" style={{ width: "50%" }} />
-              <div className="y-call-mic-thumb" style={{ left: "50%" }} />
-            </div>
+            <input
+              type="range"
+              className="y-call-mic-range"
+              min={0}
+              max={100}
+              step={1}
+              value={micSensitivityPercent}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (!Number.isFinite(v)) return;
+                setMicSensitivityPercent(v);
+                micVadGainRef.current = micPercentToVadGain(v);
+              }}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={micSensitivityPercent}
+              aria-valuetext={`마이크 민감도 ${micSensitivityPercent}퍼센트. 낮추면 잡음에 덜 반응합니다.`}
+            />
           </div>
 
           <div className="y-call-btns">
@@ -905,7 +940,7 @@ export default function CallDccPageClient() {
                         existingMediaStreamSource: micSourceRef.current ?? undefined,
                         onRms: (rms) => {
                           rmsRef.current = rms;
-                          setMicLevel(Math.max(0, Math.min(1, rms * 3.4)));
+                          setMicLevel(Math.max(0, Math.min(1, rms * 3.4 * micVadGainRef.current)));
                         },
                       })
                       .catch(() => {});

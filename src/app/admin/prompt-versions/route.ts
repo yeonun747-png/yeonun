@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const system_prompt = String(form.get("system_prompt") ?? "").trim();
   const is_active = String(form.get("is_active") ?? "false") === "true";
 
-  if (!name || !model || !system_prompt) return NextResponse.redirect(new URL("/admin#fortune", request.url));
+  if (!name || !model || !system_prompt) return NextResponse.redirect(new URL("/admin#fortune", request.url), 303);
 
   const supabase = supabaseServer();
   const payload = { name, model, system_prompt, schema: {}, is_active };
@@ -22,6 +22,6 @@ export async function POST(request: Request) {
   if (id) await supabase.from("fortune_prompt_versions").update(payload).eq("id", id);
   else await supabase.from("fortune_prompt_versions").insert(payload);
 
-  return NextResponse.redirect(new URL("/admin#fortune", request.url));
+  return NextResponse.redirect(new URL("/admin#fortune", request.url), 303);
 }
 

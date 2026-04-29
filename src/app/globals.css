@@ -5329,7 +5329,7 @@ button.y-dw-listen:disabled {
   animation: none !important;
 }
 
-/* ===== 마이크 민감도 (목업) ===== */
+/* ===== 마이크 민감도 (VAD·파형 게인만 조절, /call-dcc) ===== */
 .y-call-mic {
   margin-bottom: 18px;
 }
@@ -5349,6 +5349,57 @@ button.y-dw-listen:disabled {
   color: var(--y-rose);
   font-weight: 600;
 }
+.y-call-mic-range {
+  display: block;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.y-call-mic-range:focus {
+  outline: none;
+}
+.y-call-mic-range:focus-visible {
+  outline: 2px solid rgba(232, 168, 184, 0.55);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.y-call-mic-range::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(245, 218, 224, 0.15);
+  border-radius: 2px;
+}
+.y-call-mic-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  border: none;
+}
+.y-call-mic-range::-moz-range-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(245, 218, 224, 0.15);
+  border-radius: 2px;
+}
+.y-call-mic-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  border: none;
+}
+/* /call 등 목업 슬라이더 */
 .y-call-mic-track {
   width: 100%;
   height: 4px;

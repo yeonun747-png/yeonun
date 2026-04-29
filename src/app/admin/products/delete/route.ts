@@ -5,11 +5,11 @@ import { supabaseServer } from "@/lib/supabase/server";
 export async function POST(request: Request) {
   const form = await request.formData();
   const slug = String(form.get("slug") ?? "").trim();
-  if (!slug) return NextResponse.redirect(new URL("/admin", request.url));
+  if (!slug) return NextResponse.redirect(new URL("/admin", request.url), 303);
 
   const supabase = supabaseServer();
   await supabase.from("products").delete().eq("slug", slug);
 
-  return NextResponse.redirect(new URL("/admin", request.url));
+  return NextResponse.redirect(new URL("/admin", request.url), 303);
 }
 

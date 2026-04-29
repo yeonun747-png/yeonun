@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const price_krw = Number(String(form.get("price_krw") ?? "0").trim());
 
   if (!slug || !title || !quote || !category_slug || !character_key || !Number.isFinite(price_krw)) {
-    return NextResponse.redirect(new URL("/admin", request.url));
+    return NextResponse.redirect(new URL("/admin", request.url), 303);
   }
 
   const supabase = supabaseServer();
@@ -28,6 +28,6 @@ export async function POST(request: Request) {
     price_krw,
   });
 
-  return NextResponse.redirect(new URL("/admin", request.url));
+  return NextResponse.redirect(new URL("/admin", request.url), 303);
 }
 

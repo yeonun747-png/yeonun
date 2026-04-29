@@ -10,9 +10,9 @@ export async function POST(request: Request) {
   const is_active = String(form.get("is_active") ?? "true") === "true";
 
   const hash = key === "yeonun_common_system" ? "voice" : key === "yeonun_fortune_text_system" ? "fortune" : "dashboard";
-  if (!key || !title || !prompt) return NextResponse.redirect(new URL(`/admin#${hash}`, request.url));
+  if (!key || !title || !prompt) return NextResponse.redirect(new URL(`/admin#${hash}`, request.url), 303);
 
   await supabaseServer().from("service_prompts").upsert({ key, title, prompt, is_active }, { onConflict: "key" });
-  return NextResponse.redirect(new URL(`/admin#${hash}`, request.url));
+  return NextResponse.redirect(new URL(`/admin#${hash}`, request.url), 303);
 }
 

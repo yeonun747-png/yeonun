@@ -9,12 +9,12 @@ export async function POST(request: Request) {
   const sort_order = Number(String(form.get("sort_order") ?? "0").trim());
 
   if (!slug || !label || !Number.isFinite(sort_order)) {
-    return NextResponse.redirect(new URL("/admin#content", request.url));
+    return NextResponse.redirect(new URL("/admin#content", request.url), 303);
   }
 
   const supabase = supabaseServer();
   await supabase.from("categories").upsert({ slug, label, sort_order }, { onConflict: "slug" });
 
-  return NextResponse.redirect(new URL("/admin#content", request.url));
+  return NextResponse.redirect(new URL("/admin#content", request.url), 303);
 }
 

@@ -5,7 +5,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 export async function POST(request: Request) {
   const form = await request.formData();
   const character_key = String(form.get("character_key") ?? "").trim();
-  if (!character_key) return NextResponse.redirect(new URL("/admin#admin-personas", request.url));
+  if (!character_key) return NextResponse.redirect(new URL("/admin#admin-personas", request.url), 303);
 
   const specialtiesRaw = String(form.get("specialties") ?? "[]").trim();
   let specialties: unknown = [];
@@ -40,6 +40,6 @@ export async function POST(request: Request) {
   };
 
   await supabaseServer().from("character_personas").upsert(payload, { onConflict: "character_key" });
-  return NextResponse.redirect(new URL("/admin#admin-personas", request.url));
+  return NextResponse.redirect(new URL("/admin#admin-personas", request.url), 303);
 }
 

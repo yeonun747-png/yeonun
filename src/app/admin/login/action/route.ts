@@ -9,11 +9,11 @@ export async function POST(request: Request) {
 
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) {
-    return NextResponse.redirect(new URL("/admin", request.url));
+    return NextResponse.redirect(new URL("/admin", request.url), 303);
   }
 
   if (password !== expected) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    return NextResponse.redirect(new URL("/admin/login", request.url), 303);
   }
 
   const jar = await cookies();
@@ -23,6 +23,6 @@ export async function POST(request: Request) {
     path: "/",
   });
 
-  return NextResponse.redirect(new URL("/admin", request.url));
+  return NextResponse.redirect(new URL("/admin", request.url), 303);
 }
 

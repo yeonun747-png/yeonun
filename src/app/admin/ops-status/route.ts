@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const status = String(form.get("status") ?? "").trim();
   const hash = String(form.get("hash") ?? "").trim() || "dashboard";
 
-  if (!TABLES.has(table) || !id || !status) return NextResponse.redirect(new URL(`/admin#${hash}`, request.url));
+  if (!TABLES.has(table) || !id || !status) return NextResponse.redirect(new URL(`/admin#${hash}`, request.url), 303);
 
   const payload: Record<string, unknown> = { status };
   if (table === "orders" || table === "payments" || table === "voice_sessions" || table === "fortune_requests") {
@@ -21,6 +21,6 @@ export async function POST(request: Request) {
   if (table === "webhook_events" && status === "processed") payload.processed_at = new Date().toISOString();
 
   await supabaseServer().from(table).update(payload).eq("id", id);
-  return NextResponse.redirect(new URL(`/admin#${hash}`, request.url));
+  return NextResponse.redirect(new URL(`/admin#${hash}`, request.url), 303);
 }
 

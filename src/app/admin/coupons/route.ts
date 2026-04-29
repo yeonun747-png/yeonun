@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const max_uses_raw = String(form.get("max_uses") ?? "").trim();
   const is_active = String(form.get("is_active") ?? "false") === "true";
 
-  if (!code || !Number.isFinite(value)) return NextResponse.redirect(new URL("/admin#commerce", request.url));
+  if (!code || !Number.isFinite(value)) return NextResponse.redirect(new URL("/admin#commerce", request.url), 303);
 
   const payload = {
     code,
@@ -25,6 +25,6 @@ export async function POST(request: Request) {
   if (id) await supabase.from("coupons").update(payload).eq("id", id);
   else await supabase.from("coupons").upsert(payload, { onConflict: "code" });
 
-  return NextResponse.redirect(new URL("/admin#commerce", request.url));
+  return NextResponse.redirect(new URL("/admin#commerce", request.url), 303);
 }
 

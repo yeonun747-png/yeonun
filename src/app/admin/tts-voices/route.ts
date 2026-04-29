@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const sort_order = Number(form.get("sort_order") ?? 0);
   const is_active = String(form.get("is_active") ?? "true") === "true";
 
-  if (!label || !external_id) return NextResponse.redirect(new URL("/admin#admin-tts-voices", request.url));
+  if (!label || !external_id) return NextResponse.redirect(new URL("/admin#admin-tts-voices", request.url), 303);
 
   const row = {
     ...(id ? { id } : {}),
@@ -24,5 +24,5 @@ export async function POST(request: Request) {
   };
 
   await supabaseServer().from("tts_voices").upsert(row, { onConflict: "provider,external_id" });
-  return NextResponse.redirect(new URL("/admin#admin-tts-voices", request.url));
+  return NextResponse.redirect(new URL("/admin#admin-tts-voices", request.url), 303);
 }

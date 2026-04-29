@@ -12,12 +12,12 @@ export async function POST(request: Request) {
   const greeting = String(form.get("greeting") ?? "").trim();
 
   if (!key || !name || !han || !en || !spec || !greeting) {
-    return NextResponse.redirect(new URL("/admin#content", request.url));
+    return NextResponse.redirect(new URL("/admin#content", request.url), 303);
   }
 
   const supabase = supabaseServer();
   await supabase.from("characters").upsert({ key, name, han, en, spec, greeting }, { onConflict: "key" });
 
-  return NextResponse.redirect(new URL("/admin#content", request.url));
+  return NextResponse.redirect(new URL("/admin#content", request.url), 303);
 }
 
