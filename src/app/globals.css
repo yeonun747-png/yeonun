@@ -1941,12 +1941,17 @@ ul {
   border-radius: 12px;
   padding: 14px 14px 12px;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 .y-dw-head {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
+  flex-shrink: 0;
 }
 .y-dw-avatar {
   width: 28px;
@@ -1982,18 +1987,21 @@ ul {
   font-size: 11.5px;
   color: var(--y-mute);
   line-height: 1.55;
-  min-height: 54px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .y-dw-listen {
   font-size: 10px;
   color: var(--y-rose);
-  margin-top: 8px;
+  margin-top: auto;
   padding-top: 8px;
   border-top: 0.5px dashed var(--y-line);
   display: flex;
   align-items: center;
   gap: 4px;
   font-weight: 500;
+  flex-shrink: 0;
+  align-self: stretch;
 }
 .y-dw-listen::before {
   content: "▸";
@@ -2006,6 +2014,7 @@ button.y-dw-listen {
   border: none;
   /* border:none 이 상단 점선까지 지움 → 목업처럼 위 구분선 복구 */
   border-top: 0.5px dashed var(--y-line);
+  margin-top: auto;
   cursor: pointer;
   font-family: inherit;
   font-size: 10px;
