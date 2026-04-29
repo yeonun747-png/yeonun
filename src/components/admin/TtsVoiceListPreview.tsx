@@ -33,6 +33,7 @@ export function TtsVoiceListPreview({ externalId }: { externalId: string }) {
     try {
       const res = await fetch("/api/tts/cartesia/preview", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           voice_external_id: externalId,
