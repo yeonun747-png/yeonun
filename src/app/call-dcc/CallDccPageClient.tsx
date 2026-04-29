@@ -31,6 +31,9 @@ function asCharacterKey(v: string | null): CharacterKey {
  */
 const MIC_SENSITIVITY_DEFAULT_PERCENT = 14;
 
+/** 서비스 모바일 우선: 폰 마이크 바닥잡음·에코로 STT 파형이 "내 턴"처럼 켜지는 것 방지 */
+const MOBILE_STT_WAVE_ACTIVATE_MIN = 0.11;
+
 function micPercentToVadGain(percent: number) {
   const p = Math.max(0, Math.min(100, percent));
   const a = MIC_SENSITIVITY_DEFAULT_PERCENT;
@@ -87,6 +90,8 @@ export default function CallDccPageClient() {
   const rafRef = useRef<number | null>(null);
   const turnAbortRef = useRef<AbortController | null>(null);
   const assistantSpeakingRef = useRef(false);
+  /** dcc-turn 응답 스트림 수신 중(LLM+TTS 청크 도착 전·사이 포함) — 모바일에서 상대 턴 오인 방지 */
+  const assistantPipelineRef = useRef(false);
   const rmsRef = useRef(0);
   const micVadGainRef = useRef(micPercentToVadGain(MIC_SENSITIVITY_DEFAULT_PERCENT));
   // 초기 노이즈 플로어를 낮게 잡고(실측 rms 0.003~0.01), 적응형으로 천천히 올린다.
@@ -150,6 +155,7 @@ export default function CallDccPageClient() {
         if (active) setActiveLine("tts");
       },
       onOutputLevel: (v) => setTtsLevel(v),
+      streamingGapGraceMs: 400,
     });
 
   useEffect(() => {
@@ -261,6 +267,7 @@ export default function CallDccPageClient() {
         } catch {}
         if (audioCtxRef.current) streamerRef.current = makeStreamer(audioCtxRef.current);
         lastAssistantTextRef.current = "";
+        assistantPipelineRef.current = true;
         assistantSpeakingRef.current = true;
         try {
           turnAbortRef.current?.abort();
@@ -331,6 +338,7 @@ export default function CallDccPageClient() {
           setUiError(`인사 스트림 실패: ${msg}`);
         }
       } finally {
+        assistantPipelineRef.current = false;
         assistantSpeakingRef.current = streamerRef.current?.isActive?.() ?? false;
         if (!cancelled && myGen === openingGenRef.current) {
           setStatus("듣는 중");
@@ -340,6 +348,7 @@ export default function CallDccPageClient() {
     void run();
     return () => {
       cancelled = true;
+      assistantPipelineRef.current = false;
       openingGenRef.current += 1;
     };
   }, [dccAudioReady, sessionId, voiceExternalId, characterKey, meta.name]);
@@ -403,7 +412,7 @@ export default function CallDccPageClient() {
           const raw = sampleRms();
           rmsRef.current = raw;
           const g = micVadGainRef.current;
-          if (!speechRef.current && !assistantSpeakingRef.current) {
+          if (!speechRef.current && !assistantSpeakingRef.current && !assistantPipelineRef.current) {
             // 노이즈 플로어는 급격히 커지지 않게 상한/하한을 둔다.
               const nf = noiseFloorRef.current;
               // 말소리(rms 상승)를 노이즈로 학습해버리면 VAD가 영원히 안 걸린다.
@@ -556,6 +565,7 @@ export default function CallDccPageClient() {
         } catch {}
         if (audioCtxRef.current) streamerRef.current = makeStreamer(audioCtxRef.current);
         lastAssistantTextRef.current = "";
+        assistantPipelineRef.current = true;
         assistantSpeakingRef.current = true;
         try {
           turnAbortRef.current?.abort();
@@ -579,6 +589,8 @@ export default function CallDccPageClient() {
           const detail = await res.text().catch(() => "");
           setUiError(detail ? `dcc-turn 실패: ${detail.slice(0, 300)}` : "dcc-turn 실패");
           setStatus("오류");
+          assistantPipelineRef.current = false;
+          assistantSpeakingRef.current = false;
           return;
         }
         const reader = res.body.getReader();
@@ -627,6 +639,7 @@ export default function CallDccPageClient() {
         }
         setUiError(`스트림 처리 실패: ${msg}`);
       } finally {
+        assistantPipelineRef.current = false;
         assistantSpeakingRef.current = streamerRef.current?.isActive?.() ?? false;
         setStatus("듣는 중");
         endUtteranceInFlight = false;
@@ -648,12 +661,12 @@ export default function CallDccPageClient() {
       const now = Date.now();
       if (!speechRef.current) {
         const floor = noiseFloorRef.current;
-        if (!assistantSpeakingRef.current && raw <= Math.max(0.012, floor * 1.35)) {
+        if (!assistantSpeakingRef.current && !assistantPipelineRef.current && raw <= Math.max(0.012, floor * 1.35)) {
           const next = floor * 0.94 + raw * 0.06;
           noiseFloorRef.current = Math.max(0.0015, Math.min(0.02, next));
         }
         // 초기 노이즈플로어가 높게 잡히면 영원히 트리거가 안 걸릴 수 있어 multiplier를 낮춘다.
-        const aiSpeaking = assistantSpeakingRef.current;
+        const aiSpeaking = assistantSpeakingRef.current || assistantPipelineRef.current;
         const learnedFloor = noiseFloorRef.current;
         const thrOn = aiSpeaking
           ? Math.max(BARGE_IN_THRESH_ON_MIN, learnedFloor * 3.15)
@@ -696,6 +709,7 @@ export default function CallDccPageClient() {
             streamerRef.current?.stop();
           } catch {}
           if (audioCtxRef.current) streamerRef.current = makeStreamer(audioCtxRef.current);
+          assistantPipelineRef.current = false;
           assistantSpeakingRef.current = streamerRef.current?.isActive?.() ?? false;
 
           setStatus("말하는 중");
@@ -744,6 +758,7 @@ export default function CallDccPageClient() {
     vadRafRef.current = requestAnimationFrame(tick);
     return () => {
       cancelled = true;
+      assistantPipelineRef.current = false;
       clearSilenceTimer();
       try {
         if (vadRafRef.current != null) cancelAnimationFrame(vadRafRef.current);
@@ -778,7 +793,9 @@ export default function CallDccPageClient() {
             <div className="y-call-spec">{meta.spec}</div>
             <h1 className="y-call-name">{meta.name}</h1>
             <div className="y-call-status">
-              <span className="y-call-status-text">{ttsPlaying ? `${meta.name}가 말하고 있어요` : status}</span>
+              <span className="y-call-status-text">
+                {ttsPlaying || assistantPipelineRef.current ? `${meta.name}가 말하고 있어요` : status}
+              </span>
               <span className="pulse-dots" aria-hidden="true">
                 <span />
                 <span />
@@ -789,7 +806,7 @@ export default function CallDccPageClient() {
 
           <div className="y-call-wave-dual" aria-label="듀얼 파형">
             <div
-              className={`y-wave-line tts ${activeLine === "tts" || ttsPlaying ? "active" : ""}`}
+              className={`y-wave-line tts ${activeLine === "tts" || ttsPlaying || assistantPipelineRef.current ? "active" : ""}`}
               onClick={() => setActiveLine("tts")}
             >
               <div className="y-wave-tag">
@@ -832,7 +849,7 @@ export default function CallDccPageClient() {
               </div>
             </div>
             <div
-              className={`y-wave-line stt ${activeLine === "stt" || (!ttsPlaying && !assistantSpeakingRef.current && micLevel > 0.04) ? "active" : ""}`}
+              className={`y-wave-line stt ${activeLine === "stt" || (!ttsPlaying && !assistantSpeakingRef.current && !assistantPipelineRef.current && micLevel > MOBILE_STT_WAVE_ACTIVATE_MIN) ? "active" : ""}`}
               onClick={() => setActiveLine("stt")}
             >
               <div className="y-wave-tag">
@@ -954,6 +971,7 @@ export default function CallDccPageClient() {
                   } catch {}
                   if (audioCtxRef.current) streamerRef.current = makeStreamer(audioCtxRef.current);
 
+                  assistantPipelineRef.current = true;
                   assistantSpeakingRef.current = true;
                   const ac = new AbortController();
                   turnAbortRef.current = ac;
@@ -972,6 +990,8 @@ export default function CallDccPageClient() {
                   if (!res.ok || !res.body) {
                     const detail = await res.text().catch(() => "");
                     setUiError(detail ? `dcc-turn 실패: ${detail.slice(0, 300)}` : "dcc-turn 실패");
+                    assistantPipelineRef.current = false;
+                    assistantSpeakingRef.current = false;
                     return;
                   }
                   const reader = res.body.getReader();
@@ -1003,6 +1023,7 @@ export default function CallDccPageClient() {
                     }
                   }
                 } finally {
+                  assistantPipelineRef.current = false;
                   assistantSpeakingRef.current = streamerRef.current?.isActive?.() ?? false;
                   setStatus("듣는 중");
                 }

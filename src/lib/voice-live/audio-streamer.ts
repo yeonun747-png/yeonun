@@ -24,6 +24,16 @@ function pcm16leBase64ToFloat32(base64: string) {
  * - 버퍼 큐를 쌓고 AudioBufferSourceNode를 예약 재생한다.
  * - interrupted 수신 시 stop()으로 즉시 중단 가능.
  */
+export type VoiceLiveAudioStreamerOpts = {
+  onActiveChange?: (active: boolean) => void;
+  onOutputLevel?: (level: number) => void;
+  /**
+   * 스트리밍 TTS에서 청크 사이 네트워크 공백(ms). 모바일·셀룰러에서 짧으면 재생 중인데도 active가 꺼져 VAD/UI가 "내 턴"으로 오인함.
+   * @default 360
+   */
+  streamingGapGraceMs?: number;
+};
+
 export class VoiceLiveAudioStreamer {
   private ctx: AudioContext;
   private gain: GainNode;
@@ -36,19 +46,18 @@ export class VoiceLiveAudioStreamer {
   private nodes = new Set<AudioBufferSourceNode>();
   private onActiveChange: ((active: boolean) => void) | null = null;
   private onOutputLevel: ((level: number) => void) | null = null;
+  private streamingGapGraceMs: number;
   /** 청크 사이 NDJSON 지연 동안 onActiveChange(false)가 잠깐 나가 VAD/UI가 흔들리지 않게 함 */
   /** 브라우저: setTimeout 핸들은 number (Node의 Timeout 타입과 구분) */
   private pendingInactiveTimer: number | null = null;
   /** 이번 재생 세션 첫 AudioBufferSource의 startAt(스케줄된 큐 길이·남은 비율 계산용) */
   private playbackAnchorAt: number | null = null;
 
-  constructor(
-    ctx: AudioContext,
-    opts?: { onActiveChange?: (active: boolean) => void; onOutputLevel?: (level: number) => void },
-  ) {
+  constructor(ctx: AudioContext, opts?: VoiceLiveAudioStreamerOpts) {
     this.ctx = ctx;
     this.onActiveChange = opts?.onActiveChange ?? null;
     this.onOutputLevel = opts?.onOutputLevel ?? null;
+    this.streamingGapGraceMs = Math.max(120, Math.min(900, Number(opts?.streamingGapGraceMs ?? 360)));
     this.gain = this.ctx.createGain();
     this.gain.gain.value = 1.25; // 체감 볼륨(기기별 편차 보정)
     if (this.onOutputLevel) {
@@ -144,15 +153,13 @@ export class VoiceLiveAudioStreamer {
       this.nodes.delete(src);
       if (this.nodes.size === 0) {
         this.cancelPendingInactive();
-        const waitMs = Math.max(48, Math.ceil(Math.max(0, this.nextStartAt - this.ctx.currentTime) * 1000) + 56);
-        /** 스트리밍 청크 사이 공백에서 active가 꺼지면 안 됨 — 너무 길면 TTS 종료 후 일반 VAD까지 지연 */
-        const INACTIVE_GRACE_MS = 110;
+        const waitMs = Math.max(64, Math.ceil(Math.max(0, this.nextStartAt - this.ctx.currentTime) * 1000) + 88);
         this.pendingInactiveTimer = window.setTimeout(() => {
           this.pendingInactiveTimer = null;
           if (this.alive && this.nodes.size === 0 && this.ctx.currentTime >= this.nextStartAt - 0.03) {
             this.setActive(false);
           }
-        }, waitMs + INACTIVE_GRACE_MS);
+        }, waitMs + this.streamingGapGraceMs);
       }
     };
 
