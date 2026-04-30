@@ -7,12 +7,29 @@ import { VoiceCharacterPromptTtsFields, type TtsVoiceOption } from "@/components
 
 type Row = Record<string, unknown>;
 
+const PRODUCTS_SELECT_NO_PROFILE =
+  "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,created_at";
+
 async function readRows(table: string, select = "*", order?: string, limit = 20): Promise<{ rows: Row[]; ready: boolean; error?: string }> {
   const supabase = supabaseServer();
   try {
     let q = supabase.from(table).select(select);
     if (order) q = q.order(order, { ascending: false });
-    const { data, error } = await q.limit(limit);
+    const first = await q.limit(limit);
+    let data: unknown = first.data;
+    let error = first.error;
+    if (
+      error &&
+      table === "products" &&
+      error.message.includes("saju_input_profile") &&
+      error.message.includes("does not exist")
+    ) {
+      let q2 = supabase.from(table).select(PRODUCTS_SELECT_NO_PROFILE);
+      if (order) q2 = q2.order(order, { ascending: false });
+      const second = await q2.limit(limit);
+      data = second.data;
+      error = second.error;
+    }
     if (error) return { rows: [], ready: false, error: error.message };
     const rowsUnknown = (data ?? []) as unknown;
     const rows = Array.isArray(rowsUnknown) ? (rowsUnknown as Row[]) : [];
@@ -55,7 +72,7 @@ export default async function AdminHomePage() {
     await Promise.all([
       readRows(
         "products",
-        "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg",
+        "*",
         "created_at",
         80
       ),
@@ -206,6 +223,17 @@ export default async function AdminHomePage() {
                   <span className="y-admin-stack-legend">태그</span>
                   <input name="tags" placeholder="#재회 #인연 (공백·쉼표 구분)" />
                 </label>
+                <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
+                  <span className="y-admin-stack-legend">명식 입력</span>
+                  <label className="y-admin-radio-option">
+                    <input type="radio" name="saju_input_profile" value="single" defaultChecked />
+                    <span>사주형 — 본인 생년월일(시)만 필요</span>
+                  </label>
+                  <label className="y-admin-radio-option">
+                    <input type="radio" name="saju_input_profile" value="pair" />
+                    <span>궁합형 — 상대·자녀 등 두 번째 생시 필요</span>
+                  </label>
+                </fieldset>
                 <AdminThumbnailSvgField name="thumbnail_svg" rows={6} />
                 <button type="submit">상품 저장</button>
               </form>
@@ -437,7 +465,8 @@ function ProductEditor({ row, categories, characters }: { row: Row; categories: 
         <span>
           <strong>{text(row.title)}</strong>
           <em>
-            {text(row.slug)} · {text(row.category_slug)} · {text(row.character_key)} · 홈섹션 {text(row.home_section_slug, "—")} · {text(row.badge)}
+            {text(row.slug)} · {text(row.category_slug)} · {text(row.character_key)} ·{" "}
+            {text(row.saju_input_profile, "single") === "pair" ? "궁합형" : "사주형"} · 홈섹션 {text(row.home_section_slug, "—")} · {text(row.badge)}
           </em>
         </span>
         <StatusPill tone="rose">{money(row.price_krw)}</StatusPill>
@@ -500,6 +529,17 @@ function ProductEditor({ row, categories, characters }: { row: Row; categories: 
           <span className="y-admin-stack-legend">태그</span>
           <input name="tags" defaultValue={tagsStr} placeholder="공백·쉼표 · # 생략 가능" />
         </label>
+        <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
+          <span className="y-admin-stack-legend">명식 입력</span>
+          <label className="y-admin-radio-option">
+            <input type="radio" name="saju_input_profile" value="single" defaultChecked={text(row.saju_input_profile, "single") !== "pair"} />
+            <span>사주형 — 본인만</span>
+          </label>
+          <label className="y-admin-radio-option">
+            <input type="radio" name="saju_input_profile" value="pair" defaultChecked={text(row.saju_input_profile, "single") === "pair"} />
+            <span>궁합형 — 상대·추가 명식</span>
+          </label>
+        </fieldset>
         <AdminThumbnailSvgField
           name="thumbnail_svg"
           defaultValue={text(row.thumbnail_svg, "")}

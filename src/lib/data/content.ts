@@ -7,6 +7,8 @@ export type Category = {
   sort_order: number;
 };
 
+export type SajuInputProfile = "single" | "pair";
+
 export type Product = {
   slug: string;
   title: string;
@@ -18,22 +20,36 @@ export type Product = {
   home_section_slug: string | null;
   tags: string[];
   thumbnail_svg: string | null;
+  saju_input_profile: SajuInputProfile;
   created_at: string;
 };
 
-function asProduct(row: Record<string, unknown>): Product {
+/** DB에 컬럼이 없을 때(마이그레이션 전) PostgREST가 * 또는 확장 select에서 깨지는 경우가 있어, 명시 컬럼 + 폴백 */
+const PRODUCT_SELECT_LEGACY =
+  "slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at";
+const PRODUCT_SELECT_WITH_PROFILE = `${PRODUCT_SELECT_LEGACY},saju_input_profile`;
+
+function missingSajuProfileColumn(msg: string) {
+  return msg.includes("saju_input_profile") && msg.includes("does not exist");
+}
+
+function asProduct(row: unknown): Product {
+  const r = row as Record<string, unknown>;
+  const prof = String(r.saju_input_profile ?? "single");
+  const saju_input_profile: SajuInputProfile = prof === "pair" ? "pair" : "single";
   return {
-    slug: String(row.slug ?? ""),
-    title: String(row.title ?? ""),
-    quote: String(row.quote ?? ""),
-    category_slug: String(row.category_slug ?? ""),
-    badge: row.badge == null || row.badge === "" ? null : String(row.badge),
-    price_krw: Number(row.price_krw ?? 0),
-    character_key: String(row.character_key ?? ""),
-    home_section_slug: row.home_section_slug == null || row.home_section_slug === "" ? null : String(row.home_section_slug),
-    tags: Array.isArray(row.tags) ? (row.tags as unknown[]).map((t) => String(t)) : [],
-    thumbnail_svg: row.thumbnail_svg == null || row.thumbnail_svg === "" ? null : String(row.thumbnail_svg),
-    created_at: String(row.created_at ?? ""),
+    slug: String(r.slug ?? ""),
+    title: String(r.title ?? ""),
+    quote: String(r.quote ?? ""),
+    category_slug: String(r.category_slug ?? ""),
+    badge: r.badge == null || r.badge === "" ? null : String(r.badge),
+    price_krw: Number(r.price_krw ?? 0),
+    character_key: String(r.character_key ?? ""),
+    home_section_slug: r.home_section_slug == null || r.home_section_slug === "" ? null : String(r.home_section_slug),
+    tags: Array.isArray(r.tags) ? (r.tags as unknown[]).map((t) => String(t)) : [],
+    thumbnail_svg: r.thumbnail_svg == null || r.thumbnail_svg === "" ? null : String(r.thumbnail_svg),
+    saju_input_profile,
+    created_at: String(r.created_at ?? ""),
   };
 }
 
@@ -59,16 +75,19 @@ export async function getCategories(): Promise<Category[]> {
 
 export async function getProducts(params: { category?: string } = {}): Promise<Product[]> {
   const supabase = supabaseServer();
-  let q = supabase
-    .from("products")
-    .select("slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at")
-    .order("created_at", { ascending: false });
-  if (params.category && params.category !== "all") {
-    q = q.eq("category_slug", params.category);
+  const run = (cols: string) => {
+    let q = supabase.from("products").select(cols).order("created_at", { ascending: false });
+    if (params.category && params.category !== "all") {
+      q = q.eq("category_slug", params.category);
+    }
+    return q;
+  };
+  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  if (error && missingSajuProfileColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }
-  const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => asProduct(r as Record<string, unknown>));
+  return (data ?? []).map((r) => asProduct(r));
 }
 
 export const getProductsCached = cache(getProducts);
@@ -76,13 +95,14 @@ export const getProductsCached = cache(getProducts);
 export async function getProductsBySlugs(slugs: string[]): Promise<Product[]> {
   if (slugs.length === 0) return [];
   const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("products")
-    .select("slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at")
-    .in("slug", slugs)
-    .order("created_at", { ascending: false });
+  const run = (cols: string) =>
+    supabase.from("products").select(cols).in("slug", slugs).order("created_at", { ascending: false });
+  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  if (error && missingSajuProfileColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
+  }
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => asProduct(r as Record<string, unknown>));
+  return (data ?? []).map((r) => asProduct(r));
 }
 
 export const getProductsBySlugsCached = cache(getProductsBySlugs);
@@ -92,27 +112,28 @@ export async function getProductsByCharacterKey(characterKey: string): Promise<P
   const key = characterKey.trim();
   if (!key) return [];
   const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("products")
-    .select("slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at")
-    .eq("character_key", key)
-    .order("created_at", { ascending: false });
+  const run = (cols: string) =>
+    supabase.from("products").select(cols).eq("character_key", key).order("created_at", { ascending: false });
+  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  if (error && missingSajuProfileColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
+  }
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => asProduct(r as Record<string, unknown>));
+  return (data ?? []).map((r) => asProduct(r));
 }
 
 export const getProductsByCharacterKeyCached = cache(getProductsByCharacterKey);
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("products")
-    .select("slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at")
-    .eq("slug", slug)
-    .maybeSingle();
+  const run = (cols: string) => supabase.from("products").select(cols).eq("slug", slug).maybeSingle();
+  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  if (error && missingSajuProfileColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
+  }
 
   if (error) throw new Error(error.message);
-  return data ? asProduct(data as Record<string, unknown>) : null;
+  return data ? asProduct(data) : null;
 }
 
 export const getProductBySlugCached = cache(getProductBySlug);

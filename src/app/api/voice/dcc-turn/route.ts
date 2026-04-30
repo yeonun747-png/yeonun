@@ -238,7 +238,7 @@ async function streamClaudeToCartesiaAndClient(args: {
     model: "claude-sonnet-4-6",
     max_tokens: 1800,
     stream: true,
-    temperature: 0.45,
+    temperature: 0.85,
     system: args.system,
     messages: [{ role: "user", content: args.user }],
   };

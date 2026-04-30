@@ -24,6 +24,8 @@ export async function POST(request: Request) {
     : [];
   const thumbnail_svg_raw = String(form.get("thumbnail_svg") ?? "");
   const thumbnail_svg = thumbnail_svg_raw.trim().length ? thumbnail_svg_raw : null;
+  const profileRaw = String(form.get("saju_input_profile") ?? "single").trim();
+  const saju_input_profile = profileRaw === "pair" ? "pair" : "single";
 
   if (!slug || !title || !quote || !category_slug || !character_key || !Number.isFinite(price_krw)) {
     return NextResponse.redirect(new URL("/admin", request.url), 303);
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
     home_section_slug,
     tags,
     thumbnail_svg,
+    saju_input_profile,
   });
 
   return NextResponse.redirect(new URL("/admin", request.url), 303);

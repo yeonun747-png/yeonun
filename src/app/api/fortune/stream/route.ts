@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
 
@@ -87,7 +88,14 @@ async function createFortuneRequest(payload: Record<string, unknown>) {
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  const cloudwaysUrl = String(process.env.CLOUDWAYS_FORTUNE_URL || process.env.CLOUDWAYS_URL || "").replace(/\/$/, "");
+  const cloudwaysUrl = normalizeCloudwaysBaseUrl(
+    String(
+      process.env.CLOUDWAYS_FORTUNE_URL ||
+        process.env.CLOUDWAYS_URL ||
+        process.env.NEXT_PUBLIC_CLOUDWAYS_URL ||
+        "",
+    ),
+  );
   const cloudwaysSecret = String(process.env.CLOUDWAYS_PROXY_SECRET || "");
 
   if (!cloudwaysUrl) {

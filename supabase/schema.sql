@@ -99,6 +99,11 @@ comment on column public.products.home_section_slug is 'weekly_love | lifetime |
 comment on column public.products.tags is '풀이 카드용 해시태그(최대 3개 권장)';
 comment on column public.products.thumbnail_svg is '카드 일러스트용 SVG 마크업(viewBox 포함). 비우면 앱 기본 일러스트 사용';
 
+alter table public.products
+  add column if not exists saju_input_profile text not null default 'single'
+  check (saju_input_profile in ('single', 'pair'));
+comment on column public.products.saju_input_profile is 'single=내 사주만, pair=상대방·자녀 등 두 번째 생시 필요(궁합·재회·택일·자녀사주 등)';
+
 create table if not exists public.reviews (
   id uuid primary key default gen_random_uuid(),
   product_slug text not null references public.products(slug) on delete cascade,

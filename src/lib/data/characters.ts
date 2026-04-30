@@ -96,6 +96,7 @@ export async function getServicePrompt(key: string): Promise<ServicePrompt | nul
     .from("service_prompts")
     .select("key,title,prompt,is_active")
     .eq("key", key)
+    .eq("is_active", true)
     .maybeSingle();
   if (error) return null;
   return (data ?? null) as ServicePrompt | null;
@@ -113,6 +114,7 @@ export async function getCharacterModePrompt(
     .select("character_key,mode,title,prompt,is_active,tts_voice_id")
     .eq("character_key", character_key)
     .eq("mode", mode)
+    .eq("is_active", true)
     .maybeSingle();
   if (error) return null;
   const row = data as CharacterModePrompt | null;

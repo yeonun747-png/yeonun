@@ -45,7 +45,7 @@ async function callAnthropic(params: { system: string; user: string; max_tokens:
       body: JSON.stringify({
         model,
         max_tokens: Math.max(64, Math.min(1200, Math.floor(params.max_tokens))),
-        temperature: 0.45,
+        temperature: 0.85,
         system: params.system,
         messages: [{ role: "user", content: params.user }],
       }),

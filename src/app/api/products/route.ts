@@ -2,21 +2,31 @@ import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/supabase/server";
 
+const PRODUCT_SELECT_LEGACY =
+  "slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at";
+const PRODUCT_SELECT_WITH_PROFILE = `${PRODUCT_SELECT_LEGACY},saju_input_profile`;
+
+function missingSajuProfileColumn(msg: string) {
+  return msg.includes("saju_input_profile") && msg.includes("does not exist");
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category");
 
   const supabase = supabaseServer();
-  let q = supabase
-    .from("products")
-    .select("slug,title,quote,category_slug,badge,price_krw,character_key")
-    .order("created_at", { ascending: false });
+  const run = (cols: string) => {
+    let q = supabase.from("products").select(cols).order("created_at", { ascending: false });
+    if (category && category !== "all") {
+      q = q.eq("category_slug", category);
+    }
+    return q;
+  };
 
-  if (category && category !== "all") {
-    q = q.eq("category_slug", category);
+  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  if (error && missingSajuProfileColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }
-
-  const { data, error } = await q;
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

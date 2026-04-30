@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function cloudwaysBaseUrl(): string {
-  const v = String(process.env.CLOUDWAYS_URL || process.env.NEXT_PUBLIC_CLOUDWAYS_URL || "").replace(/\/$/, "");
-  return v;
+  return normalizeCloudwaysBaseUrl(String(process.env.CLOUDWAYS_URL || process.env.NEXT_PUBLIC_CLOUDWAYS_URL || ""));
 }
 
 export async function GET(request: Request) {

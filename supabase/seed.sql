@@ -162,10 +162,8 @@ HTML 태그로만 출력합니다.
 질문에 자해·자살 암시가 있으면 1393 안내 후 풀이 진행 여부를 판단합니다.
 부적·굿 등 미신적 해결책 제안 금지.
 AI임을 어떠한 경우라도 절대 밝히지 않습니다.$sp_ft$,true)
-on conflict (key) do update set
-  title=excluded.title,
-  prompt=excluded.prompt,
-  is_active=excluded.is_active;
+-- 재배포 시 seed 재실행해도 어드민에서 수정한 프롬프트를 덮어쓰지 않음 (신규 key만 삽입)
+on conflict (key) do nothing;
 
 
 insert into public.tts_voices(provider, external_id, label, gender, sort_order, is_active)
@@ -463,11 +461,8 @@ values
   자녀의 강점이 드러나는 시기
   부모가 지원해야 할 방향
   행동 가이드 — 부모의 기대와 무관하게 아이의 사주가 향하는 방향으로 서술$un_ft$,true,null)
-on conflict (character_key, mode) do update set
-  title = excluded.title,
-  prompt = excluded.prompt,
-  is_active = excluded.is_active,
-  tts_voice_id = excluded.tts_voice_id;
+-- 재배포 시 어드민에서 수정한 캐릭터 모드 프롬프트 유지 (신규 조합만 삽입)
+on conflict (character_key, mode) do nothing;
 
 
 insert into public.categories(slug, label, sort_order)
@@ -485,25 +480,25 @@ on conflict (slug) do update set
   label = excluded.label,
   sort_order = excluded.sort_order;
 
-insert into public.products(slug, title, quote, category_slug, badge, price_krw, character_key, home_section_slug, tags)
+insert into public.products(slug, title, quote, category_slug, badge, price_krw, character_key, home_section_slug, tags, saju_input_profile)
 values
-('reunion-maybe','그 사람과 다시 만날 수 있을까','5월에 인연이 다시 닿을 자리가 보여요.','love','HOT',14900,'yeon','weekly_love',array['#재회','#인연','#이별후']),
-('mind-now','그 사람은 지금 무슨 생각','일주가 보내는 신호를 읽어드려요.','love','NEW',9900,'yeon','weekly_love',array['#마음','#썸','#연락']),
-('compat-howfar','두 사람, 어디까지 이어질까','겉궁합·속궁합·결혼 후 흐름.','compat',null,19900,'yeon','weekly_love',array['#궁합','#연인','#결혼']),
-('future-spouse','미래 배우자 사주 분석','언제, 어디서, 어떤 결의 사람을 만날지.','love',null,19900,'yeon','weekly_love',array['#배우자','#정혼','#인연']),
-('lifetime-master','초년·장년·중년·말년 통합본','10년 대운 흐름까지 200쪽 분량.','saju','SIGNATURE',49900,'yeo','lifetime',array['#평생운','#대운','#통합']),
-('saju-classic','정통 사주풀이 종합','합·충·형·파·해 200항 정밀 분석.','saju',null,19900,'yeo','lifetime',array['#정통사주','#명리','#사주']),
-('wealth-graph','재물보감 · 인생 부의 그래프','언제 큰 재물이 들어오고 빠지는지.','career',null,24900,'yeo','lifetime',array['#재물운','#재테크','#입금']),
-('career-timing','커리어 사주 · 이직·승진의 시기','올해 움직일 자리, 머무를 자리.','career',null,19900,'yeo','lifetime',array['#커리어','#이직','#승진']),
-('newyear-2026','2026 신년운세 1년표','월별 12장의 운세 카드.','newyear','2026',14900,'byeol','season_2026',array['#신년운세','#2026','#월별']),
-('tojeong-2026','2026 토정비결','조선의 비결서가 알려주는 한 해의 리듬.','newyear',null,9900,'byeol','season_2026',array['#토정비결','#한해','#리듬']),
-('zimi-2026-flow','자미두수 · 2026 별의 흐름','12궁·14주성으로 보는 또 다른 운명.','zimi',null,24900,'byeol','season_2026',array['#자미두수','#별자리','#세운']),
-('calendar-2026','2026 길일·흉일 캘린더','중요한 결정의 날, 미리 골라두기.','newyear',null,12900,'byeol','season_2026',array['#길일','#캘린더','#택일']),
-('zimi-chart','자미두수 명반 풀이','12궁·14주성으로 보는 운명.','zimi',null,24900,'byeol','deep_dive',array['#자미두수','#12궁','#명반']),
-('naming-baby','아이 이름 작명 · 평생을 따라갈 글자','사주에 부족한 오행을 채워주는 이름.','naming','NEW',39900,'un','deep_dive',array['#작명','#신생아','#오행']),
-('dream-lastnight','어젯밤 꿈, 무엇을 말하나','동물·물·돈·죽음. 꿈의 상징을 읽어드려요.','dream',null,4900,'un','deep_dive',array['#꿈해몽','#해몽','#상징']),
-('child-saju','자녀 사주 · 부모와 맞물리는 운명','자녀 명식과 부모 궁합 흐름을 함께 봅니다.','saju',null,19900,'un','deep_dive',array['#자녀사주','#육아','#궁합']),
-('taekil-goodday','결혼·이사·개업 길일','두 사람의 사주 + 행사 의도가 만나는 날.','naming',null,19900,'un',null,array['#택일','#길일','#결혼식'])
+('reunion-maybe','그 사람과 다시 만날 수 있을까','5월에 인연이 다시 닿을 자리가 보여요.','love','HOT',14900,'yeon','weekly_love',array['#재회','#인연','#이별후'],'pair'),
+('mind-now','그 사람은 지금 무슨 생각','일주가 보내는 신호를 읽어드려요.','love','NEW',9900,'yeon','weekly_love',array['#마음','#썸','#연락'],'pair'),
+('compat-howfar','두 사람, 어디까지 이어질까','겉궁합·속궁합·결혼 후 흐름.','compat',null,19900,'yeon','weekly_love',array['#궁합','#연인','#결혼'],'pair'),
+('future-spouse','미래 배우자 사주 분석','언제, 어디서, 어떤 결의 사람을 만날지.','love',null,19900,'yeon','weekly_love',array['#배우자','#정혼','#인연'],'single'),
+('lifetime-master','초년·장년·중년·말년 통합본','10년 대운 흐름까지 200쪽 분량.','saju','SIGNATURE',49900,'yeo','lifetime',array['#평생운','#대운','#통합'],'single'),
+('saju-classic','정통 사주풀이 종합','합·충·형·파·해 200항 정밀 분석.','saju',null,19900,'yeo','lifetime',array['#정통사주','#명리','#사주'],'single'),
+('wealth-graph','재물보감 · 인생 부의 그래프','언제 큰 재물이 들어오고 빠지는지.','career',null,24900,'yeo','lifetime',array['#재물운','#재테크','#입금'],'single'),
+('career-timing','커리어 사주 · 이직·승진의 시기','올해 움직일 자리, 머무를 자리.','career',null,19900,'yeo','lifetime',array['#커리어','#이직','#승진'],'single'),
+('newyear-2026','2026 신년운세 1년표','월별 12장의 운세 카드.','newyear','2026',14900,'byeol','season_2026',array['#신년운세','#2026','#월별'],'single'),
+('tojeong-2026','2026 토정비결','조선의 비결서가 알려주는 한 해의 리듬.','newyear',null,9900,'byeol','season_2026',array['#토정비결','#한해','#리듬'],'single'),
+('zimi-2026-flow','자미두수 · 2026 별의 흐름','12궁·14주성으로 보는 또 다른 운명.','zimi',null,24900,'byeol','season_2026',array['#자미두수','#별자리','#세운'],'single'),
+('calendar-2026','2026 길일·흉일 캘린더','중요한 결정의 날, 미리 골라두기.','newyear',null,12900,'byeol','season_2026',array['#길일','#캘린더','#택일'],'single'),
+('zimi-chart','자미두수 명반 풀이','12궁·14주성으로 보는 운명.','zimi',null,24900,'byeol','deep_dive',array['#자미두수','#12궁','#명반'],'single'),
+('naming-baby','아이 이름 작명 · 평생을 따라갈 글자','사주에 부족한 오행을 채워주는 이름.','naming','NEW',39900,'un','deep_dive',array['#작명','#신생아','#오행'],'single'),
+('dream-lastnight','어젯밤 꿈, 무엇을 말하나','동물·물·돈·죽음. 꿈의 상징을 읽어드려요.','dream',null,4900,'un','deep_dive',array['#꿈해몽','#해몽','#상징'],'single'),
+('child-saju','자녀 사주 · 부모와 맞물리는 운명','자녀 명식과 부모 궁합 흐름을 함께 봅니다.','saju',null,19900,'un','deep_dive',array['#자녀사주','#육아','#궁합'],'pair'),
+('taekil-goodday','결혼·이사·개업 길일','두 사람의 사주 + 행사 의도가 만나는 날.','naming',null,19900,'un',null,array['#택일','#길일','#결혼식'],'pair')
 on conflict (slug) do update set
   title = excluded.title,
   quote = excluded.quote,
@@ -512,7 +507,8 @@ on conflict (slug) do update set
   price_krw = excluded.price_krw,
   character_key = excluded.character_key,
   home_section_slug = excluded.home_section_slug,
-  tags = excluded.tags;
+  tags = excluded.tags,
+  saju_input_profile = excluded.saju_input_profile;
 
 -- 썸네일 SVG 기본값 (레포 public/product-thumbnails/*.svg, 재생성: node scripts/emit-product-thumbnail-sql.mjs)
 update public.products set thumbnail_svg = $yeonun$<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid slice">

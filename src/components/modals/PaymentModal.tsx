@@ -1,16 +1,20 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
 
 export function PaymentModal() {
   const { close } = useModalControls();
+  const router = useRouter();
+  const pathname = usePathname();
   const sp = useSearchParams();
   const product = sp.get("product") ?? "reunion-maybe";
   const title = sp.get("title") ?? "그 사람과 다시 만날 수 있을까";
   const price = Number(sp.get("price") ?? "14900");
+  const character_key = sp.get("character_key") ?? "yeon";
+  const profile = sp.get("profile") === "pair" ? "pair" : "single";
 
   const [method, setMethod] = useState<"card" | "phone" | "coin">("card");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -36,8 +40,17 @@ export function PaymentModal() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) throw new Error(data?.error || "결제 요청 저장 실패");
-      setStatus("done");
-      setMessage(`주문 ${data.order?.order_no ?? ""} 생성 · 점사 요청 대기열 등록`);
+      setStatus("idle");
+      const next = new URLSearchParams(sp.toString());
+      // 궁합형: 결제 후 상대방 정보 바텀시트 → 풀이 스트림
+      next.set("modal", profile === "pair" ? "partner_info" : "fortune_stream");
+      next.set("product", product);
+      next.set("title", title);
+      next.set("price", String(price));
+      next.set("character_key", character_key);
+      next.set("profile", profile);
+      if (data.order?.order_no) next.set("order_no", String(data.order.order_no));
+      router.replace(`${pathname}?${next.toString()}`);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "결제 요청 중 오류가 발생했습니다.");
@@ -159,8 +172,8 @@ export function PaymentModal() {
                 {message}
               </div>
             ) : null}
-            <button className="y-pay-pay-btn" type="button" onClick={status === "done" ? close : checkout} disabled={status === "loading"}>
-              {status === "loading" ? "주문 생성 중..." : status === "done" ? "확인" : payLabel}
+            <button className="y-pay-pay-btn" type="button" onClick={checkout} disabled={status === "loading"}>
+              {status === "loading" ? "주문 생성 중..." : payLabel}
             </button>
           </div>
         </div>

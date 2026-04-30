@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { ContentPurchaseFooter } from "@/components/content/ContentPurchaseFooter";
 import { TopNav } from "@/components/TopNav";
 import { getProductBySlugCached, getReviewsByProductSlugCached } from "@/lib/data/content";
 
@@ -311,24 +312,16 @@ export default async function ContentDetailPage({ params, searchParams }: Props)
           )}
         </div>
 
-        <div style={{ height: 18 }} />
-
-        <div className="y-cd-foot" aria-label="구매">
-          <div className="y-cd-price-block">
-            <div className="y-cd-price-orig">정가 {Math.round(product.price_krw * 1.3).toLocaleString("ko-KR")}원</div>
-            <div className="y-cd-price-now">
-              {product.price_krw.toLocaleString("ko-KR")}
-              <span className="small">원</span>
-            </div>
-          </div>
-          <Link
-            className="y-cd-buy-btn"
-            href={`?sheet=1&modal=payment&product=${encodeURIComponent(product.slug)}&title=${encodeURIComponent(product.title)}&price=${product.price_krw}`}
-            scroll={false}
-          >
-            결제하기
-          </Link>
-        </div>
+        <ContentPurchaseFooter
+          slug={product.slug}
+          title={product.title}
+          priceKrw={product.price_krw}
+          characterKey={product.character_key}
+          sajuInputProfile={product.saju_input_profile}
+          themeKey={themeKey}
+          sheet={sheet === "1" ? "1" : undefined}
+          backRaw={typeof sp.back === "string" ? sp.back : undefined}
+        />
     </>
   );
 
