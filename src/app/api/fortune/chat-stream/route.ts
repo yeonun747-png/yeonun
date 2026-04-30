@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
 import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
-import { buildClaudeFortunePromptPieces } from "@/lib/fortune-jeminai-payload";
+import { buildClaudeFortunePromptPieces } from "@/lib/fortune-claude-payload";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 
 export const dynamic = "force-dynamic";

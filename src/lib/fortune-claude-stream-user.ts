@@ -1,10 +1,11 @@
 "use client";
 
-import type { JeminaiBirthInfo } from "@/lib/fortune-jeminai-payload";
+import type { ClaudeFortuneUserInfo } from "@/lib/fortune-claude-payload";
 import { PARTNER_HOUR_BRANCH_TO_CLOCK_HOUR } from "@/lib/partner-hour-branch";
 import { readPartnerInfo, type PartnerInfoPayload } from "@/lib/partner-info-storage";
 
-export function readUserInfoFromYeonunSajuV1(): JeminaiBirthInfo {
+/** 세션 `yeonun_saju_v1` → `/api/fortune/chat-stream`용 신청자 정보 */
+export function readUserInfoFromYeonunSajuV1(): ClaudeFortuneUserInfo {
   if (typeof window === "undefined") {
     return { name: "회원", gender: "", birth_date: "" };
   }
@@ -33,14 +34,14 @@ export function readUserInfoFromYeonunSajuV1(): JeminaiBirthInfo {
   }
 }
 
-export function partnerInfoFromPartnerStorage(productSlug: string): JeminaiBirthInfo | null {
+export function partnerInfoFromPartnerStorage(productSlug: string): ClaudeFortuneUserInfo | null {
   if (typeof window === "undefined") return null;
   const p = readPartnerInfo(productSlug);
   if (!p) return null;
-  return partnerPayloadToJeminai(p);
+  return partnerPayloadToClaudeFortuneUser(p);
 }
 
-export function partnerPayloadToJeminai(p: PartnerInfoPayload): JeminaiBirthInfo {
+export function partnerPayloadToClaudeFortuneUser(p: PartnerInfoPayload): ClaudeFortuneUserInfo {
   const genderKo = p.gender === "male" ? "남" : p.gender === "female" ? "여" : "";
   const birth_date = `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
   const h =

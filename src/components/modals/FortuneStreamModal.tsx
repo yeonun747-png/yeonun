@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { partnerInfoFromPartnerStorage, readUserInfoFromYeonunSajuV1 } from "@/lib/fortune-jeminai-user";
+import { partnerInfoFromPartnerStorage, readUserInfoFromYeonunSajuV1 } from "@/lib/fortune-claude-stream-user";
 import { buildFortuneManseContext } from "@/lib/fortune-manse-context";
 import {
   normalizeFortuneSsePayload,
@@ -21,6 +21,9 @@ const CHAR_NAME: Record<string, string> = {
 };
 
 type TocItem = { id: string; title: string };
+
+/** `/api/fortune/chat-stream`(Cloudways Claude SSE) vs 데모 멀티섹션 */
+type FortuneStreamPumpMode = "claude_html_stream" | "sections";
 
 function kstDateShortDots(): string {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -46,13 +49,6 @@ function countApproxChars(htmlBySection: Record<number, string>): number {
 
 function countApproxCharsFromHtml(html: string): number {
   return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().length;
-}
-
-const JEMINAI_TOC_INTRO_MS = 1500;
-const JEMINAI_TOC_ITEM_STAGGER_MS = 180;
-
-function sleep(ms: number) {
-  return new Promise<void>((r) => setTimeout(r, ms));
 }
 
 /** 스트리밍 HTML 안에서 완결된 subtitle-section 루트 개수(목차 동기화용) */
@@ -83,92 +79,92 @@ export function FortuneStreamModal() {
   const [doneIdx, setDoneIdx] = useState<Set<number>>(new Set());
   const [finalChars, setFinalChars] = useState<number | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [jeminaiMode, setJeminaiMode] = useState(false);
-  const [jeminaiHtml, setJeminaiHtml] = useState("");
-  const jeminaiAccRef = useRef("");
-  const [tocVisibleCount, setTocVisibleCount] = useState(0);
-  const jeminaiIntroCompleteRef = useRef(false);
-  const jeminaiPreStreamBufferRef = useRef("");
-  const jeminaiDoneHtmlRef = useRef<string | null>(null);
-  const jeminaiStreamFinishedRef = useRef(false);
+  /** Cloudways Claude 단일 HTML SSE(`/api/fortune/chat-stream`) 분기 */
+  const [claudeStreamMode, setClaudeStreamMode] = useState(false);
+  const [claudeStreamHtml, setClaudeStreamHtml] = useState("");
+  const claudeStreamHtmlAccRef = useRef("");
+  /** start 없이 chunk만 오거나 패킷 순서가 뒤섞일 때 본문 분기 보장 */
+  const claudeStreamStartedRef = useRef(false);
+  /** Claude 스트림에서 첫 `chunk` 텍스트 수신 여부(TTFT·UI용, `partial_done`/`done`만 오는 경우는 false 유지) */
+  const claudeFirstChunkSeenRef = useRef(false);
+  const [hasClaudeStreamFirstChunk, setHasClaudeStreamFirstChunk] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const sectionHtmlRef = useRef<Record<number, string>>({});
 
   const streamedCharApprox = useMemo(() => {
-    if (jeminaiMode) return countApproxCharsFromHtml(jeminaiHtml);
+    if (claudeStreamMode) return countApproxCharsFromHtml(claudeStreamHtml);
     return countApproxChars(sectionHtml);
-  }, [jeminaiMode, jeminaiHtml, sectionHtml]);
+  }, [claudeStreamMode, claudeStreamHtml, sectionHtml]);
 
   const heroDate = useMemo(() => kstDateShortDots(), []);
 
-  const jeminaiTocUi = useMemo(() => {
-    if (!jeminaiMode || toc.length === 0) return { active: -1, done: new Set<number>() };
+  const claudeStreamTocUi = useMemo(() => {
+    if (!claudeStreamMode || toc.length === 0) return { active: -1, done: new Set<number>() };
     if (phase === "done") return { active: -1, done: new Set(toc.map((_, i) => i)) };
     if (phase === "toc_typing" || phase === "toc_wait") return { active: -1, done: new Set<number>() };
-    const n = countSubtitleSections(jeminaiHtml);
+    const n = countSubtitleSections(claudeStreamHtml);
     if (n <= 0) return { active: -1, done: new Set<number>() };
     const active = Math.min(Math.max(0, n - 1), toc.length - 1);
     const done = new Set<number>();
     for (let i = 0; i < active; i++) done.add(i);
     return { active, done };
-  }, [jeminaiMode, toc, phase, jeminaiHtml]);
+  }, [claudeStreamMode, toc, phase, claudeStreamHtml]);
 
   const pumpSseBody = useCallback(
-    async (reader: ReadableStreamDefaultReader<Uint8Array>, ac: AbortController, mode: "jeminai" | "sections") => {
+    async (reader: ReadableStreamDefaultReader<Uint8Array>, ac: AbortController, mode: FortuneStreamPumpMode) => {
       const dec = new TextDecoder();
       let buf = "";
 
-      const flushJeminaiBlock = (block: string) => {
+      const flushClaudeHtmlStreamBlock = (block: string) => {
+        const ensureClaudeHtmlStreamStarted = () => {
+          if (claudeStreamStartedRef.current) return;
+          claudeStreamStartedRef.current = true;
+          setClaudeStreamMode(true);
+          setToc(demoTocSections(profile));
+          setDoneIdx(new Set());
+          setPhase("stream");
+        };
+
         for (const raw of parseFortuneSseBlock(block)) {
           if (!raw || typeof raw !== "object") continue;
           const o = raw as Record<string, unknown>;
           const typ = o.type;
           if (typ === "start") {
-            setJeminaiMode(true);
+            if (claudeStreamStartedRef.current) continue;
+            claudeStreamStartedRef.current = true;
+            setClaudeStreamMode(true);
             setToc(demoTocSections(profile));
-            jeminaiAccRef.current = "";
-            setJeminaiHtml("");
-            jeminaiIntroCompleteRef.current = false;
-            jeminaiPreStreamBufferRef.current = "";
-            jeminaiDoneHtmlRef.current = null;
-            jeminaiStreamFinishedRef.current = false;
-            setTocVisibleCount(0);
+            claudeStreamHtmlAccRef.current = "";
+            setClaudeStreamHtml("");
             setDoneIdx(new Set());
-            setPhase("toc_typing");
+            setPhase("stream");
           }
           if (typ === "chunk" && typeof o.text === "string") {
+            ensureClaudeHtmlStreamStarted();
             const t = o.text;
-            jeminaiAccRef.current += t;
-            if (!jeminaiIntroCompleteRef.current) {
-              jeminaiPreStreamBufferRef.current += t;
-            } else {
-              setJeminaiHtml((h) => h + t);
+            if (!claudeFirstChunkSeenRef.current && t.length > 0) {
+              claudeFirstChunkSeenRef.current = true;
+              setHasClaudeStreamFirstChunk(true);
             }
+            claudeStreamHtmlAccRef.current += t;
+            setClaudeStreamHtml((h) => h + t);
           }
           if (typ === "partial_done" && typeof o.html === "string") {
+            ensureClaudeHtmlStreamStarted();
             const html = String(o.html);
-            jeminaiAccRef.current = html;
-            if (!jeminaiIntroCompleteRef.current) {
-              jeminaiPreStreamBufferRef.current = html;
-            } else {
-              setJeminaiHtml(html);
-            }
+            claudeStreamHtmlAccRef.current = html;
+            setClaudeStreamHtml(html);
           }
           if (typ === "done") {
+            ensureClaudeHtmlStreamStarted();
             const html = String(o.html ?? "");
-            jeminaiAccRef.current = html;
+            claudeStreamHtmlAccRef.current = html;
+            setClaudeStreamHtml(html);
             const n = countApproxCharsFromHtml(html);
             setFinalChars(Math.max(n, 1));
-            if (!jeminaiIntroCompleteRef.current) {
-              jeminaiDoneHtmlRef.current = html;
-              jeminaiStreamFinishedRef.current = true;
-              jeminaiPreStreamBufferRef.current = html;
-            } else {
-              setJeminaiHtml(html);
-              const len = demoTocSections(profile).length;
-              setDoneIdx(new Set(Array.from({ length: len }, (_, i) => i)));
-              setPhase("done");
-            }
+            const len = demoTocSections(profile).length;
+            setDoneIdx(new Set(Array.from({ length: len }, (_, i) => i)));
+            setPhase("done");
           }
           if (typ === "error") {
             setStreamError(String(o.error ?? o.message ?? "스트림 오류"));
@@ -218,16 +214,18 @@ export function FortuneStreamModal() {
         const { value, done } = await reader.read();
         if (done) {
           if (buf.trim()) {
-            if (mode === "jeminai") flushJeminaiBlock(buf);
+            if (mode === "claude_html_stream") flushClaudeHtmlStreamBlock(buf);
             else flushSectionsBlock(buf);
           }
           return;
         }
         buf += dec.decode(value, { stream: true });
+        /* 프록시/Nginx가 CRLF로만 이벤트를 끊으면 \n\n split이 실패해 스트림 끝까지 본문이 갱신되지 않을 수 있음 */
+        buf = buf.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
         const parts = buf.split("\n\n");
         buf = parts.pop() ?? "";
         for (const block of parts) {
-          if (mode === "jeminai") flushJeminaiBlock(block);
+          if (mode === "claude_html_stream") flushClaudeHtmlStreamBlock(block);
           else flushSectionsBlock(block);
         }
         await pump();
@@ -249,14 +247,12 @@ export function FortuneStreamModal() {
     setDoneIdx(new Set());
     setFinalChars(null);
     setStreamError(null);
-    setJeminaiMode(false);
-    setJeminaiHtml("");
-    jeminaiAccRef.current = "";
-    setTocVisibleCount(0);
-    jeminaiIntroCompleteRef.current = false;
-    jeminaiPreStreamBufferRef.current = "";
-    jeminaiDoneHtmlRef.current = null;
-    jeminaiStreamFinishedRef.current = false;
+    setClaudeStreamMode(false);
+    setClaudeStreamHtml("");
+    claudeStreamHtmlAccRef.current = "";
+    claudeStreamStartedRef.current = false;
+    claudeFirstChunkSeenRef.current = false;
+    setHasClaudeStreamFirstChunk(false);
 
     try {
       const manse_ryeok_text = buildFortuneManseContext({
@@ -308,8 +304,8 @@ export function FortuneStreamModal() {
         throw new Error(errText.slice(0, 400) || "스트림 연결 실패");
       }
 
-      await pumpSseBody(res.body.getReader(), ac, "jeminai");
-      setFinalChars((prev) => prev ?? Math.max(countApproxCharsFromHtml(jeminaiAccRef.current), 1));
+      await pumpSseBody(res.body.getReader(), ac, "claude_html_stream");
+      setFinalChars((prev) => prev ?? Math.max(countApproxCharsFromHtml(claudeStreamHtmlAccRef.current), 1));
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
       setStreamError((e as Error).message || "연결에 실패했습니다.");
@@ -322,42 +318,6 @@ export function FortuneStreamModal() {
     return () => abortRef.current?.abort();
   }, [runStream]);
 
-  /** Cloudways 단일 스트림: 서버 start 직후 목차 인트로(1.5s + 항목 0.18s) 후 본문 공개 */
-  useEffect(() => {
-    if (!jeminaiMode || phase !== "toc_typing" || toc.length === 0) return;
-    let cancelled = false;
-    const run = async () => {
-      await sleep(JEMINAI_TOC_INTRO_MS);
-      if (cancelled) return;
-      for (let v = 1; v <= toc.length; v++) {
-        if (cancelled) return;
-        setTocVisibleCount(v);
-        await sleep(JEMINAI_TOC_ITEM_STAGGER_MS);
-      }
-      if (cancelled) return;
-      const doneHtml = jeminaiDoneHtmlRef.current;
-      const buf = jeminaiPreStreamBufferRef.current;
-      const merged = doneHtml ?? buf;
-      jeminaiIntroCompleteRef.current = true;
-      if (merged) setJeminaiHtml(merged);
-      jeminaiPreStreamBufferRef.current = "";
-      if (jeminaiStreamFinishedRef.current) {
-        const html = jeminaiDoneHtmlRef.current ?? merged;
-        if (html) setJeminaiHtml(html);
-        jeminaiDoneHtmlRef.current = null;
-        const len = toc.length;
-        setDoneIdx(new Set(Array.from({ length: len }, (_, i) => i)));
-        setPhase("done");
-      } else {
-        setPhase("stream");
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [jeminaiMode, phase, toc.length]);
-
   const closeToContent = () => {
     const next = new URLSearchParams(sp.toString());
     next.delete("modal");
@@ -368,8 +328,8 @@ export function FortuneStreamModal() {
 
   const scrollToSection = useCallback(
     (index: number) => {
-      if (jeminaiMode) {
-        const nodes = document.querySelectorAll(".y-fs-html--jeminai .subtitle-section");
+      if (claudeStreamMode) {
+        const nodes = document.querySelectorAll(".y-fs-html--claude-stream .subtitle-section");
         nodes[index]?.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
@@ -378,7 +338,7 @@ export function FortuneStreamModal() {
         block: "start",
       });
     },
-    [jeminaiMode],
+    [claudeStreamMode],
   );
 
   const onTocDoneKeyDown = useCallback(
@@ -396,11 +356,13 @@ export function FortuneStreamModal() {
       ? `${finalChars.toLocaleString("ko-KR")}자`
       : streamedCharApprox > 0
         ? `${streamedCharApprox.toLocaleString("ko-KR")}자 생성 중…`
-        : phase === "toc_wait" || phase === "toc_typing"
-          ? "본문 준비 중…"
-          : "생성 중…";
+        : claudeStreamMode && phase === "stream" && !hasClaudeStreamFirstChunk
+          ? "첫 응답 수신 중…"
+          : phase === "toc_wait" || phase === "toc_typing"
+            ? "본문 준비 중…"
+            : "생성 중…";
 
-  const bodyVisible = jeminaiMode
+  const bodyVisible = claudeStreamMode
     ? phase !== "boot" && phase !== "toc_wait"
     : toc.length > 0 && phase !== "boot" && phase !== "toc_wait";
 
@@ -443,13 +405,12 @@ export function FortuneStreamModal() {
                       </div>
                       <ol className="y-fs-toc" aria-label="목차">
                         {toc.map((item, i) => {
-                          const done = jeminaiMode ? jeminaiTocUi.done.has(i) : doneIdx.has(i);
-                          const active = jeminaiMode ? jeminaiTocUi.active === i : activeIdx === i;
+                          const done = claudeStreamMode ? claudeStreamTocUi.done.has(i) : doneIdx.has(i);
+                          const active = claudeStreamMode ? claudeStreamTocUi.active === i : activeIdx === i;
                           let cls = "y-fs-toc-item";
                           if (done) cls += " y-fs-toc-item--done";
                           else if (active) cls += " y-fs-toc-item--active";
                           else cls += " y-fs-toc-item--pending";
-                          if (jeminaiMode && phase === "toc_typing" && i >= tocVisibleCount) cls += " y-fs-toc-item--typing-wait";
                           if (done) cls += " y-fs-toc-item--clickable";
                           return (
                             <li
@@ -488,17 +449,17 @@ export function FortuneStreamModal() {
             </section>
 
             <section className="y-fs-main-panel">
-              {jeminaiMode ? (
+              {claudeStreamMode ? (
                 <div className={`y-fs-body ${bodyVisible ? "y-fs-body--visible" : ""}`}>
                   <article id="y-fs-section-0" className="y-fs-section y-fs-section--active">
-                    <div className={`y-fs-section-inner${phase !== "done" && jeminaiHtml ? " y-fs-section-inner--streaming" : ""}`}>
-                      {jeminaiHtml ? (
+                    <div className={`y-fs-section-inner${phase !== "done" && claudeStreamHtml ? " y-fs-section-inner--streaming" : ""}`}>
+                      {claudeStreamHtml ? (
                         <>
                           <div
-                            className="y-fs-html y-fs-html--jeminai"
+                            className="y-fs-html y-fs-html--claude-stream"
                             id="y-fs-h-0"
                             // eslint-disable-next-line react/no-danger
-                            dangerouslySetInnerHTML={{ __html: jeminaiHtml }}
+                            dangerouslySetInnerHTML={{ __html: claudeStreamHtml }}
                           />
                           {phase !== "done" ? <span className="y-fs-caret" aria-hidden="true" /> : null}
                         </>

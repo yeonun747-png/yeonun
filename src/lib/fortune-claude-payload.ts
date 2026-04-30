@@ -1,7 +1,7 @@
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
 
-/** reunionf82 `POST /chat` 의 `user_info` / `partner_info` */
-export type JeminaiBirthInfo = {
+/** Cloudways `POST /chat`·`/api/fortune/chat-stream` 의 `user_info` / `partner_info` 형태 */
+export type ClaudeFortuneUserInfo = {
   name: string;
   gender: string;
   birth_date: string;
@@ -19,15 +19,15 @@ function subtitleTool(title: string): string {
 }
 
 /**
- * Cloudways `cloudways-server.js` 의 `POST /chat` 이 기대하는 본문을 만듭니다.
- * (연운 Next의 `/api/fortune/chat-stream`에서 서버가 조합하거나, 클라이언트 검증용으로 사용)
+ * Cloudways `POST /chat` 이 기대하는(레거시 reunionf82 형) 본문을 만듭니다.
+ * (연운 Next의 `/api/fortune/chat-stream`은 주로 `buildClaudeFortunePromptPieces`만 사용)
  */
-export function buildJeminaiChatBody(input: {
+export function buildClaudeFortuneChatBody(input: {
   role_prompt: string;
   restrictions: string;
   manse_ryeok_text: string;
-  user_info: JeminaiBirthInfo;
-  partner_info?: JeminaiBirthInfo | null;
+  user_info: ClaudeFortuneUserInfo;
+  partner_info?: ClaudeFortuneUserInfo | null;
   profile: DemoProfile;
   model?: string;
 }): Record<string, unknown> {
@@ -51,15 +51,15 @@ export function buildJeminaiChatBody(input: {
 }
 
 /**
- * Next에서 Claude(만남 탭과 동일 API) 호출용 `system` / `user` 를 조립합니다.
- * Cloudways 장시간 스트림 서버는 이 두 필드만 받아 Anthropic으로 전달합니다.
+ * Next에서 Claude(Anthropic) 호출용 `system` / `user` 를 조립합니다.
+ * Cloudways 장시간 스트림 서버는 이 두 필드만 받아 전달합니다.
  */
 export function buildClaudeFortunePromptPieces(input: {
   role_prompt: string;
   restrictions: string;
   manse_ryeok_text: string;
-  user_info: JeminaiBirthInfo;
-  partner_info?: JeminaiBirthInfo | null;
+  user_info: ClaudeFortuneUserInfo;
+  partner_info?: ClaudeFortuneUserInfo | null;
   profile: DemoProfile;
 }): { system: string; user: string } {
   const sections = demoTocSections(input.profile);

@@ -38,10 +38,11 @@ export async function POST(request: Request) {
         manse_context_chars,
       });
 
-      await new Promise((r) => setTimeout(r, 1500));
+      /* 데모용 짧은 틈만 두고 곧바로 목차·섹션 스트림 (실점사는 chat-stream 단일 호출) */
+      await new Promise((r) => setTimeout(r, 200));
       const sections = demoTocSections(profile);
       send({ type: "toc", sections });
-      await new Promise((r) => setTimeout(r, 1100));
+      await new Promise((r) => setTimeout(r, 200));
 
       const chunkUtf = (s: string, n: number) => {
         const a = Array.from(s);

@@ -6730,13 +6730,6 @@ button.y-dw-listen:disabled {
 .y-fs-toc-item--pending .y-fs-toc-tx {
   color: #9a9590;
 }
-.y-fs-toc-item--typing-wait {
-  opacity: 0.38;
-  pointer-events: none;
-}
-.y-fs-toc-item--typing-wait .y-fs-toc-tx {
-  color: #9a9590;
-}
 .y-fs-toc-item--active {
   background: rgba(192, 80, 96, 0.07);
   opacity: 1;
