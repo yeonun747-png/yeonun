@@ -19,10 +19,10 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 /**
  * 메뉴 점사 오케스트레이션은 Cloudways `POST /chat` + `fortune_menu_*` 본문에서 수행한다.
- * Next는 reunion `stream-proxy`처럼 upstream SSE 바디를 그대로 넘긴다 (한 번의 긴 스트림).
- * 파이프가 열려 있는 동안은 여전히 Vercel `maxDuration` 벽시계에 묶이므로 Pro 한도(800초)에 맞춤.
+ * Next는 upstream SSE 바디를 그대로 넘긴다. 파이프 구간은 Vercel `maxDuration` 벽시계에 묶인다.
+ * Hobby는 최대 300초 — 더 길게 필요하면 Pro 등에서 이 값을 올리면 된다.
  */
-export const maxDuration = 800;
+export const maxDuration = 300;
 
 type Body = {
   product_slug?: string;
