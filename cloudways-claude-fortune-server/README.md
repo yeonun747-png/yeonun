@@ -1,6 +1,8 @@
 # Cloudways Claude 점사 스트림 서버
 
-Vercel 타임아웃을 피하기 위해 Cloudways에서 장시간 실행하는 **Anthropic Claude** 전용 프록시입니다. 연운 Next의 `POST /api/fortune/chat-stream`이 여기 `POST /chat`으로 본문을 넘기면, 동일 SSE 형식(`start` → `chunk` → `done`)으로 브라우저까지 스트리밍합니다.
+Vercel의 함수 한도를 넘기는 **긴 단일 스트림**은 Cloudways에서 받는 편이 유리합니다. 이 서버는 **Anthropic Claude** 전용 프록시로, Nginx에서 보통 **30분(1800s)** 까지 `proxy_read_timeout` / `proxy_send_timeout` 을 둡니다. 연운 Next의 `POST /api/fortune/chat-stream`이 여기 `POST /chat`으로 본문을 넘기면, 동일 SSE 형식(`start` → `chunk` → `done`)으로 브라우저까지 스트리밍합니다.
+
+참고: 연운 `POST /api/fortune/chat-stream-menus`는 Next에서 **한 번** `POST /chat`으로 `fortune_menu_*` 본문을 넘기고, **섹션 루프·Claude 호출은 이 Node에서** 수행한 뒤 SSE를 그대로 이어 줍니다 (reunion `stream-proxy`와 같은 우회 패턴). Nginx 추가 없이 기존 `location /chat`만 사용합니다.
 
 ## 환경 변수
 
@@ -27,6 +29,10 @@ Vercel 타임아웃을 피하기 위해 Cloudways에서 장시간 실행하는 *
 ```
 
 `system` / `user`는 연운 API에서 조립해 전달합니다.
+
+### 메뉴 점사(다구간) — 동일 `POST /chat`
+
+본문에 `fortune_menu_sections`( `{ system, user, subtitle_title? }[]` ), `fortune_menu_meta`( `type: "meta"` ), `fortune_menu_toc`( `type: "toc"`, `sections`, `toc_groups` )가 있으면 단일 스트림이 아니라 **메뉴 SSE 계약**(`section_start` → `chunk` → `section_replace` → `section_end` → `done`)으로 응답합니다. 연운 프로덕션은 `chat-stream-menus` API가 이 형식으로만 호출합니다.
 
 ## Nginx (지원팀 설정과 맞춤)
 

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { fetchCloudwaysFortuneHtmlFromSse } from "@/lib/cloudways-fortune-one-shot";
 import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
 import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
 import { getProductBySlug } from "@/lib/data/content";
@@ -8,7 +7,7 @@ import {
   buildClaudeFortunePromptPiecesSingleSubtitle,
   type ClaudeFortuneUserInfo,
 } from "@/lib/fortune-claude-payload";
-import { countHangulChars, type DemoProfile } from "@/lib/fortune-two-stage-demo";
+import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 import {
   buildFortuneMenuTocGroups,
   flattenFortuneMenuForStream,
@@ -18,6 +17,12 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+/**
+ * 메뉴 점사 오케스트레이션은 Cloudways `POST /chat` + `fortune_menu_*` 본문에서 수행한다.
+ * Next는 reunion `stream-proxy`처럼 upstream SSE 바디를 그대로 넘긴다 (한 번의 긴 스트림).
+ * 파이프가 열려 있는 동안은 여전히 Vercel `maxDuration` 벽시계에 묶이므로 Pro 한도(800초)에 맞춤.
+ */
+export const maxDuration = 800;
 
 type Body = {
   product_slug?: string;
@@ -50,10 +55,6 @@ function normUser(u: Body["user_info"]): ClaudeFortuneUserInfo {
       ? { birth_hour: String(u.birth_hour).trim() }
       : {}),
   };
-}
-
-function encSse(obj: unknown) {
-  return new TextEncoder().encode(`data: ${JSON.stringify(obj)}\n\n`);
 }
 
 export async function POST(request: Request) {
@@ -124,82 +125,66 @@ export async function POST(request: Request) {
       : String(process.env.FORTUNE_CLOUDWAYS_MODEL ?? process.env.VOICE_LLM_MODEL ?? "claude-sonnet-4-6").trim() ||
         "claude-sonnet-4-6";
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (o: unknown) => controller.enqueue(encSse(o));
+  const tocSections = flat.map((s) => ({
+    id: s.id,
+    title: s.subtitle_title,
+    main_title: s.main_title,
+    ...(s.main_image_url ? { main_image_url: s.main_image_url } : {}),
+    ...(s.main_video_thumb_url ? { main_video_thumb_url: s.main_video_thumb_url } : {}),
+    ...(s.image_url ? { image_url: s.image_url } : {}),
+    ...(s.video_thumb_url ? { video_thumb_url: s.video_thumb_url } : {}),
+  }));
 
-      send({
+  const fortune_menu_sections = flat.map((sec) => {
+    const { system, user } = buildClaudeFortunePromptPiecesSingleSubtitle({
+      role_prompt,
+      restrictions,
+      manse_ryeok_text,
+      user_info,
+      partner_info,
+      profile,
+      subtitle_title: sec.subtitle_title,
+      interpretation_prompt: sec.interpretation_prompt,
+    });
+    return { system, user, subtitle_title: sec.subtitle_title };
+  });
+
+  const upstream = await fetch(`${cloudwaysUrl}/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      ...(cloudwaysSecret ? { Authorization: `Bearer ${cloudwaysSecret}` } : {}),
+    },
+    cache: "no-store",
+    signal: request.signal,
+    body: JSON.stringify({
+      fortune_menu_meta: {
         type: "meta",
         product_slug,
         profile,
         manse_context_included: manse_ryeok_text.length > 0,
         manse_context_chars: manse_ryeok_text.length,
-      });
-
-      send({
+      },
+      fortune_menu_toc: {
         type: "toc",
-        sections: flat.map((s) => ({
-          id: s.id,
-          title: s.subtitle_title,
-          main_title: s.main_title,
-          ...(s.main_image_url ? { main_image_url: s.main_image_url } : {}),
-          ...(s.main_video_thumb_url ? { main_video_thumb_url: s.main_video_thumb_url } : {}),
-          ...(s.image_url ? { image_url: s.image_url } : {}),
-          ...(s.video_thumb_url ? { video_thumb_url: s.video_thumb_url } : {}),
-        })),
+        sections: tocSections,
         toc_groups: tocGroups,
-      });
-
-      let totalChars = 0;
-      for (let i = 0; i < flat.length; i++) {
-        const sec = flat[i];
-        const { system, user } = buildClaudeFortunePromptPiecesSingleSubtitle({
-          role_prompt,
-          restrictions,
-          manse_ryeok_text,
-          user_info,
-          partner_info,
-          profile,
-          subtitle_title: sec.subtitle_title,
-          interpretation_prompt: sec.interpretation_prompt,
-        });
-
-        send({ type: "section_start", index: i });
-        try {
-          const { html, streamError } = await fetchCloudwaysFortuneHtmlFromSse({
-            cloudwaysUrl,
-            cloudwaysSecret: cloudwaysSecret || undefined,
-            system,
-            user,
-            model: claudeModel,
-            onChunk: (delta) => {
-              send({ type: "chunk", index: i, html: delta });
-            },
-          });
-          if (streamError) {
-            send({ type: "error", message: streamError });
-          }
-          const safe = html.trim() || "<div class=\"subtitle-section\"><h3 class=\"subtitle-title\"></h3><div class=\"subtitle-content\"><p>응답이 비었습니다.</p></div></div>";
-          send({ type: "section_replace", index: i, html: safe });
-          totalChars += Math.max(countHangulChars(safe), 1);
-        } catch (e) {
-          send({
-            type: "error",
-            message: e instanceof Error ? e.message : String(e),
-          });
-          const errHtml = `<div class="subtitle-section"><h3 class="subtitle-title">${sec.subtitle_title}</h3><div class="subtitle-content"><p>이 구간 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.</p></div></div>`;
-          send({ type: "section_replace", index: i, html: errHtml });
-          totalChars += 40;
-        }
-        send({ type: "section_end", index: i });
-      }
-
-      send({ type: "done", charCount: Math.max(totalChars, 120) });
-      controller.close();
-    },
+      },
+      fortune_menu_sections,
+      model: claudeModel,
+    }),
   });
 
-  return new NextResponse(stream, {
+  if (!upstream.ok || !upstream.body) {
+    const details = await upstream.text().catch(() => "");
+    return NextResponse.json(
+      { error: "fortune_menu_upstream_failed", details: details.slice(0, 2000) },
+      { status: upstream.status || 502 },
+    );
+  }
+
+  return new NextResponse(upstream.body, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",

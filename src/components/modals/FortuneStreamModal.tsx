@@ -75,7 +75,9 @@ export function FortuneStreamModal() {
   const profile = (sp.get("profile") === "pair" ? "pair" : "single") as DemoProfile;
   const charName = CHAR_NAME[characterKey] ?? "연운";
 
-  const [phase, setPhase] = useState<"boot" | "toc_wait" | "toc_typing" | "stream" | "done">("boot");
+  const [phase, setPhase] = useState<"boot" | "toc_wait" | "toc_typing" | "stream" | "done" | "interrupted">(
+    "boot",
+  );
   const [toc, setToc] = useState<FortuneTocItem[]>([]);
   /** `chat-stream-menus`가 보낸 대메뉴·소메뉴 그룹(없으면 기존 단일 목차 리스트 UI) */
   const [tocGroups, setTocGroups] = useState<FortuneTocMainGroup[] | null>(null);
@@ -123,10 +125,18 @@ export function FortuneStreamModal() {
     return { active, done };
   }, [claudeStreamMode, toc, phase, claudeStreamHtml]);
 
+  type PumpSseResult = { sectionsDoneEvent: boolean; claudeDoneEvent: boolean };
+
   const pumpSseBody = useCallback(
-    async (reader: ReadableStreamDefaultReader<Uint8Array>, ac: AbortController, mode: FortuneStreamPumpMode) => {
+    async (
+      reader: ReadableStreamDefaultReader<Uint8Array>,
+      ac: AbortController,
+      mode: FortuneStreamPumpMode,
+    ): Promise<PumpSseResult> => {
       const dec = new TextDecoder();
       let buf = "";
+      let sectionsDoneEvent = false;
+      let claudeDoneEvent = false;
 
       const flushClaudeHtmlStreamBlock = (block: string) => {
         const ensureClaudeHtmlStreamStarted = () => {
@@ -178,6 +188,7 @@ export function FortuneStreamModal() {
             setClaudeStreamHtml(html);
           }
           if (typ === "done") {
+            claudeDoneEvent = true;
             ensureClaudeHtmlStreamStarted();
             const html = String(o.html ?? "");
             claudeStreamHtmlAccRef.current = html;
@@ -227,6 +238,7 @@ export function FortuneStreamModal() {
           setActiveIdx(-1);
         }
         if (ev.type === "done") {
+          sectionsDoneEvent = true;
           setFinalChars(ev.charCount);
           setPhase("done");
         }
@@ -261,6 +273,7 @@ export function FortuneStreamModal() {
         await pump();
       };
       await pump();
+      return { sectionsDoneEvent, claudeDoneEvent };
     },
     [profile],
   );
@@ -332,7 +345,14 @@ export function FortuneStreamModal() {
         });
       } else {
         if (!res.body) throw new Error("스트림 연결 실패");
-        await pumpSseBody(res.body.getReader(), ac, "sections");
+        const pr = await pumpSseBody(res.body.getReader(), ac, "sections");
+        if (!pr.sectionsDoneEvent) {
+          if (!ac.signal.aborted) {
+            setStreamError((prev) => prev || "풀이 전송이 중간에 끊겼습니다. 잠시 후 다시 시도해 주세요.");
+          }
+          setPhase("interrupted");
+          return;
+        }
         const approx = countApproxChars(sectionHtmlRef.current);
         setFinalChars((prev) => (prev != null ? prev : Math.max(approx, 1)));
         setPhase("done");
@@ -353,7 +373,14 @@ export function FortuneStreamModal() {
           signal: ac.signal,
         });
         if (!res.ok || !res.body) throw new Error("스트림 연결 실패");
-        await pumpSseBody(res.body.getReader(), ac, "sections");
+        const prDemo = await pumpSseBody(res.body.getReader(), ac, "sections");
+        if (!prDemo.sectionsDoneEvent) {
+          if (!ac.signal.aborted) {
+            setStreamError((prev) => prev || "풀이 전송이 중간에 끊겼습니다. 잠시 후 다시 시도해 주세요.");
+          }
+          setPhase("interrupted");
+          return;
+        }
         const approx = countApproxChars(sectionHtmlRef.current);
         setFinalChars((prev) => (prev != null ? prev : Math.max(approx, 1)));
         setPhase("done");
@@ -365,12 +392,19 @@ export function FortuneStreamModal() {
         throw new Error(errText.slice(0, 400) || "스트림 연결 실패");
       }
 
-      await pumpSseBody(res.body.getReader(), ac, "claude_html_stream");
+      const prClaude = await pumpSseBody(res.body.getReader(), ac, "claude_html_stream");
+      if (!prClaude.claudeDoneEvent) {
+        if (!ac.signal.aborted) {
+          setStreamError((prev) => prev || "풀이 전송이 중간에 끊겼습니다. 잠시 후 다시 시도해 주세요.");
+        }
+        setPhase("interrupted");
+        return;
+      }
       setFinalChars((prev) => prev ?? Math.max(countApproxCharsFromHtml(claudeStreamHtmlAccRef.current), 1));
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
       setStreamError((e as Error).message || "연결에 실패했습니다.");
-      setPhase("done");
+      setPhase("interrupted");
     }
   }, [product, profile, characterKey, orderNo, title, pumpSseBody]);
 
@@ -463,13 +497,17 @@ export function FortuneStreamModal() {
   const charMetaText =
     finalChars != null
       ? `${finalChars.toLocaleString("ko-KR")}자`
-      : streamedCharApprox > 0
-        ? `${streamedCharApprox.toLocaleString("ko-KR")}자 생성 중…`
-        : claudeStreamMode && phase === "stream" && !hasClaudeStreamFirstChunk
-          ? "첫 응답 수신 중…"
-          : phase === "toc_wait" || phase === "toc_typing"
-            ? "본문 준비 중…"
-            : "생성 중…";
+      : phase === "interrupted" && streamedCharApprox > 0
+        ? `${streamedCharApprox.toLocaleString("ko-KR")}자까지 수신 · 중단`
+        : phase === "interrupted"
+          ? "전송 중단"
+          : streamedCharApprox > 0
+            ? `${streamedCharApprox.toLocaleString("ko-KR")}자 생성 중…`
+            : claudeStreamMode && phase === "stream" && !hasClaudeStreamFirstChunk
+              ? "첫 응답 수신 중…"
+              : phase === "toc_wait" || phase === "toc_typing"
+                ? "본문 준비 중…"
+                : "생성 중…";
 
   const bodyVisible = claudeStreamMode
     ? phase !== "boot" && phase !== "toc_wait"
@@ -688,7 +726,9 @@ export function FortuneStreamModal() {
               {claudeStreamMode ? (
                 <div className={`y-fs-body ${bodyVisible ? "y-fs-body--visible" : ""}`}>
                   <article id="y-fs-section-0" className="y-fs-section y-fs-section--active">
-                    <div className={`y-fs-section-inner${phase !== "done" && claudeStreamHtml ? " y-fs-section-inner--streaming" : ""}`}>
+                    <div
+                      className={`y-fs-section-inner${phase === "stream" && claudeStreamHtml ? " y-fs-section-inner--streaming" : ""}`}
+                    >
                       {claudeStreamHtml ? (
                         <>
                           <div
@@ -697,7 +737,7 @@ export function FortuneStreamModal() {
                             // eslint-disable-next-line react/no-danger
                             dangerouslySetInnerHTML={{ __html: claudeStreamHtml }}
                           />
-                          {phase !== "done" ? <span className="y-fs-caret" aria-hidden="true" /> : null}
+                          {phase === "stream" ? <span className="y-fs-caret" aria-hidden="true" /> : null}
                         </>
                       ) : bodyVisible ? (
                         <div className="y-fs-skel" aria-hidden="true">
@@ -719,7 +759,10 @@ export function FortuneStreamModal() {
                     const done = doneIdx.has(i);
                     const active = activeIdx === i;
                     const showSkel =
-                      (phase === "stream" || phase === "done") && !done && !active && !htmlTrim;
+                      (phase === "stream" || phase === "done" || phase === "interrupted") &&
+                      !done &&
+                      !active &&
+                      !htmlTrim;
                     let boxCls = "y-fs-section";
                     if (done) boxCls += " y-fs-section--done";
                     else if (active) boxCls += " y-fs-section--active";

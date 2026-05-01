@@ -2,6 +2,8 @@
  * Cloudways Node: Anthropic Claude 스트림 → 연운 FortuneStreamModal 계약(SSE).
  * POST /chat 본문: { system, user, model?, max_tokens?, temperature?, order_no? }
  * 환경: ANTHROPIC_API_KEY (필수), PORT, CLOUDWAYS_PROXY_SECRET (선택, 있으면 Bearer 검증)
+ *
+ * 장시간 응답: app.timeout = 0 이고, 앞단 Nginx에서 proxy_read/send_timeout 을 1800s(30분) 등으로 두는 전제.
  */
 require("dotenv").config();
 
@@ -60,6 +62,132 @@ function requireProxySecret(req, res, next) {
   return next();
 }
 
+function resolveClaudeParams(reqBody) {
+  const model =
+    String(reqBody?.model || process.env.FORTUNE_CLOUDWAYS_MODEL || "claude-sonnet-4-6").trim() ||
+    "claude-sonnet-4-6";
+  const MAX_TOKENS_HARD_CAP = Math.max(4096, Number(process.env.FORTUNE_MAX_TOKENS_HARD_CAP ?? 24_000) || 24_000);
+  const maxTokens = Math.min(
+    MAX_TOKENS_HARD_CAP,
+    Math.max(1024, Number(reqBody?.max_tokens ?? process.env.FORTUNE_MAX_OUTPUT_TOKENS ?? 16_384) || 16_384),
+  );
+  const temperature =
+    typeof reqBody?.temperature === "number" && Number.isFinite(reqBody.temperature)
+      ? reqBody.temperature
+      : Number(process.env.FORTUNE_TEMPERATURE ?? 0.7) || 0.7;
+  return { model, maxTokens, temperature };
+}
+
+async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, ttftCtx) {
+  const { model, maxTokens, temperature } = resolveClaudeParams(reqBody);
+  const claudeBody = {
+    model,
+    max_tokens: maxTokens,
+    stream: true,
+    temperature,
+    system,
+    messages: [{ role: "user", content: user }],
+  };
+
+  const { ttftDebug, reqId, ms } = ttftCtx || {};
+  if (ttftDebug && reqId) {
+    console.log(
+      `[fortune-ttft ${reqId}] [0] request_start ms=${ms()} model=${model} max_tokens=${maxTokens} temp=${temperature} system_chars=${system.length} user_chars=${user.length}`,
+    );
+  }
+
+  let claudeRes;
+  try {
+    const tFetchStart = Date.now();
+    claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "output-300k-2026-03-24",
+      },
+      body: JSON.stringify(claudeBody),
+    });
+    if (ttftDebug && reqId) {
+      console.log(
+        `[fortune-ttft ${reqId}] [1] upstream_headers ms=${ms()} fetch_ms=${Date.now() - tFetchStart} status=${claudeRes.status}`,
+      );
+    }
+  } catch (e) {
+    throw new Error(e instanceof Error ? e.message : String(e));
+  }
+
+  if (!claudeRes.ok || !claudeRes.body) {
+    const text = await claudeRes.text().catch(() => "");
+    throw new Error(text.slice(0, 800) || `Claude HTTP ${claudeRes.status}`);
+  }
+
+  return claudeRes;
+}
+
+async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx }) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let accumulatedText = "";
+  let streamError = null;
+  let firstUpstreamDataLineLogged = false;
+  let firstProxyChunkLogged = false;
+  const { ttftDebug, reqId, ms, writeSse } = ttftCtx || {};
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        if (ttftDebug && writeSse && reqId && !firstUpstreamDataLineLogged) {
+          firstUpstreamDataLineLogged = true;
+          console.log(`[fortune-ttft ${reqId}] [2] first_upstream_data_line ms=${ms()}`);
+          writeSse({ type: "debug_timing", id: reqId, phase: "first_upstream_data_line", ms: ms() });
+        }
+        const data = line.slice(6).trim();
+        if (!data || data === "[DONE]") continue;
+        let evt;
+        try {
+          evt = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta" && evt.delta.text) {
+          const t = evt.delta.text;
+          accumulatedText += t;
+          if (typeof onTextDelta === "function") onTextDelta(t);
+          if (ttftDebug && writeSse && reqId && !firstProxyChunkLogged && t.length > 0) {
+            firstProxyChunkLogged = true;
+            console.log(`[fortune-ttft ${reqId}] [3] first_proxy_chunk ms=${ms()} chunk_len=${t.length}`);
+            writeSse({ type: "debug_timing", id: reqId, phase: "first_proxy_chunk", ms: ms(), chunk_len: t.length });
+          }
+        }
+        if (evt.type === "error") {
+          streamError = evt.error?.message || JSON.stringify(evt.error || evt);
+        }
+      }
+    }
+  } catch (e) {
+    streamError = e instanceof Error ? e.message : String(e);
+  }
+
+  const cleanHtml = normalizeHtmlBasics(stripCodeFences(accumulatedText));
+  return { html: cleanHtml, streamError };
+}
+
+function countHangulChars(html) {
+  const text = String(html ?? "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length;
+}
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok", engine: "claude", timestamp: new Date().toISOString() });
 });
@@ -81,78 +209,95 @@ app.post("/chat", requireProxySecret, async (req, res) => {
     });
   }
 
+  /** 연운 메뉴 점사: Vercel에서 섹션 루프 대신 Cloudways에서 순차 생성 → 단일 SSE (reunion stream-proxy 패턴). */
+  const menuSections = req.body?.fortune_menu_sections;
+  const menuMeta = req.body?.fortune_menu_meta;
+  const menuToc = req.body?.fortune_menu_toc;
+  if (
+    Array.isArray(menuSections) &&
+    menuSections.length > 0 &&
+    menuMeta &&
+    typeof menuMeta === "object" &&
+    menuToc &&
+    typeof menuToc === "object" &&
+    Array.isArray(menuToc.sections)
+  ) {
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.flushHeaders?.();
+
+    const writeSse = (obj) => {
+      res.write(`data: ${JSON.stringify(obj)}\n\n`);
+      res.flush?.();
+    };
+
+    try {
+      writeSse(menuMeta);
+      writeSse(menuToc);
+      let totalChars = 0;
+      for (let i = 0; i < menuSections.length; i++) {
+        const sec = menuSections[i];
+        const system = String(sec?.system ?? "").trim();
+        const user = String(sec?.user ?? "").trim();
+        const subtitleTitle = String(sec?.subtitle_title ?? "").trim() || `섹션 ${i + 1}`;
+        writeSse({ type: "section_start", index: i });
+        try {
+          const claudeRes = await anthropicMessagesStreamResponse(apiKey, req.body, system, user, null);
+          const { html, streamError } = await readClaudeSseToHtml(claudeRes.body.getReader(), {
+            onTextDelta: (delta) => writeSse({ type: "chunk", index: i, html: delta }),
+            ttftCtx: null,
+          });
+          if (streamError) {
+            writeSse({ type: "error", message: streamError });
+          }
+          const safe =
+            html.trim() ||
+            '<div class="subtitle-section"><h3 class="subtitle-title"></h3><div class="subtitle-content"><p>응답이 비었습니다.</p></div></div>';
+          writeSse({ type: "section_replace", index: i, html: safe });
+          totalChars += Math.max(countHangulChars(safe), 1);
+        } catch (e) {
+          writeSse({
+            type: "error",
+            message: e instanceof Error ? e.message : String(e),
+          });
+          const errHtml = `<div class="subtitle-section"><h3 class="subtitle-title">${subtitleTitle}</h3><div class="subtitle-content"><p>이 구간 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.</p></div></div>`;
+          writeSse({ type: "section_replace", index: i, html: errHtml });
+          totalChars += 40;
+        }
+        writeSse({ type: "section_end", index: i });
+      }
+      writeSse({ type: "done", charCount: Math.max(totalChars, 120) });
+    } catch (e) {
+      writeSse({
+        type: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+    res.end();
+    return;
+  }
+
   const system = String(req.body?.system ?? "").trim();
   const user = String(req.body?.user ?? "").trim();
   if (!system || !user) {
     return res.status(400).json({ error: "Invalid request", message: "system and user are required." });
   }
 
-  const model =
-    String(req.body?.model || process.env.FORTUNE_CLOUDWAYS_MODEL || "claude-sonnet-4-6").trim() ||
-    "claude-sonnet-4-6";
-  // 점사 본문이 길더라도 max_tokens를 과도하게 크게 잡으면 비용/시간이 급격히 증가할 수 있음.
-  // Cloudways 환경변수에 9만 같은 값이 들어가도 안전 상한으로 제한한다.
-  const MAX_TOKENS_HARD_CAP = Math.max(4096, Number(process.env.FORTUNE_MAX_TOKENS_HARD_CAP ?? 24_000) || 24_000);
-  const maxTokens = Math.min(
-    MAX_TOKENS_HARD_CAP,
-    Math.max(1024, Number(req.body?.max_tokens ?? process.env.FORTUNE_MAX_OUTPUT_TOKENS ?? 16_384) || 16_384),
-  );
-  const temperature =
-    typeof req.body?.temperature === "number" && Number.isFinite(req.body.temperature)
-      ? req.body.temperature
-      : Number(process.env.FORTUNE_TEMPERATURE ?? 0.7) || 0.7;
-
-  const claudeBody = {
-    model,
-    max_tokens: maxTokens,
-    stream: true,
-    temperature,
-    system,
-    messages: [{ role: "user", content: user }],
-  };
-
-  if (ttftDebug) {
-    console.log(
-      `[fortune-ttft ${reqId}] [0] request_start ms=${ms()} model=${model} max_tokens=${maxTokens} temp=${temperature} system_chars=${system.length} user_chars=${user.length}`,
-    );
-  }
-
   let claudeRes;
   try {
-    const tFetchStart = Date.now();
-    // 긴 출력(예: 5만자 근처) 시 출력 상한 확장 — https://docs.anthropic.com/claude/docs/beta-headers
-    claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta": "output-300k-2026-03-24",
-      },
-      body: JSON.stringify(claudeBody),
-    });
-    if (ttftDebug) {
-      console.log(
-        `[fortune-ttft ${reqId}] [1] upstream_headers ms=${ms()} fetch_ms=${Date.now() - tFetchStart} status=${claudeRes.status}`,
-      );
-    }
+    claudeRes = await anthropicMessagesStreamResponse(apiKey, req.body, system, user, { ttftDebug, reqId, ms });
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     return res.status(502).json({
       error: "Claude request failed",
-      message: e instanceof Error ? e.message : String(e),
-    });
-  }
-
-  if (!claudeRes.ok || !claudeRes.body) {
-    const text = await claudeRes.text().catch(() => "");
-    return res.status(claudeRes.status || 502).json({
-      error: "Claude API error",
-      details: text.slice(0, 2000),
+      message: msg,
     });
   }
 
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-  // 중간 프록시(Nginx 등) 버퍼링/변환 방지
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("X-Accel-Buffering", "no");
   res.setHeader("Connection", "keep-alive");
@@ -161,7 +306,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
 
   const writeSse = (obj) => {
     res.write(`data: ${JSON.stringify(obj)}\n\n`);
-    // Express가 가진 flush(있으면)로 즉시 네트워크로 밀어냄
     res.flush?.();
   };
 
@@ -170,56 +314,15 @@ app.post("/chat", requireProxySecret, async (req, res) => {
     writeSse({ type: "debug_timing", id: reqId, phase: "proxy_start", ms: ms() });
   }
 
-  const reader = claudeRes.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let accumulatedText = "";
-  let streamError = null;
-  let firstUpstreamDataLineLogged = false;
-  let firstProxyChunkLogged = false;
+  let accLen = 0;
+  const { html: cleanHtml, streamError } = await readClaudeSseToHtml(claudeRes.body.getReader(), {
+    onTextDelta: (t) => {
+      accLen += t.length;
+      writeSse({ type: "chunk", text: t, accumulatedLength: accLen });
+    },
+    ttftCtx: { ttftDebug, reqId, ms, writeSse },
+  });
 
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        if (ttftDebug && !firstUpstreamDataLineLogged) {
-          firstUpstreamDataLineLogged = true;
-          console.log(`[fortune-ttft ${reqId}] [2] first_upstream_data_line ms=${ms()}`);
-          writeSse({ type: "debug_timing", id: reqId, phase: "first_upstream_data_line", ms: ms() });
-        }
-        const data = line.slice(6).trim();
-        if (!data || data === "[DONE]") continue;
-        let evt;
-        try {
-          evt = JSON.parse(data);
-        } catch {
-          continue;
-        }
-        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta" && evt.delta.text) {
-          const t = evt.delta.text;
-          accumulatedText += t;
-          if (ttftDebug && !firstProxyChunkLogged && t.length > 0) {
-            firstProxyChunkLogged = true;
-            console.log(`[fortune-ttft ${reqId}] [3] first_proxy_chunk ms=${ms()} chunk_len=${t.length}`);
-            writeSse({ type: "debug_timing", id: reqId, phase: "first_proxy_chunk", ms: ms(), chunk_len: t.length });
-          }
-          writeSse({ type: "chunk", text: t, accumulatedLength: accumulatedText.length });
-        }
-        if (evt.type === "error") {
-          streamError = evt.error?.message || JSON.stringify(evt.error || evt);
-        }
-      }
-    }
-  } catch (e) {
-    streamError = e instanceof Error ? e.message : String(e);
-  }
-
-  let cleanHtml = normalizeHtmlBasics(stripCodeFences(accumulatedText));
   const donePayload = {
     type: "done",
     html: cleanHtml,
@@ -232,7 +335,7 @@ app.post("/chat", requireProxySecret, async (req, res) => {
   writeSse(donePayload);
   if (ttftDebug) {
     console.log(
-      `[fortune-ttft ${reqId}] [4] done ms=${ms()} out_chars=${String(cleanHtml ?? "").length} accumulated_chars=${accumulatedText.length} stream_error=${streamError ? "1" : "0"}`,
+      `[fortune-ttft ${reqId}] [4] done ms=${ms()} out_chars=${String(cleanHtml ?? "").length} accumulated_chars=${accLen} stream_error=${streamError ? "1" : "0"}`,
     );
     writeSse({
       type: "debug_timing",
@@ -240,7 +343,7 @@ app.post("/chat", requireProxySecret, async (req, res) => {
       phase: "done",
       ms: ms(),
       out_chars: String(cleanHtml ?? "").length,
-      accumulated_chars: accumulatedText.length,
+      accumulated_chars: accLen,
       stream_error: Boolean(streamError),
     });
   }
