@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { emptyFortuneMenu, parseFortuneMenuJson } from "@/lib/product-fortune-menu";
+
+function wantsJson(request: Request) {
+  const accept = request.headers.get("accept") ?? "";
+  if (accept.includes("application/json")) return true;
+  if (request.headers.get("x-admin-fetch") === "1") return true;
+  return false;
+}
 
 export async function POST(request: Request) {
   const form = await request.formData();
+  const json = wantsJson(request);
 
   const slug = String(form.get("slug") ?? "").trim();
   const title = String(form.get("title") ?? "").trim();
@@ -27,12 +36,26 @@ export async function POST(request: Request) {
   const profileRaw = String(form.get("saju_input_profile") ?? "single").trim();
   const saju_input_profile = profileRaw === "pair" ? "pair" : "single";
 
+  const fortuneMenuRaw = String(form.get("fortune_menu_json") ?? "").trim();
+  let fortune_menu = emptyFortuneMenu();
+  if (fortuneMenuRaw.length) {
+    try {
+      fortune_menu = parseFortuneMenuJson(JSON.parse(fortuneMenuRaw) as unknown);
+    } catch {
+      if (json) return NextResponse.json({ ok: false, error: "fortune_menu_json 파싱 실패" }, { status: 400 });
+      return NextResponse.redirect(new URL("/admin", request.url), 303);
+    }
+  }
+
   if (!slug || !title || !quote || !category_slug || !character_key || !Number.isFinite(price_krw)) {
+    if (json) return NextResponse.json({ ok: false, error: "필수 필드 누락" }, { status: 400 });
     return NextResponse.redirect(new URL("/admin", request.url), 303);
   }
 
   const supabase = supabaseServer();
-  await supabase.from("products").upsert({
+  const { data: prev } = await supabase.from("products").select("payment_code").eq("slug", slug).maybeSingle();
+
+  const payload: Record<string, unknown> = {
     slug,
     title,
     quote,
@@ -44,8 +67,24 @@ export async function POST(request: Request) {
     tags,
     thumbnail_svg,
     saju_input_profile,
-  });
+    fortune_menu,
+  };
 
-  return NextResponse.redirect(new URL("/admin", request.url), 303);
+  if (prev?.payment_code != null && prev.payment_code !== "") {
+    payload.payment_code = Number(prev.payment_code);
+  }
+
+  const { error } = await supabase.from("products").upsert(payload);
+  if (error) {
+    if (json) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.redirect(new URL("/admin", request.url), 303);
+  }
+
+  const { data: after } = await supabase.from("products").select("payment_code").eq("slug", slug).maybeSingle();
+  const payment_code = after?.payment_code != null && after.payment_code !== "" ? Number(after.payment_code) : null;
+
+  if (json) {
+    return NextResponse.json({ ok: true, slug, payment_code });
+  }
+  return NextResponse.redirect(new URL("/admin#admin-products", request.url), 303);
 }
-

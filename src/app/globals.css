@@ -646,6 +646,224 @@ a {
   display: grid;
   gap: 10px;
 }
+/* 상품 목록: 한 줄에 카드 1개 */
+#admin-products .y-admin-crud-list {
+  grid-template-columns: 1fr;
+}
+/* 상품 저장 + 카테고리/리뷰: 넓은 화면에서도 카드당 한 줄(전체 폭 1열 스택) */
+.y-admin-product-save-grid.y-admin-grid.two {
+  grid-template-columns: 1fr;
+}
+.y-admin-readonly {
+  opacity: 0.88;
+  cursor: not-allowed;
+  background: #f4f1ea;
+}
+.y-admin-save-ok {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #027a48;
+}
+.y-admin-save-err {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #b42318;
+}
+.y-admin-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 0.5px solid var(--y-line);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--y-ink);
+}
+.y-admin-ghost-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.y-admin-danger-soft {
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 800;
+  color: #b42318;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.y-admin-thumbnail-svg-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.y-admin-thumbnail-svg-toolbar-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.y-admin-thumbnail-gen-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.y-admin-fortune-menu-editor {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 0.5px dashed var(--y-line);
+  border-bottom: 0.5px dashed var(--y-line);
+}
+.y-admin-fortune-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.y-admin-fortune-menu-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--y-mute);
+  line-height: 1.5;
+}
+.y-admin-fortune-main-card {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 0.5px solid var(--y-line);
+  background: #fdfcfa;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.y-admin-fortune-main-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.y-admin-fortune-subs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.y-admin-fortune-sub-card {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 0.5px solid rgba(26, 24, 21, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.y-admin-fortune-sub-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.y-admin-fortune-media-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.y-admin-fortune-dropzone {
+  position: relative;
+  min-height: 68px;
+  border: 1.5px dashed var(--y-line);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--y-mute);
+  cursor: pointer;
+  padding: 12px 14px;
+  text-align: center;
+  user-select: none;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.y-admin-fortune-dropzone--over {
+  border-color: var(--y-ink);
+  background: #faf8f5;
+  color: var(--y-ink);
+}
+.y-admin-fortune-dropzone--busy {
+  cursor: wait;
+  opacity: 0.88;
+}
+.y-admin-fortune-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.y-admin-fortune-url-row {
+  margin-top: 2px;
+}
+.y-admin-fortune-media-preview {
+  margin-top: 4px;
+}
+.y-admin-fortune-stacked-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.y-admin-fortune-stacked-legend {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--y-mute);
+}
+.y-admin-fortune-stacked-media {
+  position: relative;
+  width: 50vw;
+  max-width: 100%;
+  margin: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ede8e2;
+  line-height: 0;
+}
+.y-admin-fortune-stacked-base {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: top;
+}
+.y-admin-fortune-stacked-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 1;
+}
+.y-admin-fortune-stacked-video-only {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(42vh, 360px);
+  object-fit: contain;
+  vertical-align: top;
+  background: #1a1816;
+}
 .y-admin-editor {
   border: 0.5px solid var(--y-line);
   border-radius: 18px;
@@ -929,11 +1147,17 @@ a {
   .y-admin-grid.two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .y-admin-product-save-grid.y-admin-grid.two {
+    grid-template-columns: 1fr;
+  }
   .y-admin-grid.three {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .y-admin-crud-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #admin-products .y-admin-crud-list {
+    grid-template-columns: 1fr;
   }
   .y-admin-edit-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6619,6 +6843,22 @@ button.y-dw-listen:disabled {
   min-width: 0;
   color: var(--y-fs-accent);
 }
+.y-fs-toc-grouped {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.y-fs-toc-group-block {
+  margin: 0;
+}
+.y-fs-toc-main-line {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #2b2620;
+  padding: 4px 2px 6px 0;
+  border-bottom: none;
+}
 .y-fs-toc-card-icon {
   color: var(--y-fs-accent);
   font-size: 14px;
@@ -6674,6 +6914,12 @@ button.y-dw-listen:disabled {
   flex-direction: column;
   gap: 0;
 }
+/* `ol.y-fs-toc.y-fs-toc--sub` — 기본 `.y-fs-toc`보다 뒤에 두어 padding이 덮이지 않게 함 */
+.y-fs-toc.y-fs-toc--sub {
+  margin: 0;
+  padding: 6px 0 0 22px;
+  border-left: none;
+}
 .y-fs-toc-item--clickable {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -6707,6 +6953,12 @@ button.y-dw-listen:disabled {
 }
 .y-fs-toc-item:last-child {
   border-bottom: none;
+}
+.y-fs-toc.y-fs-toc--sub .y-fs-toc-item {
+  font-size: 13px;
+}
+.y-fs-toc.y-fs-toc--sub .y-fs-toc-tx {
+  font-size: 13px;
 }
 .y-fs-toc-num {
   width: 26px;
@@ -6821,6 +7073,65 @@ button.y-dw-listen:disabled {
 .y-fs-section-inner--streaming {
   position: relative;
 }
+.y-fs-section-main-kicker {
+  font-family: "Noto Serif KR", serif;
+  font-size: 1.22rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: #2b2620;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+.y-fs-section-main-kicker--muted {
+  opacity: 0.72;
+}
+.y-fs-body-thumb-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 0 0 14px;
+}
+.y-fs-body-thumb-wrap .y-fs-section-media {
+  margin-bottom: 0;
+}
+.y-fs-section-media {
+  position: relative;
+  width: min(50vw, 100%);
+  max-width: 100%;
+  margin: 0 0 14px;
+  border-radius: 0;
+  overflow: hidden;
+  background: #ebe6df;
+  line-height: 0;
+}
+.y-fs-section-media--toc {
+  margin: 0;
+}
+.y-fs-section-media-base {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: top;
+}
+.y-fs-section-media-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 1;
+}
+.y-fs-section-media-video-only {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(42vh, 360px);
+  object-fit: contain;
+  vertical-align: top;
+  background: #1a1816;
+}
 .y-fs-html {
   font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans KR", sans-serif;
   font-size: 15px;
@@ -6835,11 +7146,18 @@ button.y-dw-listen:disabled {
   color: var(--y-fs-ink);
   letter-spacing: -0.02em;
 }
-.y-fs-html h2::before {
-  content: "● ";
-  font-size: 0.75em;
-  margin-right: 2px;
+.y-fs-html h3.subtitle-title {
+  font-family: "Noto Serif KR", serif;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 12px;
   color: var(--y-fs-ink);
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+.y-fs-html .subtitle-section h2::before,
+.y-fs-html .subtitle-section h3::before {
+  content: none;
 }
 .y-fs-html p {
   margin: 0 0 12px;

@@ -10,7 +10,11 @@ import {
   normalizeFortuneSsePayload,
   parseFortuneSseBlock,
   type FortuneStreamEvt,
+  type FortuneTocItem,
 } from "@/lib/fortune-stream-client";
+import { FortuneStreamSectionMedia } from "@/components/modals/FortuneStreamSectionMedia";
+import { splitHtmlAfterFirstSubtitleH3Close } from "@/lib/fortune-section-html-split";
+import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
 
 const CHAR_NAME: Record<string, string> = {
@@ -20,9 +24,7 @@ const CHAR_NAME: Record<string, string> = {
   un: "운서",
 };
 
-type TocItem = { id: string; title: string };
-
-/** `/api/fortune/chat-stream`(Cloudways Claude SSE) vs 데모 멀티섹션 */
+/** Cloudways 단일 HTML SSE vs 로컬 데모(501) 멀티섹션 SSE */
 type FortuneStreamPumpMode = "claude_html_stream" | "sections";
 
 function kstDateShortDots(): string {
@@ -69,11 +71,14 @@ export function FortuneStreamModal() {
   const title = sp.get("title") ?? "풀이";
   const characterKey = sp.get("character_key") ?? "yeon";
   const orderNo = sp.get("order_no");
+  const promptDebug = sp.get("prompt_debug") === "1";
   const profile = (sp.get("profile") === "pair" ? "pair" : "single") as DemoProfile;
   const charName = CHAR_NAME[characterKey] ?? "연운";
 
   const [phase, setPhase] = useState<"boot" | "toc_wait" | "toc_typing" | "stream" | "done">("boot");
-  const [toc, setToc] = useState<TocItem[]>([]);
+  const [toc, setToc] = useState<FortuneTocItem[]>([]);
+  /** `chat-stream-menus`가 보낸 대메뉴·소메뉴 그룹(없으면 기존 단일 목차 리스트 UI) */
+  const [tocGroups, setTocGroups] = useState<FortuneTocMainGroup[] | null>(null);
   const [sectionHtml, setSectionHtml] = useState<Record<number, string>>({});
   const [activeIdx, setActiveIdx] = useState(-1);
   const [doneIdx, setDoneIdx] = useState<Set<number>>(new Set());
@@ -88,6 +93,14 @@ export function FortuneStreamModal() {
   /** Claude 스트림에서 첫 `chunk` 텍스트 수신 여부(TTFT·UI용, `partial_done`/`done`만 오는 경우는 false 유지) */
   const claudeFirstChunkSeenRef = useRef(false);
   const [hasClaudeStreamFirstChunk, setHasClaudeStreamFirstChunk] = useState(false);
+  const claudeClientT0Ref = useRef<number | null>(null);
+  const [claudeClientTtftMs, setClaudeClientTtftMs] = useState<number | null>(null);
+  const [claudeServerTimings, setClaudeServerTimings] = useState<Record<string, number>>({});
+  const [promptPreview, setPromptPreview] = useState<null | {
+    composed?: { system?: string; user?: string; system_chars?: number; user_chars?: number; total_tokens_rough?: number };
+    pieces?: { role_prompt?: string; restrictions?: string; manse_ryeok_text?: string };
+  }>(null);
+  const [promptPreviewError, setPromptPreviewError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sectionHtmlRef = useRef<Record<number, string>>({});
 
@@ -129,6 +142,13 @@ export function FortuneStreamModal() {
           if (!raw || typeof raw !== "object") continue;
           const o = raw as Record<string, unknown>;
           const typ = o.type;
+          if (typ === "debug_timing") {
+            const phaseKey = typeof o.phase === "string" ? o.phase : "";
+            const ms = typeof o.ms === "number" && Number.isFinite(o.ms) ? o.ms : null;
+            if (phaseKey && ms != null) {
+              setClaudeServerTimings((prev) => ({ ...prev, [phaseKey]: ms }));
+            }
+          }
           if (typ === "start") {
             if (claudeStreamStartedRef.current) continue;
             claudeStreamStartedRef.current = true;
@@ -145,6 +165,8 @@ export function FortuneStreamModal() {
             if (!claudeFirstChunkSeenRef.current && t.length > 0) {
               claudeFirstChunkSeenRef.current = true;
               setHasClaudeStreamFirstChunk(true);
+              const t0 = claudeClientT0Ref.current;
+              if (t0 != null) setClaudeClientTtftMs(Math.max(0, Math.round(performance.now() - t0)));
             }
             claudeStreamHtmlAccRef.current += t;
             setClaudeStreamHtml((h) => h + t);
@@ -179,6 +201,7 @@ export function FortuneStreamModal() {
         }
         if (ev.type === "toc") {
           setToc(ev.sections);
+          setTocGroups(ev.toc_groups?.length ? ev.toc_groups : null);
           setPhase("toc_typing");
         }
         if (ev.type === "section_start") {
@@ -188,6 +211,13 @@ export function FortuneStreamModal() {
         if (ev.type === "chunk") {
           setSectionHtml((prev) => {
             const next = { ...prev, [ev.index]: (prev[ev.index] ?? "") + ev.html };
+            sectionHtmlRef.current = next;
+            return next;
+          });
+        }
+        if (ev.type === "section_replace") {
+          setSectionHtml((prev) => {
+            const next = { ...prev, [ev.index]: ev.html };
             sectionHtmlRef.current = next;
             return next;
           });
@@ -241,6 +271,7 @@ export function FortuneStreamModal() {
     abortRef.current = ac;
     setPhase("toc_wait");
     setToc([]);
+    setTocGroups(null);
     setSectionHtml({});
     sectionHtmlRef.current = {};
     setActiveIdx(-1);
@@ -253,6 +284,9 @@ export function FortuneStreamModal() {
     claudeStreamStartedRef.current = false;
     claudeFirstChunkSeenRef.current = false;
     setHasClaudeStreamFirstChunk(false);
+    claudeClientT0Ref.current = performance.now();
+    setClaudeClientTtftMs(null);
+    setClaudeServerTimings({});
 
     try {
       const manse_ryeok_text = buildFortuneManseContext({
@@ -262,21 +296,48 @@ export function FortuneStreamModal() {
       const user_info = readUserInfoFromYeonunSajuV1();
       const partner_info = profile === "pair" ? partnerInfoFromPartnerStorage(product) : null;
 
-      let res = await fetch("/api/fortune/chat-stream", {
+      const streamBody = {
+        product_slug: product,
+        profile,
+        character_key: characterKey,
+        order_no: orderNo ?? undefined,
+        title,
+        manse_ryeok_text,
+        user_info,
+        partner_info,
+      };
+
+      let res = await fetch("/api/fortune/chat-stream-menus", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({
-          product_slug: product,
-          profile,
-          character_key: characterKey,
-          order_no: orderNo ?? undefined,
-          title,
-          manse_ryeok_text,
-          user_info,
-          partner_info,
-        }),
+        body: JSON.stringify(streamBody),
         signal: ac.signal,
       });
+
+      const menuStreamOk =
+        res.ok &&
+        res.body &&
+        (res.headers.get("content-type") ?? "").toLowerCase().includes("text/event-stream");
+
+      if (!menuStreamOk) {
+        if (res.status !== 404 && res.status !== 501) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(errText.slice(0, 400) || "스트림 연결 실패");
+        }
+        res = await fetch("/api/fortune/chat-stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+          body: JSON.stringify(streamBody),
+          signal: ac.signal,
+        });
+      } else {
+        if (!res.body) throw new Error("스트림 연결 실패");
+        await pumpSseBody(res.body.getReader(), ac, "sections");
+        const approx = countApproxChars(sectionHtmlRef.current);
+        setFinalChars((prev) => (prev != null ? prev : Math.max(approx, 1)));
+        setPhase("done");
+        return;
+      }
 
       if (res.status === 501) {
         res = await fetch("/api/fortune/two-stage-demo", {
@@ -317,6 +378,54 @@ export function FortuneStreamModal() {
     void runStream();
     return () => abortRef.current?.abort();
   }, [runStream]);
+
+  useEffect(() => {
+    if (!promptDebug) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        setPromptPreviewError(null);
+        const manse_ryeok_text = buildFortuneManseContext({ profile, productSlug: product });
+        const user_info = readUserInfoFromYeonunSajuV1();
+        const partner_info = profile === "pair" ? partnerInfoFromPartnerStorage(product) : null;
+        const res = await fetch("/api/fortune/prompt-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            product_slug: product,
+            profile,
+            character_key: characterKey,
+            title,
+            manse_ryeok_text,
+            user_info,
+            partner_info,
+          }),
+        });
+        const j = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        if (!res.ok) {
+          const msg = typeof j.error === "string" ? j.error : "프롬프트 미리보기 실패";
+          throw new Error(msg);
+        }
+        if (cancelled) return;
+        setPromptPreview(j as unknown as typeof promptPreview);
+      } catch (e) {
+        if (cancelled) return;
+        setPromptPreviewError(e instanceof Error ? e.message : "프롬프트 미리보기 실패");
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [promptDebug, profile, product, characterKey, title]);
+
+  const copyText = useCallback(async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const closeToContent = () => {
     const next = new URLSearchParams(sp.toString());
@@ -366,6 +475,12 @@ export function FortuneStreamModal() {
     ? phase !== "boot" && phase !== "toc_wait"
     : toc.length > 0 && phase !== "boot" && phase !== "toc_wait";
 
+  /** 해당 인덱스 구간에 점사 본문이 보이기 시작했을 때(스트리밍 중 또는 글 있음) */
+  const fortuneVisibleForSection = (idx: number) => {
+    const h = sectionHtml[idx] ?? "";
+    return h.trim().length > 0 || activeIdx === idx;
+  };
+
   return (
     <div className="y-fs-fullpage y-fs-modal" role="dialog" aria-modal="true" aria-label="풀이 결과">
       <div className="y-fs-fullpage-inner">
@@ -394,54 +509,103 @@ export function FortuneStreamModal() {
                         <span />
                         <span />
                       </span>
-                      <span className="y-fs-toc-loading-tx">● 목차를 구성하고 있어요</span>
+                      <span className="y-fs-toc-loading-tx">● 풀이를 불러오는 중이에요</span>
                     </div>
                   ) : null}
 
                   {toc.length > 0 ? (
                     <>
                       <div className="y-fs-toc-card-head">
-                        <span className="y-fs-toc-card-head-tx">● 목차를 구성하고 있어요</span>
+                        <span className="y-fs-toc-card-head-tx">● 목차</span>
                       </div>
-                      <ol className="y-fs-toc" aria-label="목차">
-                        {toc.map((item, i) => {
-                          const done = claudeStreamMode ? claudeStreamTocUi.done.has(i) : doneIdx.has(i);
-                          const active = claudeStreamMode ? claudeStreamTocUi.active === i : activeIdx === i;
-                          let cls = "y-fs-toc-item";
-                          if (done) cls += " y-fs-toc-item--done";
-                          else if (active) cls += " y-fs-toc-item--active";
-                          else cls += " y-fs-toc-item--pending";
-                          if (done) cls += " y-fs-toc-item--clickable";
-                          return (
-                            <li
-                              key={item.id}
-                              className={cls}
-                              {...(done
-                                ? {
-                                    role: "button" as const,
-                                    tabIndex: 0,
-                                    "aria-label": `${item.title} 섹션으로 이동`,
-                                    onClick: () => scrollToSection(i),
-                                    onKeyDown: (e) => onTocDoneKeyDown(i, e),
-                                  }
-                                : {})}
-                            >
-                              <span className="y-fs-toc-num">{i + 1}</span>
-                              <span className="y-fs-toc-tx">{item.title}</span>
-                              {done ? (
-                                <span className="y-fs-toc-check" aria-hidden="true">
-                                  ✓
-                                </span>
-                              ) : null}
-                              {active ? (
-                                <span className="y-fs-toc-chev" aria-hidden="true">
-                                  →
-                                </span>
-                              ) : null}
-                            </li>
-                          );
-                        })}
-                      </ol>
+                      {tocGroups && tocGroups.length > 0 ? (
+                        <div className="y-fs-toc-grouped" aria-label="목차">
+                          {tocGroups.map((g) => (
+                            <div key={g.main_id} className="y-fs-toc-group-block">
+                              <div className="y-fs-toc-main-line">{g.main_title}</div>
+                              <ol className="y-fs-toc y-fs-toc--sub">
+                                {g.subs.map((sub) => {
+                                  const i = sub.sectionIndex;
+                                  const done = claudeStreamMode ? claudeStreamTocUi.done.has(i) : doneIdx.has(i);
+                                  const active = claudeStreamMode ? claudeStreamTocUi.active === i : activeIdx === i;
+                                  let cls = "y-fs-toc-item y-fs-toc-item--sub";
+                                  if (done) cls += " y-fs-toc-item--done";
+                                  else if (active) cls += " y-fs-toc-item--active";
+                                  else cls += " y-fs-toc-item--pending";
+                                  if (done) cls += " y-fs-toc-item--clickable";
+                                  return (
+                                    <li
+                                      key={sub.id}
+                                      className={cls}
+                                      {...(done
+                                        ? {
+                                            role: "button" as const,
+                                            tabIndex: 0,
+                                            "aria-label": `${sub.title} 섹션으로 이동`,
+                                            onClick: () => scrollToSection(i),
+                                            onKeyDown: (e) => onTocDoneKeyDown(i, e),
+                                          }
+                                        : {})}
+                                    >
+                                      <span className="y-fs-toc-tx">{sub.title}</span>
+                                      {done ? (
+                                        <span className="y-fs-toc-check" aria-hidden="true">
+                                          ✓
+                                        </span>
+                                      ) : null}
+                                      {active ? (
+                                        <span className="y-fs-toc-chev" aria-hidden="true">
+                                          →
+                                        </span>
+                                      ) : null}
+                                    </li>
+                                  );
+                                })}
+                              </ol>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <ol className="y-fs-toc" aria-label="목차">
+                          {toc.map((item, i) => {
+                            const done = claudeStreamMode ? claudeStreamTocUi.done.has(i) : doneIdx.has(i);
+                            const active = claudeStreamMode ? claudeStreamTocUi.active === i : activeIdx === i;
+                            let cls = "y-fs-toc-item";
+                            if (done) cls += " y-fs-toc-item--done";
+                            else if (active) cls += " y-fs-toc-item--active";
+                            else cls += " y-fs-toc-item--pending";
+                            if (done) cls += " y-fs-toc-item--clickable";
+                            return (
+                              <li
+                                key={item.id}
+                                className={cls}
+                                {...(done
+                                  ? {
+                                      role: "button" as const,
+                                      tabIndex: 0,
+                                      "aria-label": `${item.title} 섹션으로 이동`,
+                                      onClick: () => scrollToSection(i),
+                                      onKeyDown: (e) => onTocDoneKeyDown(i, e),
+                                    }
+                                  : {})}
+                              >
+                                <span className="y-fs-toc-num">{i + 1}</span>
+                                <span className="y-fs-toc-tx">{item.title}</span>
+                                {done ? (
+                                  <span className="y-fs-toc-check" aria-hidden="true">
+                                    ✓
+                                  </span>
+                                ) : null}
+                                {active ? (
+                                  <span className="y-fs-toc-chev" aria-hidden="true">
+                                    →
+                                  </span>
+                                ) : null}
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      )}
                     </>
                   ) : null}
                 </div>
@@ -449,6 +613,78 @@ export function FortuneStreamModal() {
             </section>
 
             <section className="y-fs-main-panel">
+              {promptDebug ? (
+                <div style={{ padding: "10px 22px 0" }}>
+                  <details style={{ border: "1px solid rgba(51,51,51,0.12)", borderRadius: 12, padding: 12, background: "#fff" }}>
+                    <summary style={{ cursor: "pointer", fontWeight: 700 }}>프롬프트 보기 (디버그)</summary>
+                    <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5, color: "#444" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>
+                        <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f4f7" }}>
+                          클라 TTFT: {claudeClientTtftMs != null ? `${claudeClientTtftMs.toLocaleString("ko-KR")}ms` : "—"}
+                        </span>
+                        <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f4f7" }}>
+                          서버 headers:{" "}
+                          {claudeServerTimings.upstream_headers != null
+                            ? `${Math.round(claudeServerTimings.upstream_headers).toLocaleString("ko-KR")}ms`
+                            : "—"}
+                        </span>
+                        <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f4f7" }}>
+                          서버 first_data:{" "}
+                          {claudeServerTimings.first_upstream_data_line != null
+                            ? `${Math.round(claudeServerTimings.first_upstream_data_line).toLocaleString("ko-KR")}ms`
+                            : "—"}
+                        </span>
+                        <span style={{ padding: "2px 8px", borderRadius: 999, background: "#f2f4f7" }}>
+                          서버 first_chunk:{" "}
+                          {claudeServerTimings.first_proxy_chunk != null
+                            ? `${Math.round(claudeServerTimings.first_proxy_chunk).toLocaleString("ko-KR")}ms`
+                            : "—"}
+                        </span>
+                      </div>
+                      {promptPreviewError ? (
+                        <p style={{ color: "#b42318", margin: 0 }}>불러오기 실패: {promptPreviewError}</p>
+                      ) : null}
+                      {promptPreview?.composed ? (
+                        <p style={{ margin: "0 0 10px" }}>
+                          system {Number(promptPreview.composed.system_chars ?? 0).toLocaleString("ko-KR")}자 · user{" "}
+                          {Number(promptPreview.composed.user_chars ?? 0).toLocaleString("ko-KR")}자 · 총 토큰(러프){" "}
+                          {Number(promptPreview.composed.total_tokens_rough ?? 0).toLocaleString("ko-KR")}
+                        </p>
+                      ) : (
+                        <p style={{ margin: 0 }}>불러오는 중… (서버에서 `ALLOW_FORTUNE_PROMPT_PREVIEW=1` 필요)</p>
+                      )}
+
+                      {promptPreview?.composed?.system ? (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                            <strong>system</strong>
+                            <button type="button" onClick={() => copyText(promptPreview.composed?.system ?? "")} style={{ fontSize: 12 }}>
+                              복사
+                            </button>
+                          </div>
+                          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", marginTop: 6, padding: 10, borderRadius: 10, background: "#faf8f5" }}>
+                            {promptPreview.composed.system}
+                          </pre>
+                        </div>
+                      ) : null}
+
+                      {promptPreview?.composed?.user ? (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                            <strong>user</strong>
+                            <button type="button" onClick={() => copyText(promptPreview.composed?.user ?? "")} style={{ fontSize: 12 }}>
+                              복사
+                            </button>
+                          </div>
+                          <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", marginTop: 6, padding: 10, borderRadius: 10, background: "#faf8f5" }}>
+                            {promptPreview.composed.user}
+                          </pre>
+                        </div>
+                      ) : null}
+                    </div>
+                  </details>
+                </div>
+              ) : null}
               {claudeStreamMode ? (
                 <div className={`y-fs-body ${bodyVisible ? "y-fs-body--visible" : ""}`}>
                   <article id="y-fs-section-0" className="y-fs-section y-fs-section--active">
@@ -479,30 +715,100 @@ export function FortuneStreamModal() {
                 <div className={`y-fs-body ${bodyVisible ? "y-fs-body--visible" : ""}`}>
                   {toc.map((item, i) => {
                     const html = sectionHtml[i] ?? "";
+                    const htmlTrim = html.trim();
                     const done = doneIdx.has(i);
                     const active = activeIdx === i;
-                    const showSkel = (phase === "stream" || phase === "done") && !done && !active && !html;
+                    const showSkel =
+                      (phase === "stream" || phase === "done") && !done && !active && !htmlTrim;
                     let boxCls = "y-fs-section";
                     if (done) boxCls += " y-fs-section--done";
                     else if (active) boxCls += " y-fs-section--active";
                     else if (showSkel) boxCls += " y-fs-section--pending";
+                    const mainLabel = item.main_title?.trim() ?? "";
+                    const prevMain = i > 0 ? (toc[i - 1]?.main_title?.trim() ?? "") : "";
+                    /** 같은 대메뉴의 첫 소메뉴 섹션에서만 대제목 표시 */
+                    const showMainKicker = Boolean(mainLabel) && (i === 0 || prevMain !== mainLabel);
+                    const fv = fortuneVisibleForSection(i);
+                    const showMainThumb =
+                      fv &&
+                      showMainKicker &&
+                      Boolean((item.main_image_url ?? "").trim() || (item.main_video_thumb_url ?? "").trim());
+                    const showSubThumb =
+                      fv && Boolean((item.image_url ?? "").trim() || (item.video_thumb_url ?? "").trim());
+                    const split = htmlTrim ? splitHtmlAfterFirstSubtitleH3Close(html) : null;
                     return (
                       <article key={item.id} id={`y-fs-section-${i}`} className={boxCls} aria-labelledby={`y-fs-h-${i}`}>
                         <div className={`y-fs-section-inner${active ? " y-fs-section-inner--streaming" : ""}`}>
-                          {html ? (
+                          {htmlTrim ? (
                             <>
-                              <div
-                                className="y-fs-html"
-                                id={`y-fs-h-${i}`}
-                                // eslint-disable-next-line react/no-danger
-                                dangerouslySetInnerHTML={{ __html: html }}
-                              />
+                              {showMainKicker ? <p className="y-fs-section-main-kicker">{mainLabel}</p> : null}
+                              {showMainThumb ? (
+                                <div className="y-fs-body-thumb-wrap">
+                                  <FortuneStreamSectionMedia
+                                    imageUrl={item.main_image_url}
+                                    videoThumbUrl={item.main_video_thumb_url}
+                                  />
+                                </div>
+                              ) : null}
+                              {split ? (
+                                <>
+                                  <div
+                                    className="y-fs-html"
+                                    id={`y-fs-h-${i}`}
+                                    // eslint-disable-next-line react/no-danger
+                                    dangerouslySetInnerHTML={{ __html: split.head }}
+                                  />
+                                  {showSubThumb ? (
+                                    <div className="y-fs-body-thumb-wrap">
+                                      <FortuneStreamSectionMedia
+                                        imageUrl={item.image_url}
+                                        videoThumbUrl={item.video_thumb_url}
+                                      />
+                                    </div>
+                                  ) : null}
+                                  {split.tail ? (
+                                    <div
+                                      className="y-fs-html"
+                                      // eslint-disable-next-line react/no-danger
+                                      dangerouslySetInnerHTML={{ __html: split.tail }}
+                                    />
+                                  ) : null}
+                                </>
+                              ) : (
+                                <div
+                                  className="y-fs-html"
+                                  id={`y-fs-h-${i}`}
+                                  // eslint-disable-next-line react/no-danger
+                                  dangerouslySetInnerHTML={{ __html: html }}
+                                />
+                              )}
                               {active ? <span className="y-fs-caret" aria-hidden="true" /> : null}
                             </>
+                          ) : active ? (
+                            <div id={`y-fs-h-${i}`}>
+                              {showMainKicker ? <p className="y-fs-section-main-kicker">{mainLabel}</p> : null}
+                              {showMainThumb ? (
+                                <div className="y-fs-body-thumb-wrap">
+                                  <FortuneStreamSectionMedia
+                                    imageUrl={item.main_image_url}
+                                    videoThumbUrl={item.main_video_thumb_url}
+                                  />
+                                </div>
+                              ) : null}
+                              <div className="y-fs-skel" aria-hidden="true">
+                                <div className="y-fs-skel-bar y-fs-skel-bar--a" />
+                                <div className="y-fs-skel-bar y-fs-skel-bar--b" />
+                                <div className="y-fs-skel-bar y-fs-skel-bar--c" />
+                              </div>
+                              <span className="y-fs-caret" aria-hidden="true" />
+                            </div>
                           ) : showSkel ? (
                             <>
+                              {showMainKicker ? (
+                                <p className="y-fs-section-main-kicker y-fs-section-main-kicker--muted">{mainLabel}</p>
+                              ) : null}
                               <h2 className="y-fs-skel-h2" id={`y-fs-h-${i}`}>
-                                ● {item.title}
+                                {item.title}
                               </h2>
                               <div className="y-fs-skel" aria-hidden="true">
                                 <div className="y-fs-skel-bar y-fs-skel-bar--a" />

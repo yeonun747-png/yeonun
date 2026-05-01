@@ -68,6 +68,11 @@ app.post("/chat", requireProxySecret, async (req, res) => {
   req.setTimeout(1_800_000);
   res.setTimeout(1_800_000);
 
+  const ttftDebug = String(process.env.FORTUNE_TTFT_DEBUG || "").trim() === "1";
+  const t0 = Date.now();
+  const reqId = `${t0.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const ms = () => Date.now() - t0;
+
   const apiKey = String(process.env.ANTHROPIC_API_KEY || "").trim();
   if (!apiKey) {
     return res.status(503).json({
@@ -85,8 +90,11 @@ app.post("/chat", requireProxySecret, async (req, res) => {
   const model =
     String(req.body?.model || process.env.FORTUNE_CLOUDWAYS_MODEL || "claude-sonnet-4-6").trim() ||
     "claude-sonnet-4-6";
+  // 점사 본문이 길더라도 max_tokens를 과도하게 크게 잡으면 비용/시간이 급격히 증가할 수 있음.
+  // Cloudways 환경변수에 9만 같은 값이 들어가도 안전 상한으로 제한한다.
+  const MAX_TOKENS_HARD_CAP = Math.max(4096, Number(process.env.FORTUNE_MAX_TOKENS_HARD_CAP ?? 24_000) || 24_000);
   const maxTokens = Math.min(
-    200_000,
+    MAX_TOKENS_HARD_CAP,
     Math.max(1024, Number(req.body?.max_tokens ?? process.env.FORTUNE_MAX_OUTPUT_TOKENS ?? 16_384) || 16_384),
   );
   const temperature =
@@ -103,17 +111,31 @@ app.post("/chat", requireProxySecret, async (req, res) => {
     messages: [{ role: "user", content: user }],
   };
 
+  if (ttftDebug) {
+    console.log(
+      `[fortune-ttft ${reqId}] [0] request_start ms=${ms()} model=${model} max_tokens=${maxTokens} temp=${temperature} system_chars=${system.length} user_chars=${user.length}`,
+    );
+  }
+
   let claudeRes;
   try {
+    const tFetchStart = Date.now();
+    // 긴 출력(예: 5만자 근처) 시 출력 상한 확장 — https://docs.anthropic.com/claude/docs/beta-headers
     claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "output-300k-2026-03-24",
       },
       body: JSON.stringify(claudeBody),
     });
+    if (ttftDebug) {
+      console.log(
+        `[fortune-ttft ${reqId}] [1] upstream_headers ms=${ms()} fetch_ms=${Date.now() - tFetchStart} status=${claudeRes.status}`,
+      );
+    }
   } catch (e) {
     return res.status(502).json({
       error: "Claude request failed",
@@ -130,22 +152,31 @@ app.post("/chat", requireProxySecret, async (req, res) => {
   }
 
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache");
+  // 중간 프록시(Nginx 등) 버퍼링/변환 방지
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("X-Accel-Buffering", "no");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("Transfer-Encoding", "chunked");
   res.flushHeaders?.();
 
   const writeSse = (obj) => {
     res.write(`data: ${JSON.stringify(obj)}\n\n`);
+    // Express가 가진 flush(있으면)로 즉시 네트워크로 밀어냄
+    res.flush?.();
   };
 
   writeSse({ type: "start" });
+  if (ttftDebug) {
+    writeSse({ type: "debug_timing", id: reqId, phase: "proxy_start", ms: ms() });
+  }
 
   const reader = claudeRes.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let accumulatedText = "";
   let streamError = null;
+  let firstUpstreamDataLineLogged = false;
+  let firstProxyChunkLogged = false;
 
   try {
     for (;;) {
@@ -156,6 +187,11 @@ app.post("/chat", requireProxySecret, async (req, res) => {
       buffer = lines.pop() ?? "";
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
+        if (ttftDebug && !firstUpstreamDataLineLogged) {
+          firstUpstreamDataLineLogged = true;
+          console.log(`[fortune-ttft ${reqId}] [2] first_upstream_data_line ms=${ms()}`);
+          writeSse({ type: "debug_timing", id: reqId, phase: "first_upstream_data_line", ms: ms() });
+        }
         const data = line.slice(6).trim();
         if (!data || data === "[DONE]") continue;
         let evt;
@@ -167,6 +203,11 @@ app.post("/chat", requireProxySecret, async (req, res) => {
         if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta" && evt.delta.text) {
           const t = evt.delta.text;
           accumulatedText += t;
+          if (ttftDebug && !firstProxyChunkLogged && t.length > 0) {
+            firstProxyChunkLogged = true;
+            console.log(`[fortune-ttft ${reqId}] [3] first_proxy_chunk ms=${ms()} chunk_len=${t.length}`);
+            writeSse({ type: "debug_timing", id: reqId, phase: "first_proxy_chunk", ms: ms(), chunk_len: t.length });
+          }
           writeSse({ type: "chunk", text: t, accumulatedLength: accumulatedText.length });
         }
         if (evt.type === "error") {
@@ -189,6 +230,20 @@ app.post("/chat", requireProxySecret, async (req, res) => {
     donePayload.streamError = streamError;
   }
   writeSse(donePayload);
+  if (ttftDebug) {
+    console.log(
+      `[fortune-ttft ${reqId}] [4] done ms=${ms()} out_chars=${String(cleanHtml ?? "").length} accumulated_chars=${accumulatedText.length} stream_error=${streamError ? "1" : "0"}`,
+    );
+    writeSse({
+      type: "debug_timing",
+      id: reqId,
+      phase: "done",
+      ms: ms(),
+      out_chars: String(cleanHtml ?? "").length,
+      accumulated_chars: accumulatedText.length,
+      stream_error: Boolean(streamError),
+    });
+  }
   res.end();
 });
 

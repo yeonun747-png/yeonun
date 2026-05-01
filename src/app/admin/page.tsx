@@ -1,6 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 
-import { AdminThumbnailSvgField } from "@/components/admin/AdminThumbnailSvgField";
+import { ProductEditorBlock } from "@/components/admin/ProductEditorClient";
+import { ProductNewFormClient } from "@/components/admin/ProductNewFormClient";
 import { TtsVoiceListPreview } from "@/components/admin/TtsVoiceListPreview";
 import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
 import { VoiceCharacterPromptTtsFields, type TtsVoiceOption } from "@/components/admin/VoiceCharacterPromptTtsFields";
@@ -162,81 +163,10 @@ export default async function AdminHomePage() {
             <a href="#admin-reviews">리뷰 {reviews.rows.length}</a>
           </div>
 
-          <div className="y-admin-grid two">
+          <div className="y-admin-grid two y-admin-product-save-grid">
             <div className="y-admin-card">
               <h3>상품 저장</h3>
-              <form action="/admin/products" method="post" className="y-admin-form">
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">slug</span>
-                  <input name="slug" placeholder="reunion-maybe" />
-                </label>
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">상품명</span>
-                  <input name="title" placeholder="표시 제목" />
-                </label>
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">설명 / 카피</span>
-                  <textarea name="quote" placeholder="상세 설명·카드 문구" />
-                </label>
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">가격 (원)</span>
-                  <input name="price_krw" inputMode="numeric" placeholder="14900" />
-                </label>
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">카테고리</span>
-                  <select name="category_slug" defaultValue="">
-                    <option value="" disabled>
-                      선택
-                    </option>
-                    {categoriesForProducts.map((c) => (
-                      <option key={text(c.slug)} value={text(c.slug)}>
-                        {text(c.label)} ({text(c.slug)})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">캐릭터</span>
-                  <select name="character_key">
-                    {characters.rows.map((c) => (
-                      <option key={text(c.key)} value={text(c.key)}>
-                        {text(c.name)} ({text(c.key)})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">뱃지</span>
-                  <input name="badge" placeholder="HOT / NEW / 2026 / SIGNATURE · 없으면 비움" />
-                </label>
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">홈 섹션</span>
-                  <select name="home_section_slug" defaultValue="">
-                    <option value="">없음 (풀이 탭만)</option>
-                    <option value="weekly_love">이번주 인연</option>
-                    <option value="lifetime">평생을 풀어드립니다</option>
-                    <option value="season_2026">2026 신년 특별</option>
-                    <option value="deep_dive">깊이 있는 풀이</option>
-                  </select>
-                </label>
-                <label className="y-admin-field-stack">
-                  <span className="y-admin-stack-legend">태그</span>
-                  <input name="tags" placeholder="#재회 #인연 (공백·쉼표 구분)" />
-                </label>
-                <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
-                  <span className="y-admin-stack-legend">명식 입력</span>
-                  <label className="y-admin-radio-option">
-                    <input type="radio" name="saju_input_profile" value="single" defaultChecked />
-                    <span>사주형 — 본인 생년월일(시)만 필요</span>
-                  </label>
-                  <label className="y-admin-radio-option">
-                    <input type="radio" name="saju_input_profile" value="pair" />
-                    <span>궁합형 — 상대·자녀 등 두 번째 생시 필요</span>
-                  </label>
-                </fieldset>
-                <AdminThumbnailSvgField name="thumbnail_svg" rows={6} />
-                <button type="submit">상품 저장</button>
-              </form>
+              <ProductNewFormClient categories={categoriesForProducts} characters={characters.rows} previewVariant="yeon" />
             </div>
 
             <div className="y-admin-card">
@@ -260,7 +190,13 @@ export default async function AdminHomePage() {
 
           <CrudSection id="admin-products" title="상품 목록" hint="slug 기준 upsert. 펼쳐서 바로 수정할 수 있습니다.">
             {products.rows.length === 0 ? <EmptyPanel label="상품" error={products.error} /> : products.rows.map((p) => (
-              <ProductEditor key={text(p.slug)} row={p} categories={categoriesForProducts} characters={characters.rows} />
+              <ProductEditorBlock
+                key={text(p.slug)}
+                row={p}
+                categories={categoriesForProducts}
+                characters={characters.rows}
+                previewVariant={cardVariantForSlug(text(p.slug, ""), text(p.character_key, "yeon"))}
+              />
             ))}
           </CrudSection>
 
@@ -451,110 +387,6 @@ function CrudSection({ id, title, hint, children }: { id: string; title: string;
       </div>
       <div className="y-admin-crud-list">{children}</div>
     </section>
-  );
-}
-
-function ProductEditor({ row, categories, characters }: { row: Row; categories: Row[]; characters: Row[] }) {
-  const tagsArr = Array.isArray(row.tags) ? (row.tags as unknown[]).map((t) => String(t)) : [];
-  const tagsStr = tagsArr.join(" ");
-  const categorySlug = text(row.category_slug, "");
-  const categoryIsAll = categorySlug === "all";
-  return (
-    <details className="y-admin-editor" suppressHydrationWarning>
-      <summary>
-        <span>
-          <strong>{text(row.title)}</strong>
-          <em>
-            {text(row.slug)} · {text(row.category_slug)} · {text(row.character_key)} ·{" "}
-            {text(row.saju_input_profile, "single") === "pair" ? "궁합형" : "사주형"} · 홈섹션 {text(row.home_section_slug, "—")} · {text(row.badge)}
-          </em>
-        </span>
-        <StatusPill tone="rose">{money(row.price_krw)}</StatusPill>
-      </summary>
-      <form action="/admin/products" method="post" className="y-admin-form y-admin-edit-form">
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">slug</span>
-          <input name="slug" defaultValue={text(row.slug, "")} />
-        </label>
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">상품명</span>
-          <input name="title" defaultValue={text(row.title, "")} />
-        </label>
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">설명 / 카피</span>
-          <textarea name="quote" defaultValue={text(row.quote, "")} />
-        </label>
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">가격 (원)</span>
-          <input name="price_krw" defaultValue={text(row.price_krw, "")} inputMode="numeric" />
-        </label>
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">카테고리</span>
-          <select name="category_slug" defaultValue={categorySlug}>
-            {categoryIsAll ? (
-              <option value="all">전체 (all) — 풀이 탭만, 실제 분류로 바꾸는 것을 권장</option>
-            ) : null}
-            {categories.map((c) => (
-              <option key={text(c.slug)} value={text(c.slug)}>
-                {text(c.label)} ({text(c.slug)})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">캐릭터</span>
-          <select name="character_key" defaultValue={text(row.character_key, "")}>
-            {characters.map((c) => (
-              <option key={text(c.key)} value={text(c.key)}>
-                {text(c.name)} ({text(c.key)})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">뱃지</span>
-          <input name="badge" defaultValue={text(row.badge, "")} placeholder="없으면 비움" />
-        </label>
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">홈 섹션</span>
-          <select name="home_section_slug" defaultValue={text(row.home_section_slug, "")}>
-            <option value="">(없음 · 풀이 탭만)</option>
-            <option value="weekly_love">weekly_love — 이번주 인연</option>
-            <option value="lifetime">lifetime — 평생을 풀어드립니다</option>
-            <option value="season_2026">season_2026 — 2026 신년 특별</option>
-            <option value="deep_dive">deep_dive — 깊이 있는 풀이</option>
-          </select>
-        </label>
-        <label className="y-admin-field-stack">
-          <span className="y-admin-stack-legend">태그</span>
-          <input name="tags" defaultValue={tagsStr} placeholder="공백·쉼표 · # 생략 가능" />
-        </label>
-        <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
-          <span className="y-admin-stack-legend">명식 입력</span>
-          <label className="y-admin-radio-option">
-            <input type="radio" name="saju_input_profile" value="single" defaultChecked={text(row.saju_input_profile, "single") !== "pair"} />
-            <span>사주형 — 본인만</span>
-          </label>
-          <label className="y-admin-radio-option">
-            <input type="radio" name="saju_input_profile" value="pair" defaultChecked={text(row.saju_input_profile, "single") === "pair"} />
-            <span>궁합형 — 상대·추가 명식</span>
-          </label>
-        </fieldset>
-        <AdminThumbnailSvgField
-          name="thumbnail_svg"
-          defaultValue={text(row.thumbnail_svg, "")}
-          rows={10}
-          previewVariant={cardVariantForSlug(text(row.slug, ""), text(row.character_key, "yeon"))}
-        />
-        <div className="y-admin-edit-actions">
-          <button type="submit">수정 저장</button>
-          <button form={`delete-product-${text(row.slug)}`} type="submit" className="y-admin-danger">삭제</button>
-        </div>
-      </form>
-      <form id={`delete-product-${text(row.slug)}`} action="/admin/products/delete" method="post">
-        <input type="hidden" name="slug" value={text(row.slug, "")} />
-      </form>
-    </details>
   );
 }
 

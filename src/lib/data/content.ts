@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase/server";
+import { parseFortuneMenuJson, type FortuneMenuPayload } from "@/lib/product-fortune-menu";
 import { cache } from "react";
 
 export type Category = {
@@ -21,6 +22,10 @@ export type Product = {
   tags: string[];
   thumbnail_svg: string | null;
   saju_input_profile: SajuInputProfile;
+  /** PG 등 상품 구분용 4자리(1000~9999). 없으면 마이그레이션 전 DB */
+  payment_code: number | null;
+  /** 어드민 점사 대/소메뉴 */
+  fortune_menu: FortuneMenuPayload;
   created_at: string;
 };
 
@@ -28,9 +33,17 @@ export type Product = {
 const PRODUCT_SELECT_LEGACY =
   "slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at";
 const PRODUCT_SELECT_WITH_PROFILE = `${PRODUCT_SELECT_LEGACY},saju_input_profile`;
+const PRODUCT_SELECT_FULL = `${PRODUCT_SELECT_WITH_PROFILE},payment_code,fortune_menu`;
 
 function missingSajuProfileColumn(msg: string) {
   return msg.includes("saju_input_profile") && msg.includes("does not exist");
+}
+
+function missingPaymentOrMenuColumn(msg: string) {
+  return (
+    (msg.includes("payment_code") || msg.includes("fortune_menu")) &&
+    (msg.includes("does not exist") || msg.includes("column"))
+  );
 }
 
 function asProduct(row: unknown): Product {
@@ -49,6 +62,9 @@ function asProduct(row: unknown): Product {
     tags: Array.isArray(r.tags) ? (r.tags as unknown[]).map((t) => String(t)) : [],
     thumbnail_svg: r.thumbnail_svg == null || r.thumbnail_svg === "" ? null : String(r.thumbnail_svg),
     saju_input_profile,
+    payment_code:
+      r.payment_code == null || r.payment_code === "" ? null : Number(r.payment_code),
+    fortune_menu: parseFortuneMenuJson(r.fortune_menu),
     created_at: String(r.created_at ?? ""),
   };
 }
@@ -82,7 +98,10 @@ export async function getProducts(params: { category?: string } = {}): Promise<P
     }
     return q;
   };
-  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  let { data, error } = await run(PRODUCT_SELECT_FULL);
+  if (error && missingPaymentOrMenuColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_WITH_PROFILE));
+  }
   if (error && missingSajuProfileColumn(error.message)) {
     ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }
@@ -97,7 +116,10 @@ export async function getProductsBySlugs(slugs: string[]): Promise<Product[]> {
   const supabase = supabaseServer();
   const run = (cols: string) =>
     supabase.from("products").select(cols).in("slug", slugs).order("created_at", { ascending: false });
-  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  let { data, error } = await run(PRODUCT_SELECT_FULL);
+  if (error && missingPaymentOrMenuColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_WITH_PROFILE));
+  }
   if (error && missingSajuProfileColumn(error.message)) {
     ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }
@@ -114,7 +136,10 @@ export async function getProductsByCharacterKey(characterKey: string): Promise<P
   const supabase = supabaseServer();
   const run = (cols: string) =>
     supabase.from("products").select(cols).eq("character_key", key).order("created_at", { ascending: false });
-  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  let { data, error } = await run(PRODUCT_SELECT_FULL);
+  if (error && missingPaymentOrMenuColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_WITH_PROFILE));
+  }
   if (error && missingSajuProfileColumn(error.message)) {
     ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }
@@ -127,7 +152,10 @@ export const getProductsByCharacterKeyCached = cache(getProductsByCharacterKey);
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const supabase = supabaseServer();
   const run = (cols: string) => supabase.from("products").select(cols).eq("slug", slug).maybeSingle();
-  let { data, error } = await run(PRODUCT_SELECT_WITH_PROFILE);
+  let { data, error } = await run(PRODUCT_SELECT_FULL);
+  if (error && missingPaymentOrMenuColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_WITH_PROFILE));
+  }
   if (error && missingSajuProfileColumn(error.message)) {
     ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }

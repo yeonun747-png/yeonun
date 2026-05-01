@@ -104,6 +104,16 @@ alter table public.products
   check (saju_input_profile in ('single', 'pair'));
 comment on column public.products.saju_input_profile is 'single=내 사주만, pair=상대방·자녀 등 두 번째 생시 필요(궁합·재회·택일·자녀사주 등)';
 
+alter table public.products
+  add column if not exists payment_code int,
+  add column if not exists fortune_menu jsonb not null default '{"main_menus":[]}'::jsonb;
+comment on column public.products.payment_code is 'PG 등에서 상품을 구분하는 4자리 숫자(1000~9999). 신규 insert 시 자동 부여.';
+comment on column public.products.fortune_menu is '점사 UI용 대메뉴/소메뉴 트리(JSON).';
+
+create unique index if not exists products_payment_code_key
+  on public.products (payment_code)
+  where payment_code is not null;
+
 create table if not exists public.reviews (
   id uuid primary key default gen_random_uuid(),
   product_slug text not null references public.products(slug) on delete cascade,
@@ -154,6 +164,30 @@ drop trigger if exists trg_product_updated_at on public.products;
 create trigger trg_product_updated_at
 before update on public.products
 for each row execute function public.set_updated_at();
+
+create or replace function public.products_assign_payment_code()
+returns trigger
+language plpgsql
+as $$
+declare
+  nxt int;
+begin
+  if new.payment_code is not null then
+    return new;
+  end if;
+  select coalesce(max(p.payment_code), 999) + 1 into nxt from public.products p;
+  if nxt > 9999 then
+    nxt := 9999;
+  end if;
+  new.payment_code := nxt;
+  return new;
+end;
+$$;
+
+drop trigger if exists products_assign_payment_code_trigger on public.products;
+create trigger products_assign_payment_code_trigger
+  before insert on public.products
+  for each row execute function public.products_assign_payment_code();
 
 -- RLS(초기: 공개 읽기, 어드민은 service role로 CRUD)
 alter table public.characters enable row level security;
