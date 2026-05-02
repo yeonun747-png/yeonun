@@ -1,28 +1,24 @@
-import Link from "next/link";
-
-import { TopNav } from "@/components/TopNav";
+import { CallHistoryClient } from "@/components/history/CallHistoryClient";
+import { groupVoiceHistoryByKstMonth, listVoiceCallHistoryRows } from "@/lib/voice-call-history";
 
 export const metadata = {
   title: "상담 히스토리 | 연운 緣運",
   description: "음성 상담 기록",
 };
 
-export default function CallHistoryPage() {
-  return (
-    <div className="yeonunPage">
-      <TopNav />
-      <main style={{ padding: "18px 20px 40px" }}>
-        <div className="yAllSectionName" style={{ padding: 0 }}>
-          상담 히스토리
-        </div>
-        <p className="yAllSectionDesc" style={{ padding: "6px 0 14px" }}>
-          목업 단계용 화면입니다. 통화 기록은 추후 연결됩니다.
-        </p>
-        <Link href="/meet" style={{ fontSize: 12, color: "var(--y-rose)", textDecoration: "none", fontWeight: 700 }}>
-          안내자 만나러 가기 →
-        </Link>
-      </main>
-    </div>
-  );
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
+export default async function CallHistoryPage() {
+  let grouped: ReturnType<typeof groupVoiceHistoryByKstMonth> = [];
+  let loadError: string | null = null;
+
+  try {
+    const rows = await listVoiceCallHistoryRows();
+    grouped = groupVoiceHistoryByKstMonth(rows);
+  } catch (e) {
+    loadError = e instanceof Error ? e.message : "목록을 불러오지 못했습니다.";
+  }
+
+  return <CallHistoryClient grouped={grouped} loadError={loadError} />;
+}

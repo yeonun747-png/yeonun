@@ -39,6 +39,19 @@ export function formatKstIso8601Offset(date: Date = new Date()): string {
 }
 
 /** 오늘 탭 상단 영문 줄 (예: SUN, APR 29 · 2026). */
+/** KST 기준 달력 날짜 키 `YYYY-MM-DD` (미션 일별 롤·출석 등). */
+export function formatKstDateKey(date: Date = new Date()): string {
+  const { year, month, day } = getKstParts(date);
+  return `${year}-${pad2(month)}-${pad2(day)}`;
+}
+
+/** KST 달력 날짜 키를 ±일 만큼 이동 (서버 TZ 무관 · 한국은 DST 없음). */
+export function addKstCalendarDays(kstDateKey: string, deltaDays: number): string {
+  const base = new Date(`${kstDateKey.trim()}T12:00:00+09:00`);
+  const ms = base.getTime() + deltaDays * 86_400_000;
+  return formatKstDateKey(new Date(ms));
+}
+
 export function formatKstConsultHeaderEn(date: Date = new Date()): string {
   const { year, day } = getKstParts(date);
   const wd = new Intl.DateTimeFormat("en-US", { timeZone: KST_IANA, weekday: "short" }).format(date);
@@ -74,4 +87,18 @@ export function appendKstToManseContext(manseLines: string, date: Date = new Dat
   const m = manseLines.trim();
   if (!m) return kst;
   return `${m}\n\n${kst}`;
+}
+
+/** 다음 KST 자정까지 남은 시간(ms). UI 카운트다운용. */
+export function msUntilNextKstMidnight(now: Date = new Date()): number {
+  const key0 = formatKstDateKey(now);
+  let lo = now.getTime();
+  let hi = now.getTime() + 26 * 60 * 60 * 1000;
+  while (formatKstDateKey(new Date(hi)) === key0) hi += 60 * 60 * 1000;
+  while (hi - lo > 500) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (formatKstDateKey(new Date(mid)) !== key0) hi = mid;
+    else lo = mid;
+  }
+  return Math.max(0, hi - now.getTime());
 }

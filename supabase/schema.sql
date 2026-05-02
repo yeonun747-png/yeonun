@@ -363,10 +363,13 @@ create table if not exists public.fortune_results (
   status text not null default 'completed',
   html text not null,
   summary text null,
+  voice_consult_summary text null,
   raw_stream_url text null,
   completed_at timestamptz null,
   created_at timestamptz not null default now()
 );
+
+alter table public.fortune_results add column if not exists voice_consult_summary text null;
 
 drop trigger if exists trg_orders_updated_at on public.orders;
 create trigger trg_orders_updated_at before update on public.orders for each row execute function public.set_updated_at();
@@ -396,4 +399,92 @@ alter table public.fortune_prompt_versions enable row level security;
 drop policy if exists "public read active coupons" on public.coupons;
 create policy "public read active coupons" on public.coupons
 for select using (is_active = true);
+
+-- 텍스트 상담 히스토리 (마이 > 텍스트 대화 기록)
+create table if not exists public.text_chat_sessions (
+  id uuid primary key default gen_random_uuid(),
+  character_key text not null references public.characters (key) on delete restrict,
+  user_ref text null,
+  started_at timestamptz not null default now(),
+  retention_until timestamptz null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.text_chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.text_chat_sessions (id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_text_chat_messages_session_created on public.text_chat_messages (session_id, created_at asc);
+create index if not exists idx_text_chat_sessions_started on public.text_chat_sessions (started_at desc);
+
+alter table public.text_chat_sessions enable row level security;
+alter table public.text_chat_messages enable row level security;
+
+-- 공유 로그 (오늘의 한 마디 등)
+create table if not exists public.share_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  kst_date text not null check (kst_date ~ '^\d{4}-\d{2}-\d{2}$'),
+  character_key text not null check (character_key in ('yeon', 'byeol', 'yeo', 'un')),
+  channel text not null check (channel in ('native', 'clipboard')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists share_logs_user_kst_idx on public.share_logs (user_id, kst_date desc);
+
+-- 매일 출석 (마이그레이션 20260503180000_attendance.sql 과 동기)
+create table if not exists public.daily_attendance (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  kst_date text not null check (kst_date ~ '^\d{4}-\d{2}-\d{2}$'),
+  created_at timestamptz not null default now(),
+  primary key (user_id, kst_date)
+);
+
+create index if not exists daily_attendance_user_created_idx on public.daily_attendance (user_id, created_at desc);
+
+create table if not exists public.user_attendance_state (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  streak int not null default 0 check (streak >= 0 and streak <= 7),
+  cycle int not null default 1 check (cycle >= 1),
+  last_attendance_kst_date text null check (last_attendance_kst_date is null or last_attendance_kst_date ~ '^\d{4}-\d{2}-\d{2}$'),
+  coupon_pending boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.user_discount_coupons (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  discount_pct int not null default 5,
+  source text not null default 'attendance',
+  expires_at timestamptz not null,
+  consumed_at timestamptz null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists user_discount_coupons_one_active
+  on public.user_discount_coupons (user_id)
+  where consumed_at is null;
+
+create index if not exists user_discount_coupons_user_exp on public.user_discount_coupons (user_id, expires_at desc);
+
+create table if not exists public.user_dream_interpretation_passes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  quantity int not null default 1 check (quantity >= 1),
+  expires_at timestamptz not null,
+  source text not null default 'attendance',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists dream_passes_user_exp on public.user_dream_interpretation_passes (user_id, expires_at desc);
+
+alter table public.daily_attendance enable row level security;
+alter table public.user_attendance_state enable row level security;
+alter table public.user_discount_coupons enable row level security;
+alter table public.user_dream_interpretation_passes enable row level security;
 

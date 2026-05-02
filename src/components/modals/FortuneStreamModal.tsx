@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { partnerInfoFromPartnerStorage, readUserInfoFromYeonunSajuV1 } from "@/lib/fortune-claude-stream-user";
 import { buildFortuneManseContext } from "@/lib/fortune-manse-context";
+import { setVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 import {
   normalizeFortuneSsePayload,
   parseFortuneSseBlock,
@@ -13,9 +13,14 @@ import {
   type FortuneTocItem,
 } from "@/lib/fortune-stream-client";
 import { FortuneStreamSectionMedia } from "@/components/modals/FortuneStreamSectionMedia";
+import { FortuneVoiceConsultDock } from "@/components/modals/FortuneVoiceConsultDock";
+import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import { splitHtmlAfterFirstSubtitleH3Close } from "@/lib/fortune-section-html-split";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
+
+/** 음성 무료 잔여(초). 없으면 첫 방문 시 충분히 크게 두고, 0이면 충전 유도 */
+const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
 
 const CHAR_NAME: Record<string, string> = {
   yeon: "연화",
@@ -105,6 +110,15 @@ export function FortuneStreamModal() {
   const [promptPreviewError, setPromptPreviewError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const sectionHtmlRef = useRef<Record<number, string>>({});
+  const librarySaveStartedRef = useRef(false);
+  const [librarySaved, setLibrarySaved] = useState(false);
+  const [librarySaveError, setLibrarySaveError] = useState<string | null>(null);
+  const [voiceContinueBusy, setVoiceContinueBusy] = useState(false);
+  const [voicePayOpen, setVoicePayOpen] = useState(false);
+  /** 보관함 fortune_results.id — 음성 요약 PATCH용 */
+  const libraryResultIdRef = useRef<string | null>(null);
+  const voiceSummaryTextRef = useRef<string | null>(null);
+  const voicePrefetchPromiseRef = useRef<Promise<string | null> | null>(null);
 
   const streamedCharApprox = useMemo(() => {
     if (claudeStreamMode) return countApproxCharsFromHtml(claudeStreamHtml);
@@ -282,6 +296,10 @@ export function FortuneStreamModal() {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
+    librarySaveStartedRef.current = false;
+    libraryResultIdRef.current = null;
+    voiceSummaryTextRef.current = null;
+    voicePrefetchPromiseRef.current = null;
     setPhase("toc_wait");
     setToc([]);
     setTocGroups(null);
@@ -413,6 +431,114 @@ export function FortuneStreamModal() {
     return () => abortRef.current?.abort();
   }, [runStream]);
 
+  const scheduleVoicePrefetch = useCallback((htmlArg: string, resultId: string) => {
+    const rid = String(resultId || "").trim();
+    const h = String(htmlArg || "").trim();
+    if (!rid || !h) return;
+    if (voiceSummaryTextRef.current?.trim()) return;
+    if (voicePrefetchPromiseRef.current) return;
+
+    const run = () => {
+      if (voiceSummaryTextRef.current?.trim() || voicePrefetchPromiseRef.current) return;
+      const p = (async (): Promise<string | null> => {
+        try {
+          const res = await fetch("/api/fortune/summarize-for-voice", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ html: h }),
+          });
+          const j = (await res.json().catch(() => ({}))) as { summary?: string; error?: string };
+          if (!res.ok || typeof j.summary !== "string" || !j.summary.trim()) return null;
+          const text = j.summary.trim();
+          voiceSummaryTextRef.current = text;
+          await fetch("/api/fortune/result-voice-summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ result_id: rid, voice_consult_summary: text }),
+          });
+          return text;
+        } catch {
+          return null;
+        }
+      })();
+      voicePrefetchPromiseRef.current = p;
+      void p.finally(() => {
+        if (voicePrefetchPromiseRef.current === p) voicePrefetchPromiseRef.current = null;
+      });
+    };
+
+    if (typeof requestIdleCallback !== "undefined") {
+      requestIdleCallback(() => run(), { timeout: 8_000 });
+    } else {
+      setTimeout(run, 0);
+    }
+  }, []);
+
+  /** 완료 시 보관함 DB 자동 저장(버튼 없음) */
+  useEffect(() => {
+    if (phase !== "done") return;
+    if (librarySaveStartedRef.current) return;
+    librarySaveStartedRef.current = true;
+
+    const html = claudeStreamMode
+      ? (claudeStreamHtmlAccRef.current || "").trim() || claudeStreamHtml
+      : toc.length > 0
+        ? joinSectionHtmlForLibrarySave(sectionHtmlRef.current, toc)
+        : Object.keys(sectionHtmlRef.current)
+            .map(Number)
+            .sort((a, b) => a - b)
+            .map((i) => sectionHtmlRef.current[i] ?? "")
+            .join("\n");
+
+    if (!html.trim()) {
+      setLibrarySaveError("저장할 본문이 없습니다.");
+      return;
+    }
+
+    void fetch("/api/fortune/save-modal-result", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        product_slug: product,
+        order_no: orderNo ?? undefined,
+        character_key: characterKey,
+        profile,
+        title,
+        html,
+        ...(toc.length > 0 ? { toc_sections: toc } : {}),
+        ...(tocGroups && tocGroups.length > 0 ? { toc_groups: tocGroups } : {}),
+      }),
+    })
+      .then(async (res) => {
+        const j = (await res.json().catch(() => ({}))) as {
+          saved?: boolean;
+          error?: string;
+          result_id?: string;
+        };
+        if (!res.ok || !j.saved) throw new Error(j.error || "저장에 실패했습니다.");
+        const resultId = typeof j.result_id === "string" ? j.result_id.trim() : "";
+        if (resultId) libraryResultIdRef.current = resultId;
+        setLibrarySaved(true);
+        setLibrarySaveError(null);
+        if (resultId) scheduleVoicePrefetch(html, resultId);
+      })
+      .catch((e) => {
+        setLibrarySaveError(e instanceof Error ? e.message : "저장에 실패했습니다.");
+      });
+  }, [
+    phase,
+    product,
+    orderNo,
+    characterKey,
+    profile,
+    title,
+    claudeStreamMode,
+    claudeStreamHtml,
+    toc,
+    tocGroups,
+    scheduleVoicePrefetch,
+  ]);
+
   useEffect(() => {
     if (!promptDebug) return;
     let cancelled = false;
@@ -461,14 +587,6 @@ export function FortuneStreamModal() {
     }
   }, []);
 
-  const closeToContent = () => {
-    const next = new URLSearchParams(sp.toString());
-    next.delete("modal");
-    next.delete("order_no");
-    const qs = next.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
-  };
-
   const scrollToSection = useCallback(
     (index: number) => {
       if (claudeStreamMode) {
@@ -493,6 +611,129 @@ export function FortuneStreamModal() {
     },
     [scrollToSection],
   );
+
+  const scrollToTocTop = useCallback(() => {
+    document.getElementById("y-fs-toc-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const readVoiceBalanceSec = useCallback((): number => {
+    try {
+      const v = localStorage.getItem(LS_VOICE_BALANCE_SEC);
+      if (v === null) return 180;
+      const n = parseInt(v, 10);
+      return Number.isFinite(n) ? Math.max(0, n) : 180;
+    } catch {
+      return 180;
+    }
+  }, []);
+
+  const persistVoiceBriefAndGoCall = useCallback(
+    async (summary: string) => {
+      const slug = String(product ?? "").trim();
+      try {
+        sessionStorage.setItem(
+          "yeonun_fortune_voice_brief",
+          JSON.stringify({
+            summary,
+            title,
+            product_slug: product,
+            profile,
+            character_key: characterKey,
+            ts: Date.now(),
+          }),
+        );
+      } catch {
+        // ignore
+      }
+      if (slug) {
+        setVoiceManseMeta({ profile, productSlug: slug });
+      }
+      router.push(
+        `/call-dcc?character_key=${encodeURIComponent(characterKey)}&from_fortune=1`,
+      );
+    },
+    [router, title, product, profile, characterKey],
+  );
+
+  const onVoiceContinue = useCallback(async () => {
+    if (voiceContinueBusy) return;
+    if (readVoiceBalanceSec() <= 0) {
+      setVoicePayOpen(true);
+      return;
+    }
+    const html = claudeStreamMode
+      ? (claudeStreamHtmlAccRef.current || "").trim() || claudeStreamHtml
+      : Object.keys(sectionHtmlRef.current)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .map((i) => sectionHtmlRef.current[i] ?? "")
+          .join("\n");
+    if (!html.trim()) {
+      setStreamError((prev) => prev || "음성 상담용 본문이 없습니다.");
+      return;
+    }
+
+    const cached = voiceSummaryTextRef.current?.trim();
+    if (cached) {
+      try {
+        await persistVoiceBriefAndGoCall(cached);
+      } catch (e) {
+        setStreamError(e instanceof Error ? e.message : "음성 상담 준비에 실패했습니다.");
+      }
+      return;
+    }
+
+    const pending = voicePrefetchPromiseRef.current;
+    if (pending) {
+      setVoiceContinueBusy(true);
+      try {
+        const s = await pending;
+        if (s?.trim()) {
+          await persistVoiceBriefAndGoCall(s.trim());
+          return;
+        }
+      } catch (e) {
+        setStreamError(e instanceof Error ? e.message : "음성 상담 준비에 실패했습니다.");
+        return;
+      } finally {
+        setVoiceContinueBusy(false);
+      }
+    }
+
+    setVoiceContinueBusy(true);
+    try {
+      const res = await fetch("/api/fortune/summarize-for-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ html }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { summary?: string; error?: string };
+      if (!res.ok || typeof j.summary !== "string" || !j.summary.trim()) {
+        throw new Error(j.error || "요약에 실패했습니다.");
+      }
+      const text = j.summary.trim();
+      voiceSummaryTextRef.current = text;
+      const rid = libraryResultIdRef.current?.trim();
+      if (rid) {
+        void fetch("/api/fortune/result-voice-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ result_id: rid, voice_consult_summary: text }),
+        });
+      }
+      await persistVoiceBriefAndGoCall(text);
+    } catch (e) {
+      setStreamError(e instanceof Error ? e.message : "음성 상담 준비에 실패했습니다.");
+    } finally {
+      setVoiceContinueBusy(false);
+    }
+  }, [
+    voiceContinueBusy,
+    readVoiceBalanceSec,
+    claudeStreamMode,
+    claudeStreamHtml,
+    persistVoiceBriefAndGoCall,
+  ]);
 
   const charMetaText =
     finalChars != null
@@ -535,9 +776,19 @@ export function FortuneStreamModal() {
                   {streamError}
                 </p>
               ) : null}
+              {librarySaveError ? (
+                <p className="y-fs-stream-error" role="alert">
+                  보관함 자동 저장: {librarySaveError}
+                </p>
+              ) : null}
+              {librarySaved ? (
+                <p className="y-fs-hero-saved" aria-live="polite">
+                  보관함에 저장했습니다.
+                </p>
+              ) : null}
             </header>
 
-            <section className="y-fs-toc-panel" aria-label="목차 영역">
+            <section className="y-fs-toc-panel" id="y-fs-toc-anchor" aria-label="목차 영역">
               <div className="y-fs-toc-wrap">
                 <div className="y-fs-toc-card">
                   {phase === "toc_wait" ? (
@@ -872,30 +1123,53 @@ export function FortuneStreamModal() {
           </div>
         </div>
 
+        {toc.length > 0 && phase !== "boot" ? (
+          <button
+            type="button"
+            className={`y-fs-toc-fab${phase === "done" ? " y-fs-toc-fab--with-actions" : ""}`}
+            onClick={scrollToTocTop}
+            aria-label="목차로 이동"
+          >
+            목차로 이동
+          </button>
+        ) : null}
+
         {phase === "done" ? (
-          <div className="y-fs-actions">
-            <button type="button" className="y-fs-act-save" onClick={closeToContent}>
-              <svg
-                className="y-fs-act-save-ic"
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8" />
-              </svg>
-              보관함에 저장
-            </button>
-            <Link className="y-fs-act-consult" href={`/call?ck=${encodeURIComponent(characterKey)}`} scroll={false}>
-              {charName}와 이 풀이로 음성 상담 이어가기 →
-            </Link>
+          <FortuneVoiceConsultDock
+            hasTocFabClear={toc.length > 0}
+            busy={voiceContinueBusy}
+            busyLabel="점사 요약 중…"
+            ctaLabel={`${charName}와 이 풀이로 음성 상담 이어가기 →`}
+            onContinue={() => void onVoiceContinue()}
+          />
+        ) : null}
+
+        {voicePayOpen ? (
+          <div
+            className="y-fs-voice-pay-backdrop"
+            role="presentation"
+            onMouseDown={() => setVoicePayOpen(false)}
+          >
+            <div
+              className="y-fs-voice-pay-sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="음성 상담 크레딧"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <p className="y-fs-voice-pay-title">무료 음성 크레딧이 없습니다</p>
+              <p className="y-fs-voice-pay-desc">
+                음성 상담을 이어가려면 크레딧을 충전해 주세요.
+              </p>
+              <div className="y-fs-voice-pay-actions">
+                <a className="y-fs-voice-pay-primary" href="/checkout/credit">
+                  크레딧 충전하기
+                </a>
+                <button type="button" className="y-fs-voice-pay-secondary" onClick={() => setVoicePayOpen(false)}>
+                  닫기
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </div>

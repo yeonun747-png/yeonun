@@ -1,5 +1,7 @@
 import { BottomNav } from "@/components/BottomNav";
 import { TopNav } from "@/components/TopNav";
+import { MyCreditBalanceLine } from "@/components/my/MyCreditBalanceLine";
+import { MyCreditOverviewSection } from "@/components/my/MyCreditOverviewSection";
 import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
 import Link from "next/link";
 
@@ -34,33 +36,12 @@ export default function MyPage() {
 
         <MySajuCardBlock />
 
-        <div className="y-vip-card" aria-label="크레딧">
-          <div className="y-vip-eyebrow">CREDIT · 음성 잔액</div>
-          <div className="y-vip-title">음성상담 잔여 시간 0분</div>
-          <div className="y-vip-desc">10분 3,900원부터. 충전 후 365일간 유효합니다.</div>
-          <div className="y-vip-meta">
-            <span className="y-vip-price">충전하기</span>
-            <span className="y-vip-period">· 첫 충전 10% 추가</span>
-          </div>
-          <span className="y-vip-arrow">›</span>
-        </div>
+        <MyCreditOverviewSection />
 
-        <div className="y-my-stats" aria-label="통계">
-          <div className="y-my-stat">
-            <div className="y-my-stat-num">0</div>
-            <div className="y-my-stat-label">상담 횟수</div>
-          </div>
-          <div className="y-my-stat">
-            <div className="y-my-stat-num">0</div>
-            <div className="y-my-stat-label">보관함</div>
-          </div>
-          <div className="y-my-stat">
-            <div className="y-my-stat-num">
-              3<span style={{ fontSize: 11, color: "var(--y-mute)", fontWeight: 400 }}>분</span>
-            </div>
-            <div className="y-my-stat-label">무료 잔여</div>
-          </div>
-        </div>
+        <p className="y-my-mission-hint">
+          매일 미션·출석 보상은 <Link href="/today">오늘 탭</Link>에서 확인하세요. 할인 쿠폰은 동시 1매만 보유할 수
+          있습니다.
+        </p>
 
         <div className="y-my-menu-section">
           <div className="y-my-menu-section-title">콘텐츠</div>
@@ -128,7 +109,9 @@ export default function MyPage() {
             </div>
             <div className="y-my-menu-text">
               <div className="y-my-menu-name">크레딧 충전</div>
-              <div className="y-my-menu-desc">현재 잔액 0원</div>
+              <div className="y-my-menu-desc">
+                <MyCreditBalanceLine />
+              </div>
             </div>
             <span className="y-my-menu-arrow">›</span>
           </Link>

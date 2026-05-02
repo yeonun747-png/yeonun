@@ -1,28 +1,38 @@
-import Link from "next/link";
+import { LibraryListScreenClient } from "@/components/library/LibraryListScreenClient";
+import { getProductsBySlugsCached } from "@/lib/data/content";
+import { buildLibraryListItemVm } from "@/lib/library-list-vm";
+import { listFortuneLibraryItems, type FortuneLibraryListRow } from "@/lib/library-fortune";
 
-import { TopNav } from "@/components/TopNav";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata = {
   title: "보관함 | 연운 緣運",
-  description: "구매한 풀이 보관함",
+  description: "저장한 점사 풀이를 다시 열람합니다.",
+  robots: { index: false, follow: true },
 };
 
-export default function LibraryPage() {
-  return (
-    <div className="yeonunPage">
-      <TopNav />
-      <main style={{ padding: "18px 20px 40px" }}>
-        <div className="yAllSectionName" style={{ padding: 0 }}>
-          보관함
-        </div>
-        <p className="yAllSectionDesc" style={{ padding: "6px 0 14px" }}>
-          목업 단계용 화면입니다. 구매한 풀이 목록은 추후 DB 연동으로 채워집니다.
-        </p>
-        <Link href="/content" style={{ fontSize: 12, color: "var(--y-rose)", textDecoration: "none", fontWeight: 700 }}>
-          풀이 둘러보기 →
-        </Link>
-      </main>
-    </div>
-  );
+function rowSortTime(row: FortuneLibraryListRow): number {
+  const iso = row.completed_at || row.created_at;
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? t : 0;
 }
 
+export default async function LibraryPage() {
+  let rows: FortuneLibraryListRow[] = [];
+  let loadError: string | null = null;
+  try {
+    rows = await listFortuneLibraryItems();
+  } catch (e) {
+    loadError = e instanceof Error ? e.message : "목록을 불러오지 못했습니다.";
+  }
+
+  const slugs = [...new Set(rows.map((r) => r.product_slug).filter(Boolean))] as string[];
+  const products = slugs.length ? await getProductsBySlugsCached(slugs) : [];
+  const productTitleBySlug = Object.fromEntries(products.map((p) => [p.slug, p.title]));
+
+  const sorted = [...rows].sort((a, b) => rowSortTime(b) - rowSortTime(a));
+  const items = sorted.map((r) => buildLibraryListItemVm(r, productTitleBySlug));
+
+  return <LibraryListScreenClient items={items} loadError={loadError} />;
+}

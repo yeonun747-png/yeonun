@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import "./globals.css";
 import { ModalLayer } from "@/components/ModalLayer";
+import { YeonunToastHost } from "@/components/YeonunToastHost";
 
 export const metadata: Metadata = {
   title: "연운 緣運 — 운명을, 듣다",
@@ -41,6 +42,7 @@ export default function RootLayout({
       </head>
       <body>
         {children}
+        <YeonunToastHost />
         <Suspense fallback={null}>
           <ModalLayer />
         </Suspense>

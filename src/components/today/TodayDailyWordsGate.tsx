@@ -10,7 +10,8 @@ import {
   YEONUN_AUTH_STUB_EVENT,
   YEONUN_AUTH_STUB_KEY,
 } from "@/lib/auth-stub";
-import { getKstParts } from "@/lib/datetime/kst";
+import { formatKstDateKey, getKstParts } from "@/lib/datetime/kst";
+import { buildDailyWordShareText } from "@/lib/today-daily-words-share";
 import {
   playCartesiaCharacterLine,
   prefetchCartesiaCharacterLines,
@@ -21,6 +22,7 @@ import {
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 const SAJU_UPDATED = "yeonun:saju-updated";
+/** KST 날짜 + 사주 키별로 4인 한마디를 localStorage에 보관 */
 const DAILY_WORDS_CACHE_PREFIX = "yeonun:today-daily-words:v1:";
 
 function readHasValidSaju(): boolean {
@@ -96,6 +98,10 @@ const WORDS = [
 
 type CharKey = (typeof WORDS)[number]["key"];
 
+function shortCharacterLabel(fullName: string): string {
+  return fullName.replace(/에게서$/, "");
+}
+
 /** 옵션 B: 로그인 + 사주 입력까지 완료해야 해금 */
 export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
   const [hasSaju, setHasSaju] = useState(false);
@@ -103,9 +109,11 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
   const [ttsPlayingKey, setTtsPlayingKey] = useState<CharKey | null>(null);
   const [lineByKey, setLineByKey] = useState<Partial<Record<CharKey, string>>>({});
   const [sajuNonce, setSajuNonce] = useState(0);
+  const [shareFlashKey, setShareFlashKey] = useState<CharKey | null>(null);
   const playSeqRef = useRef(0);
   /** pointerdown + click 이중 호출 방지 */
   const ttsLastStartRef = useRef<{ key: CharKey; at: number } | null>(null);
+  const shareBusyRef = useRef(false);
 
   const syncSaju = () => {
     setHasSaju(readHasValidSaju());
@@ -201,7 +209,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
     const cacheKey = `${DAILY_WORDS_CACHE_PREFIX}${kstKey}:${stableSajuKey(body)}`;
 
     try {
-      const hit = window.sessionStorage.getItem(cacheKey);
+      const hit = window.localStorage.getItem(cacheKey);
       if (hit) {
         const j = JSON.parse(hit) as { yeon?: string; byeol?: string; yeo?: string; un?: string };
         if (j?.yeon && j?.byeol && j?.yeo && j?.un) {
@@ -236,7 +244,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
         const next = { yeon: j.yeon, byeol: j.byeol, yeo: j.yeo, un: j.un };
         setLineByKey(next);
         try {
-          window.sessionStorage.setItem(cacheKey, JSON.stringify(next));
+          window.localStorage.setItem(cacheKey, JSON.stringify(next));
         } catch {
           // ignore
         }
@@ -249,6 +257,96 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
       cancelled = true;
     };
   }, [unlocked, sajuNonce]);
+
+  const flashShareDone = useCallback((key: CharKey) => {
+    setShareFlashKey(key);
+    window.setTimeout(() => setShareFlashKey(null), 800);
+  }, []);
+
+  const postShareLogBg = useCallback((character_key: CharKey, channel: "native" | "clipboard", accessToken: string) => {
+    const kst_date = formatKstDateKey(new Date());
+    void fetch("/api/today/daily-words-share", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ character_key, channel, kst_date }),
+    }).catch(() => {});
+  }, []);
+
+  const onShareDailyWord = useCallback(
+    async (w: (typeof WORDS)[number], lineText: string) => {
+      if (shareBusyRef.current) return;
+      shareBusyRef.current = true;
+      try {
+        const shortName = w.name.replace(/에게서$/, "");
+        const textBody = buildDailyWordShareText(shortName, lineText);
+        const title = `${shortName}의 오늘 한 마디`;
+
+        let channel: "native" | "clipboard" = "clipboard";
+        let ok = false;
+
+        if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+          try {
+            await navigator.share({ title, text: textBody });
+            ok = true;
+            channel = "native";
+          } catch (e: unknown) {
+            const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+            if (name === "AbortError") return;
+            try {
+              await navigator.clipboard.writeText(textBody);
+              ok = true;
+              channel = "clipboard";
+              try {
+                window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "클립보드에 복사됐어요" } }));
+              } catch {
+                /* ignore */
+              }
+            } catch {
+              return;
+            }
+          }
+        } else {
+          try {
+            await navigator.clipboard.writeText(textBody);
+            ok = true;
+            channel = "clipboard";
+            try {
+              window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "클립보드에 복사됐어요" } }));
+            } catch {
+              /* ignore */
+            }
+          } catch {
+            return;
+          }
+        }
+
+        if (!ok) return;
+
+        flashShareDone(w.key);
+
+        const sb = supabaseBrowser();
+        const session = sb ? (await sb.auth.getSession()).data.session : null;
+        if (session?.access_token && session.user) {
+          postShareLogBg(w.key, channel, session.access_token);
+          try {
+            window.dispatchEvent(
+              new CustomEvent("yeonun:daily-words-share-complete", {
+                detail: { kstDate: formatKstDateKey(new Date()) },
+              }),
+            );
+          } catch {
+            /* ignore */
+          }
+        }
+      } finally {
+        shareBusyRef.current = false;
+      }
+    },
+    [flashShareDone, postShareLogBg],
+  );
 
   const onListenTts = useCallback(async (key: CharKey, text: string) => {
     const now = Date.now();
@@ -271,7 +369,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
       : "/my?modal=auth";
 
   return (
-    <div className="y-daily-words-section" aria-label="오늘의 한 마디">
+    <div id="today-daily-words" className="y-daily-words-section" aria-label="오늘의 한 마디">
       <div className="ySectionHead y-daily-words-head">
         <h2 className="ySectionTitle">
           <span className="hash">#</span> 오늘의 한 마디
@@ -289,8 +387,32 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
             return (
               <div key={w.key} className="y-daily-word-card">
                 <div className="y-dw-head">
-                  <div className={`y-dw-avatar ${w.key}`}>{w.han}</div>
-                  <div className="y-dw-name">{w.name}</div>
+                  <div className="y-dw-head-main">
+                    <div className={`y-dw-avatar ${w.key}`}>{w.han}</div>
+                    <div className="y-dw-name">{w.name}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className={`y-dw-share${shareFlashKey === w.key ? " is-done" : ""}`}
+                    aria-label={`${shortCharacterLabel(w.name)} 한 마디 공유`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void onShareDailyWord(w, text);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden>
+                      <circle cx="18" cy="5" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="6" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="18" cy="19" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                      <path
+                        d="M8.2 13.4l6.6 3.8M15.8 6.8l-6.6 3.8"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
                 </div>
                 <div className="y-dw-text">{text}</div>
                 <button

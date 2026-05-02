@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
+import { applyPurchasedVoiceSeconds } from "@/lib/voice-balance-local";
 
 export function PaymentModal() {
   const { close } = useModalControls();
@@ -13,8 +14,12 @@ export function PaymentModal() {
   const product = sp.get("product") ?? "reunion-maybe";
   const title = sp.get("title") ?? "그 사람과 다시 만날 수 있을까";
   const price = Number(sp.get("price") ?? "14900");
+  const isVoiceCredit =
+    product.includes("voice-credit") || product.includes("credit-10") || product.startsWith("credit");
   const character_key = sp.get("character_key") ?? "yeon";
   const profile = sp.get("profile") === "pair" ? "pair" : "single";
+  const firstVoiceCreditBonus = sp.get("first_voice_credit_bonus") === "1";
+  const voicePackageMinutes = Number(sp.get("minutes") ?? "10");
 
   const [method, setMethod] = useState<"card" | "phone" | "coin">("card");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -36,11 +41,22 @@ export function PaymentModal() {
           price_krw: price,
           method,
           user_ref: "guest",
+          first_voice_credit_bonus: isVoiceCredit ? firstVoiceCreditBonus : false,
+          voice_package_minutes: isVoiceCredit ? voicePackageMinutes : null,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) throw new Error(data?.error || "결제 요청 저장 실패");
       setStatus("idle");
+
+      if (isVoiceCredit) {
+        const baseSec = Math.max(0, voicePackageMinutes) * 60;
+        const bonusSec = firstVoiceCreditBonus ? Math.floor(baseSec * 0.1) : 0;
+        applyPurchasedVoiceSeconds(baseSec + bonusSec);
+        router.replace(pathname);
+        return;
+      }
+
       const next = new URLSearchParams(sp.toString());
       // 궁합형: 결제 후 상대방 정보 바텀시트 → 풀이 스트림
       next.set("modal", profile === "pair" ? "partner_info" : "fortune_stream");
@@ -82,7 +98,9 @@ export function PaymentModal() {
               </div>
               <div className="y-pay-product-text">
                 <div className="y-pay-product-title">{title}</div>
-                <div className="y-pay-product-by">연운의 풀이 · 약 30~60쪽</div>
+                <div className="y-pay-product-by">
+                  {isVoiceCredit ? "음성 상담 크레딧 · 충전 후 365일 유효" : "연운의 풀이 · 약 30~60쪽"}
+                </div>
               </div>
               <div className="y-pay-product-price">{price.toLocaleString("ko-KR")}원</div>
             </div>

@@ -76,10 +76,28 @@ export default function CallPageClient() {
 
   useEffect(() => {
     let cancelled = false;
+    let summaryForSession: string | null = null;
+    try {
+      const raw = sessionStorage.getItem("yeonun_fortune_voice_brief");
+      if (raw) {
+        const j = JSON.parse(raw) as { summary?: string };
+        const s = typeof j.summary === "string" ? j.summary.trim() : "";
+        if (s) {
+          summaryForSession = `[방금 본 점사 요약]\n${s}\n\n${meta.name} 음성상담 시작`;
+        }
+        sessionStorage.removeItem("yeonun_fortune_voice_brief");
+      }
+    } catch {
+      // ignore
+    }
     fetch("/api/voice/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ character_key: characterKey, user_ref: "guest", summary: `${meta.name} 음성상담 시작` }),
+      body: JSON.stringify({
+        character_key: characterKey,
+        user_ref: "guest",
+        ...(summaryForSession ? { summary: summaryForSession } : {}),
+      }),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -382,6 +400,9 @@ export default function CallPageClient() {
             setTimeout(() => startListening(true), 220);
           },
         });
+      } else if (trigger === "opening") {
+        startSilenceTimer(5);
+        setTimeout(() => startListening(true), 400);
       }
     } catch {
       // ignore
@@ -456,7 +477,9 @@ export default function CallPageClient() {
       setListening(false);
       try {
         const reason = String(ev?.error || "").trim();
-        if (reason) setLastSttText(`STT 오류: ${reason}`);
+        if (reason && reason !== "no-speech" && reason !== "aborted") {
+          setLastSttText(`STT 오류: ${reason}`);
+        }
       } catch {
         // ignore
       }
@@ -481,16 +504,6 @@ export default function CallPageClient() {
       setListening(false);
     }
   }
-
-  // 언락 직후 STT가 조용히 안 뜨는 케이스를 방지: TTS가 말하는 중이 아닐 때 한 번 시작을 시도
-  useEffect(() => {
-    if (!unlocked) return;
-    const id = setTimeout(() => {
-      if (!ttsSpeakingRef.current) startListening(true);
-    }, 600);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlocked]);
 
   // 입장 시 오프닝
   useEffect(() => {

@@ -8,6 +8,7 @@ import { getKstParts } from "@/lib/datetime/kst";
 import type { TodayPublicIljin, TodayPublicLuck } from "@/lib/today-kst-public";
 
 const SAJU_UPDATED = "yeonun:saju-updated";
+/** KST 날짜 + 사주 키별로 LLM 응답을 localStorage에 보관(탭을 닫아도 당일 재사용) */
 const CACHE_PREFIX = "yeonun:today-for-you:v1:";
 
 function pad2(n: number) {
@@ -115,7 +116,7 @@ export function TodayIljinAndLuckClient(props: {
     const cacheKey = `${CACHE_PREFIX}${kstKey}:${stableSajuKey(body)}`;
 
     try {
-      const hit = window.sessionStorage.getItem(cacheKey);
+      const hit = window.localStorage.getItem(cacheKey);
       if (hit) {
         const j = JSON.parse(hit) as ForYouApiOk;
         if (j?.han && j?.hangulName && j?.msg && Array.isArray(j.tags) && j.tags.length >= 3 && j.color && j.nums && j.dir && j.food) {
@@ -159,7 +160,7 @@ export function TodayIljinAndLuckClient(props: {
         };
         applyApiToState(normalized, setIljin, setLuck);
         try {
-          window.sessionStorage.setItem(cacheKey, JSON.stringify(normalized));
+          window.localStorage.setItem(cacheKey, JSON.stringify(normalized));
         } catch {
           // ignore
         }
@@ -186,7 +187,7 @@ export function TodayIljinAndLuckClient(props: {
 
   return (
     <>
-      <div className="y-iljin-card">
+      <div id="today-iljin" className="y-iljin-card">
         <div className="y-iljin-content">
           <div className="y-iljin-label">TODAY · 오늘의 일진</div>
           <div className="y-iljin-cheon">

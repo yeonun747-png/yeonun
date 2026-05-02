@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 import { appendKstToManseContext } from "@/lib/datetime/kst";
+import { buildFortuneManseContext } from "@/lib/fortune-manse-context";
 import { computeManseFromFormInput } from "@/lib/manse-ryeok";
+import { VOICE_CHARS_CONSULTED_KEY } from "@/lib/daily-missions";
+import { clearVoiceManseMeta, readVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 import { VoiceDccAudioRecorder } from "@/lib/voice-dcc/audio-recorder";
 import { VoiceLiveAudioStreamer } from "@/lib/voice-live/audio-streamer";
 
@@ -52,10 +55,13 @@ type NdjsonMsg =
   | { type: "done" };
 
 export default function CallDccPageClient() {
+  const router = useRouter();
   const sp = useSearchParams();
   const characterKey = asCharacterKey(sp.get("character_key"));
   const meta = CHARACTER_META[characterKey];
   const voiceOverride = String(sp.get("voice_external_id") ?? "").trim();
+  /** 점사·보관함에서 온 경우에만 true — 궁합 만세력(sessionStorage 상대) 유지 */
+  const fromFortuneNav = sp.get("from_fortune") === "1";
 
   const [unlocked] = useState(true);
   const [status, setStatus] = useState<string>("대기 중");
@@ -79,8 +85,70 @@ export default function CallDccPageClient() {
   const [dccAudioReady, setDccAudioReady] = useState(false);
   const openingDoneSessionRef = useRef<string | null>(null);
   const openingGenRef = useRef(0);
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionStartMsRef = useRef(0);
+  const endPostedRef = useRef(false);
 
   const bars = useMemo(() => Array.from({ length: 12 }, (_, i) => i), []);
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  useLayoutEffect(() => {
+    if (!fromFortuneNav) {
+      clearVoiceManseMeta();
+    }
+  }, [fromFortuneNav]);
+
+  const finalizeVoiceSession = useCallback(async () => {
+    const id = sessionIdRef.current;
+    if (!id || endPostedRef.current) return;
+    endPostedRef.current = true;
+    const started = sessionStartMsRef.current;
+    const duration_sec = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0;
+    try {
+      if (typeof window !== "undefined") {
+        try {
+          const FIRST = "yeonun_first_voice_completed_v1";
+          if (!localStorage.getItem(FIRST)) {
+            localStorage.setItem(FIRST, "1");
+            window.dispatchEvent(new Event("yeonun:first-voice-session-ended"));
+          }
+          const raw = localStorage.getItem(VOICE_CHARS_CONSULTED_KEY);
+          let arr: string[] = [];
+          try {
+            const p = JSON.parse(raw || "[]");
+            arr = Array.isArray(p) ? p.filter((x: unknown) => typeof x === "string") : [];
+          } catch {
+            arr = [];
+          }
+          const wasNew = !arr.includes(characterKey);
+          if (!arr.includes(characterKey)) arr = [...arr, characterKey];
+          localStorage.setItem(VOICE_CHARS_CONSULTED_KEY, JSON.stringify(arr));
+          if (wasNew) {
+            window.dispatchEvent(new CustomEvent("yeonun:voice-new-character", { detail: { characterKey } }));
+          }
+        } catch {
+          // ignore
+        }
+      }
+      await fetch(`/api/voice/sessions/${id}/end`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duration_sec, cost_krw: 0 }),
+      });
+    } catch {
+      // ignore
+    }
+    clearVoiceManseMeta();
+  }, [characterKey]);
+
+  useEffect(() => {
+    return () => {
+      void finalizeVoiceSession();
+    };
+  }, [finalizeVoiceSession]);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const streamerRef = useRef<VoiceLiveAudioStreamer | null>(null);
@@ -177,6 +245,10 @@ export default function CallDccPageClient() {
   }, [ttsPlaying]);
 
   function buildManseContext(): string {
+    const vm = readVoiceManseMeta();
+    if (vm?.productSlug) {
+      return buildFortuneManseContext({ profile: vm.profile, productSlug: vm.productSlug });
+    }
     try {
       const raw = localStorage.getItem("yeonun_saju_v1");
       if (!raw) return appendKstToManseContext("");
@@ -225,15 +297,40 @@ export default function CallDccPageClient() {
         cancelled = true;
       };
     }
+    /** 점사 완료 → 음성 CTA로 들어온 경우에만 요약을 넣는다. 만남 탭 직입장은 summary 없음 → 오프닝이 일반 입장으로 동작 */
+    let summaryForSession: string | null = null;
+    try {
+      const raw = sessionStorage.getItem("yeonun_fortune_voice_brief");
+      if (raw) {
+        const j = JSON.parse(raw) as { summary?: string };
+        const s = typeof j.summary === "string" ? j.summary.trim() : "";
+        if (s) {
+          summaryForSession = `[방금 본 점사 요약]\n${s}\n\n${meta.name} DCC 음성상담 시작`;
+        }
+        sessionStorage.removeItem("yeonun_fortune_voice_brief");
+      }
+    } catch {
+      // ignore
+    }
     fetch("/api/voice/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ character_key: characterKey, user_ref: "guest", summary: `${meta.name} DCC 음성상담 시작` }),
+      body: JSON.stringify({
+        character_key: characterKey,
+        user_ref: "guest",
+        ...(summaryForSession ? { summary: summaryForSession } : {}),
+      }),
     })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
-        if (typeof data?.session?.id === "string" && data.session.id.trim()) setSessionId(data.session.id.trim());
+        if (typeof data?.session?.id === "string" && data.session.id.trim()) {
+          const sid = data.session.id.trim();
+          sessionStartMsRef.current = Date.now();
+          endPostedRef.current = false;
+          sessionIdRef.current = sid;
+          setSessionId(sid);
+        }
         const ext = data?.prompt_context?.cartesia_voice?.external_id;
         if (typeof ext === "string" && ext.trim()) {
           setFetchedVoiceExternalId(ext.trim());
@@ -771,7 +868,27 @@ export default function CallDccPageClient() {
     <div className="yeonunPage" style={{ background: "#1A1815" }}>
       <main className="y-call-root">
         <header className="y-call-header">
-          <a className="y-call-back" href="/meet" aria-label="뒤로">
+          <a
+            className="y-call-back"
+            href="/meet"
+            aria-label="뒤로"
+            onClick={(e) => {
+              e.preventDefault();
+              void (async () => {
+                try {
+                  turnAbortRef.current?.abort();
+                } catch {}
+                try {
+                  recorderRef.current?.stop(true);
+                } catch {}
+                try {
+                  streamerRef.current?.stop();
+                } catch {}
+                await finalizeVoiceSession();
+                router.push("/meet");
+              })();
+            }}
+          >
             <svg viewBox="0 0 24 24">
               <path d="M19 12H5 M12 5l-7 7 7 7" />
             </svg>
@@ -1051,6 +1168,10 @@ export default function CallDccPageClient() {
                   streamerRef.current?.stop();
                 } catch {}
                 setStatus("종료");
+                void (async () => {
+                  await finalizeVoiceSession();
+                  router.push("/meet");
+                })();
               }}
               aria-label="상담 종료"
             >

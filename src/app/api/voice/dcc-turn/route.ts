@@ -547,16 +547,18 @@ export async function POST(request: Request) {
 
   const supabase = sessionId ? supabaseServer() : null;
   let memorySummary = "";
+  let sessionEntrySummary = "";
   if (supabase && sessionId) {
     const { data: session } = await supabase
       .from("voice_sessions")
-      .select("id,character_key,status,memory_summary")
+      .select("id,character_key,status,memory_summary,summary")
       .eq("id", sessionId)
       .maybeSingle();
     if (session?.status && String(session.status) !== "active") {
       return NextResponse.json({ error: "Session is not active" }, { status: 409 });
     }
     memorySummary = String((session as any)?.memory_summary ?? "").trim();
+    sessionEntrySummary = String((session as any)?.summary ?? "").trim();
   }
 
   const [commonPrompt, characterPrompt] = await Promise.all([
@@ -661,12 +663,17 @@ export async function POST(request: Request) {
   const specKo = CHARACTER_SPEC_KO[characterKey] || "사주·운세 상담";
   const userForLlm = isOpening
     ? [
+        sessionEntrySummary ? `[점사 직후 맥락·세션 입장 요약]\n${sessionEntrySummary.slice(0, 8000)}` : "",
         recentTranscript ? `[최근 대화]\n${recentTranscript}` : "",
         `[관리자 지시: 음성 상담 첫 인사]`,
-        `사용자는 방금 이 음성 상담 화면에 입장했고, 아직 마이크로 말하지 않았습니다.`,
-        `당신의 주특기(전문 분야)는 「${specKo}」입니다. 이 방향을 중심으로 말투와 분위기를 잡으세요.`,
+        sessionEntrySummary
+          ? `사용자는 방금 텍스트 점사를 마친 뒤 이 음성 상담으로 들어왔습니다. 아직 마이크로 말하지 않았습니다. 위 「점사 직후 맥락」에 나온 내용을 **먼저** 한국어 구어체로 짧게 짚어 인사하세요(길면 3~5문장). 그 다음 당신의 주특기 「${specKo}」 톤으로 자연스럽게 이어가고, 마지막에 부담 없는 질문 하나만 하세요. 요약에 없는 사실은 지어내지 마세요.`
+          : `사용자는 방금 이 음성 상담 화면에 입장했고, 아직 마이크로 말하지 않았습니다.`,
+        !sessionEntrySummary
+          ? `당신의 주특기(전문 분야)는 「${specKo}」입니다. 이 방향을 중심으로 말투와 분위기를 잡으세요.`
+          : `당신의 주특기(전문 분야)는 「${specKo}」입니다.`,
         `시스템 프롬프트에 포함된 [사용자 사주 명식 데이터]와 그 안의 KST 시각이 있으면 그 맥락만 가볍게 짚어 주세요. 원문 통째 암송·과한 한자·전문용어 나열은 피합니다.`,
-        `한국어 구어체로 2~4문장만 먼저 말을 건네고, 마지막에 부담 없는 질문 하나만 하세요.`,
+        sessionEntrySummary ? "" : `한국어 구어체로 2~4문장만 먼저 말을 건네고, 마지막에 부담 없는 질문 하나만 하세요.`,
       ]
         .filter(Boolean)
         .join("\n\n")

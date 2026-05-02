@@ -16,6 +16,8 @@ export async function POST(request: Request) {
     price_krw?: number;
     method?: string;
     user_ref?: string;
+    first_voice_credit_bonus?: boolean;
+    voice_package_minutes?: number | null;
   };
 
   const product_slug = String(body.product_slug ?? "").trim();
@@ -65,7 +67,16 @@ export async function POST(request: Request) {
       provider: "manual-dev",
       method,
       status: "pending",
-      raw_payload: { product_slug, title: body.title ?? null, source: "yeonun-payment-modal" },
+      raw_payload: {
+        product_slug,
+        title: body.title ?? null,
+        source: "yeonun-payment-modal",
+        first_voice_credit_bonus: Boolean(body.first_voice_credit_bonus),
+        voice_package_minutes:
+          typeof body.voice_package_minutes === "number" && Number.isFinite(body.voice_package_minutes)
+            ? body.voice_package_minutes
+            : null,
+      },
     })
     .select("id,status")
     .maybeSingle();
