@@ -115,7 +115,7 @@ export function SajuModal() {
   return (
     <YeonunSheetPortal>
     <div
-      className="y-modal y-modal--saju open"
+      className="y-modal open"
       role="dialog"
       aria-modal="true"
       aria-label="만세력·사주 입력"
