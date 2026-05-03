@@ -163,9 +163,9 @@ export function CharacterCarousel() {
         <h2 className="ySectionTitle">
           <span className="hash">#</span> 오늘의 인연 안내자
         </h2>
-        <a className="ySectionMore" href="/meet">
+        <Link className="ySectionMore" href="/meet">
           전체 보기
-        </a>
+        </Link>
       </div>
 
       <div className="yCarousel">

@@ -31,17 +31,17 @@ export type MissionDef = {
 
 export const MISSIONS: Record<MissionId, MissionDef> = {
   M01: { id: "M01", name: "내 사주 입력하기", reward: "풀이 5,000원 할인 쿠폰", cadence: "once" },
-  M02: { id: "M02", name: "첫 음성 상담 시작", reward: "음성 +5분", cadence: "once" },
-  M03: { id: "M03", name: "오늘의 일진 확인", reward: "음성 +1분", cadence: "daily" },
-  M04: { id: "M04", name: "4명 한 마디 모두 읽기", reward: "음성 +1분", cadence: "daily" },
+  M02: { id: "M02", name: "첫 음성 상담 시작", reward: "+1,950 크레딧", cadence: "once" },
+  M03: { id: "M03", name: "오늘의 일진 확인", reward: "+390 크레딧", cadence: "daily" },
+  M04: { id: "M04", name: "4명 한 마디 모두 읽기", reward: "+390 크레딧", cadence: "daily" },
   M05: { id: "M05", name: "꿈해몽 풀이 보기", reward: "다음 꿈해몽 무료 쿠폰", cadence: "hours24" },
-  M06: { id: "M06", name: "후기 작성하기", reward: "음성 +5분", cadence: "hours24" },
-  M07: { id: "M07", name: "처음 만나는 인연과 상담", reward: "음성 +3분", cadence: "hours24" },
-  M08: { id: "M08", name: "친구 초대", reward: "초대자·가입자 각 +10분", cadence: "unlimited" },
+  M06: { id: "M06", name: "후기 작성하기", reward: "+1,950 크레딧", cadence: "hours24" },
+  M07: { id: "M07", name: "처음 만나는 인연과 상담", reward: "+1,170 크레딧", cadence: "hours24" },
+  M08: { id: "M08", name: "친구 초대", reward: "초대자·가입자 각 +3,900 크레딧", cadence: "unlimited" },
   M09: { id: "M09", name: "콘텐츠 1개 구매", reward: "다음 콘텐츠 10% 할인", cadence: "hours24" },
-  M10: { id: "M10", name: "만세력 분석 보기", reward: "음성 +1분", cadence: "daily" },
-  M11: { id: "M11", name: "오늘의 운세 기록", reward: "음성 +1분", cadence: "daily" },
-  M12: { id: "M12", name: "오늘의 한 마디 공유", reward: "음성 +1분", cadence: "hours24" },
+  M10: { id: "M10", name: "만세력 분석 보기", reward: "+390 크레딧", cadence: "daily" },
+  M11: { id: "M11", name: "오늘의 운세 기록", reward: "+390 크레딧", cadence: "daily" },
+  M12: { id: "M12", name: "오늘의 한 마디 공유", reward: "+390 크레딧", cadence: "hours24" },
 };
 
 /** 목업: 미완료는 장미 톤 알약 + 설명 / 완료는 초록 「완료」 알약 + 적립 문구 */
@@ -58,19 +58,19 @@ export const MISSION_UI_LINES: Record<MissionId, MissionUiLines> = {
     descDone: "5,000원 할인 쿠폰 적립됨",
   },
   M02: {
-    badgeTodo: "+5분",
-    descTodo: "음성 상담 5분 적립",
-    descDone: "음성 5분 적립됨",
+    badgeTodo: "+1,950",
+    descTodo: "크레딧 적립",
+    descDone: "1,950 크레딧 적립됨",
   },
   M03: {
-    badgeTodo: "+1분",
-    descTodo: "음성 상담 1분 적립",
-    descDone: "음성 1분 적립됨",
+    badgeTodo: "+390",
+    descTodo: "크레딧 적립",
+    descDone: "390 크레딧 적립됨",
   },
   M04: {
-    badgeTodo: "+1분",
-    descTodo: "음성 상담 1분 적립",
-    descDone: "음성 1분 적립됨",
+    badgeTodo: "+390",
+    descTodo: "크레딧 적립",
+    descDone: "390 크레딧 적립됨",
   },
   M05: {
     badgeTodo: "무료쿠폰",
@@ -78,19 +78,19 @@ export const MISSION_UI_LINES: Record<MissionId, MissionUiLines> = {
     descDone: "꿈해몽 무료 쿠폰 적립됨",
   },
   M06: {
-    badgeTodo: "+5분",
-    descTodo: "음성 상담 5분 적립",
-    descDone: "음성 5분 적립됨",
+    badgeTodo: "+1,950",
+    descTodo: "크레딧 적립",
+    descDone: "1,950 크레딧 적립됨",
   },
   M07: {
-    badgeTodo: "+3분",
-    descTodo: "음성 상담 3분 적립",
-    descDone: "음성 3분 적립됨",
+    badgeTodo: "+1,170",
+    descTodo: "크레딧 적립",
+    descDone: "1,170 크레딧 적립됨",
   },
   M08: {
-    badgeTodo: "+10분",
-    descTodo: "나 + 친구 각각 10분 적립",
-    descDone: "양쪽 10분 적립됨",
+    badgeTodo: "+3,900",
+    descTodo: "나 + 친구 각각 3,900 크레딧",
+    descDone: "양쪽 3,900 크레딧 적립됨",
   },
   M09: {
     badgeTodo: "10% 할인",
@@ -98,19 +98,19 @@ export const MISSION_UI_LINES: Record<MissionId, MissionUiLines> = {
     descDone: "10% 할인 쿠폰 적립됨",
   },
   M10: {
-    badgeTodo: "+1분",
-    descTodo: "음성 상담 1분 적립",
-    descDone: "음성 1분 적립됨",
+    badgeTodo: "+390",
+    descTodo: "크레딧 적립",
+    descDone: "390 크레딧 적립됨",
   },
   M11: {
-    badgeTodo: "+1분",
-    descTodo: "음성 상담 1분 적립",
-    descDone: "음성 1분 적립됨",
+    badgeTodo: "+390",
+    descTodo: "크레딧 적립",
+    descDone: "390 크레딧 적립됨",
   },
   M12: {
-    badgeTodo: "+1분",
-    descTodo: "음성 상담 1분 적립",
-    descDone: "음성 1분 적립됨",
+    badgeTodo: "+390",
+    descTodo: "크레딧 적립",
+    descDone: "390 크레딧 적립됨",
   },
 };
 
@@ -358,21 +358,23 @@ export function markMissionCompleteInState(
   };
 }
 
-/** 완료 시 음성 보너스(초). 0이면 음성 외 보상 */
-export function missionVoiceRewardSec(id: MissionId): number {
+/** 완료 시 적립 크레딧. 0이면 금액형 보상 아님 */
+export function missionRewardCredits(id: MissionId): number {
   switch (id) {
     case "M02":
-      return 5 * 60;
+      return 5 * 390;
     case "M03":
     case "M04":
     case "M10":
     case "M11":
     case "M12":
-      return 60;
+      return 390;
     case "M06":
-      return 5 * 60;
+      return 5 * 390;
     case "M07":
-      return 3 * 60;
+      return 3 * 390;
+    case "M08":
+      return 3900;
     default:
       return 0;
   }

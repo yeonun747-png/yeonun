@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata = {
-  title: "보관함 | 연운 緣運",
+  title: "점사 보관함 | 연운 緣運",
   description: "저장한 점사 풀이를 다시 열람합니다.",
   robots: { index: false, follow: true },
 };

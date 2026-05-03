@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
 import { getKstParts } from "@/lib/datetime/kst";
+import { markMissionFactM03ViewedNow } from "@/lib/mission-reconcile";
 import type { TodayPublicIljin, TodayPublicLuck } from "@/lib/today-kst-public";
 
 const SAJU_UPDATED = "yeonun:saju-updated";
@@ -128,6 +129,7 @@ export function TodayIljinAndLuckClient(props: {
             setIljin,
             setLuck,
           );
+          markMissionFactM03ViewedNow();
           return;
         }
       }
@@ -159,6 +161,7 @@ export function TodayIljinAndLuckClient(props: {
           food: String(j.food),
         };
         applyApiToState(normalized, setIljin, setLuck);
+        markMissionFactM03ViewedNow();
         try {
           window.localStorage.setItem(cacheKey, JSON.stringify(normalized));
         } catch {

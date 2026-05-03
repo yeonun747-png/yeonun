@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
+import { markMissionFactM10ManseViewedNow } from "@/lib/mission-reconcile";
 import {
   branchEumyangHangul,
   computeManseFromFormInput,
@@ -203,6 +205,12 @@ function readStoredSajuSync(): StoredSaju | null {
   }
 }
 
+/** 미션 등: 전체 만세력 시트를 열 수 있는 저장 명식이 있는지(연산 가능한 사주만) */
+export function yeonunHasOpenableManseDetail(): boolean {
+  if (typeof window === "undefined") return false;
+  return readStoredSajuSync() !== null;
+}
+
 function sameStored(a: StoredSaju | null, b: StoredSaju | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -219,6 +227,8 @@ function sameStored(a: StoredSaju | null, b: StoredSaju | null): boolean {
 }
 
 export function MySajuCardClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   /** 서버와 하이드 1차는 null로 맞춤. 같은 틱에서 useLayoutEffect로 LS 복원해 첫 페인트에 실데이터 */
   const [saved, setSaved] = useState<StoredSaju | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -239,6 +249,19 @@ export function MySajuCardClient() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  /** 오늘의 미션 등: `/my?modal=manse` → 저장 사주가 있을 때만 전체 만세력 시트 오픈 */
+  useEffect(() => {
+    if (!mounted) return;
+    if (searchParams.get("modal") !== "manse") return;
+    const ok = readStoredSajuSync();
+    if (!ok) {
+      router.replace("/my", { scroll: false });
+      return;
+    }
+    setSheetOpen(true);
+    router.replace("/my", { scroll: false });
+  }, [mounted, searchParams, router]);
 
   useEffect(() => {
     const onCustom = () => {
@@ -284,6 +307,11 @@ export function MySajuCardClient() {
 
   const manse = computed?.manse ?? null;
   const hasData = !!(saved && computed && manse);
+
+  useEffect(() => {
+    if (!sheetOpen || !hasData) return;
+    markMissionFactM10ManseViewedNow();
+  }, [sheetOpen, hasData]);
 
   const sub = hasData
     ? `${saved!.year}. ${pad2(saved!.month)}. ${pad2(saved!.day)}. ${saved!.hour ? `${pad2(saved!.hour)}:${pad2(saved!.minute || "00")}` : "시간 모름"} · ${genderLabel(saved!.gender)}`

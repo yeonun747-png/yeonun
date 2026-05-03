@@ -112,13 +112,14 @@ export default async function AdminHomePage() {
     <div className="y-admin-shell">
       <aside className="y-admin-side">
         <div className="y-admin-brand">연운 管理</div>
-        <p>운영, 결제, 점사, 음성상담을 한 화면에서 관리합니다.</p>
+        <p>운영, 결제, 점사, 음성·채팅 상담을 한 화면에서 관리합니다.</p>
         <nav className="y-admin-nav" aria-label="어드민 메뉴">
           <a href="#dashboard">Dashboard</a>
           <a href="#content">Content</a>
           <a href="#commerce">Orders</a>
           <a href="#voice">VoiceOps</a>
           <a href="#fortune">Fortune</a>
+          <a href="#chat">채팅운영</a>
           <a href="#logs">Logs</a>
         </nav>
       </aside>
@@ -361,6 +362,53 @@ export default async function AdminHomePage() {
           />
         </section>
 
+        <section id="chat" className="y-admin-section">
+          <div className="y-admin-section-head">
+            <div>
+              <span className="y-admin-eyebrow">CHAT OPS</span>
+              <h2>채팅 상담 운영</h2>
+            </div>
+            <StatusPill tone="good">프롬프트 합성</StatusPill>
+          </div>
+          <p className="y-admin-muted" style={{ margin: "0 0 14px" }}>
+            앱의 채팅 상담(`/api/chat/consult-stream`)은 <strong>공통 프롬프트 — 텍스트 채팅형</strong>과 선택 캐릭터의{" "}
+            <strong>텍스트 채팅형</strong> 프롬프트를 합친 뒤, 페르소나·사주명식 블록을 이어 붙입니다. 채팅형 행이 없으면
+            음성상담형 프롬프트로 자동 대체합니다.
+          </p>
+          <div className="y-admin-card" style={{ marginBottom: 12 }}>
+            <h3>공통 프롬프트 — 텍스트 채팅형</h3>
+            <ServicePromptEditorKey
+              promptKey="yeonun_chat_text_system"
+              defaultTitle="공통 프롬프트 — 텍스트 채팅형"
+              row={servicePrompts.rows.find((p) => text(p.key) === "yeonun_chat_text_system")}
+            />
+          </div>
+          <CrudSection
+            id="admin-character-chat-prompts"
+            title="캐릭터별 프롬프트 — 텍스트 채팅형"
+            hint="채팅 UI 말투·역할. 점사용 텍스트 점사형과 별도입니다."
+          >
+            {characters.rows.map((c) => {
+              const row = characterModePrompts.rows.find(
+                (p) => text(p.character_key) === text(c.key) && text(p.mode) === "chat_text",
+              );
+              return (
+                <CharacterModePromptEditor
+                  key={`${text(c.key)}-chat_text`}
+                  character={c}
+                  mode="chat_text"
+                  row={row}
+                  defaultTitle={`${text(c.name)} — 텍스트 채팅형`}
+                />
+              );
+            })}
+          </CrudSection>
+          <OpsRunbook
+            title="채팅 상담 운영 체크"
+            items={["프롬프트 저장 후 만남 탭 채팅 모달에서 응답 톤 확인", "공통·캐릭터 프롬프트 비활성 시 API 폴백(구 공통 키·음성형) 동작 확인", "크레딧 차감·스트림 오류 로그 모니터링"]}
+          />
+        </section>
+
         <section id="logs" className="y-admin-section">
           <div className="y-admin-section-head">
             <div>
@@ -552,12 +600,12 @@ function CharacterModePromptEditor({
   ttsVoiceOptions,
 }: {
   character: Row;
-  mode: "voice" | "fortune_text";
+  mode: "voice" | "fortune_text" | "chat_text";
   row?: Row;
   defaultTitle: string;
   ttsVoiceOptions?: TtsVoiceOption[];
 }) {
-  const summary = mode === "voice" ? "음성상담형" : "텍스트 점사형";
+  const summary = mode === "voice" ? "음성상담형" : mode === "fortune_text" ? "텍스트 점사형" : "텍스트 채팅형";
   const defaultVoiceId = row?.tts_voice_id != null ? text(row.tts_voice_id, "") : "";
   return (
     <details className="y-admin-editor" suppressHydrationWarning>

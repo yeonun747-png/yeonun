@@ -11,6 +11,7 @@ import {
   YEONUN_AUTH_STUB_KEY,
 } from "@/lib/auth-stub";
 import { formatKstDateKey, getKstParts } from "@/lib/datetime/kst";
+import { markMissionFactM04ReadNow } from "@/lib/mission-reconcile";
 import { buildDailyWordShareText } from "@/lib/today-daily-words-share";
 import {
   playCartesiaCharacterLine,
@@ -243,6 +244,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
         }
         const next = { yeon: j.yeon, byeol: j.byeol, yeo: j.yeo, un: j.un };
         setLineByKey(next);
+        markMissionFactM04ReadNow();
         try {
           window.localStorage.setItem(cacheKey, JSON.stringify(next));
         } catch {

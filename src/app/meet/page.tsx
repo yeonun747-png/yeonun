@@ -1,8 +1,11 @@
 import { BottomNav } from "@/components/BottomNav";
+import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import { TopNav } from "@/components/TopNav";
 import { MeetCallButton } from "@/components/meet/MeetCallButton";
+import { MeetChatButton } from "@/components/meet/MeetChatButton";
 import { getCharacters } from "@/lib/data/characters";
 import Link from "next/link";
+import { Suspense } from "react";
 
 const PRESETS = [
   "그 사람과 다시 만날 수 있을까요",
@@ -17,6 +20,7 @@ export default async function MeetPage() {
 
   return (
     <div className="yeonunPage">
+      <RoutePrefetcher routes={characters.map((c) => `/characters/${c.key}?sheet=1&from=meet`)} />
       <TopNav />
       <main>
         <div className="y-meet-hero">
@@ -62,7 +66,7 @@ export default async function MeetPage() {
               <div className="y-meet-card-meta">
                 <p className="y-meet-quote">{c.greeting}</p>
                 <div className="y-meet-tags">#재회 #짝사랑 #이별후 #그사람마음</div>
-                <div className="y-meet-actions">
+                <div className="y-meet-actions y-meet-actions--three">
                   <MeetCallButton className="y-meet-call-btn" characterKey={c.key}>
                     <svg
                       viewBox="0 0 24 24"
@@ -77,9 +81,42 @@ export default async function MeetPage() {
                       <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3v5z" />
                       <path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3v5z" />
                     </svg>
-                    음성상담 · 무료 3분
+                    음성상담
                   </MeetCallButton>
-                  <Link className="y-meet-detail-btn" href={`/characters/${c.key}?sheet=1&from=meet`} scroll={false}>
+                  <Suspense
+                    fallback={
+                      <button type="button" className="y-meet-chat-btn" disabled>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                        </svg>
+                        채팅상담
+                      </button>
+                    }
+                  >
+                    <MeetChatButton className="y-meet-chat-btn" characterKey={c.key}>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                      </svg>
+                      채팅상담
+                    </MeetChatButton>
+                  </Suspense>
+                  <Link className="y-meet-detail-btn y-meet-detail-btn--full" href={`/characters/${c.key}?sheet=1&from=meet`} scroll={false}>
                     자세히 보기
                   </Link>
                 </div>

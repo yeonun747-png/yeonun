@@ -11,6 +11,7 @@ const FortuneStreamModal = dynamic(() => import("@/components/modals/FortuneStre
   ssr: false,
 });
 const PartnerInfoModal = dynamic(() => import("@/components/modals/PartnerInfoModal").then((m) => m.PartnerInfoModal), { ssr: false });
+const ChatConsultModal = dynamic(() => import("@/components/modals/ChatConsultModal").then((m) => m.ChatConsultModal), { ssr: false });
 
 export function ModalLayer() {
   const sp = useSearchParams();
@@ -20,6 +21,7 @@ export function ModalLayer() {
   if (modal === "payment") return <PaymentModal />;
   if (modal === "partner_info") return <PartnerInfoModal />;
   if (modal === "fortune_stream") return <FortuneStreamModal />;
+  if (modal === "chat_consult") return <ChatConsultModal />;
   return null;
 }
 

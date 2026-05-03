@@ -58,7 +58,7 @@ create table if not exists public.tts_voices (
 
 create table if not exists public.character_mode_prompts (
   character_key text not null references public.characters(key) on delete cascade,
-  mode text not null check (mode in ('voice','fortune_text')),
+  mode text not null check (mode in ('voice','fortune_text','chat_text')),
   title text not null,
   prompt text not null,
   is_active boolean not null default true,

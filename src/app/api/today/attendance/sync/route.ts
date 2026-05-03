@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import {
-  attendanceVoiceRewardSeconds,
+  attendanceVoiceRewardCredits,
   cycleRewardLineKo,
   rewardKindForCycle,
   type AttendanceRewardKind,
@@ -329,7 +329,7 @@ export async function POST(request: Request) {
     rewardKind = rewardKindForCycle(cycle);
 
     if (rewardKind === "voice_5min") {
-      voiceSeconds = attendanceVoiceRewardSeconds();
+      voiceSeconds = attendanceVoiceRewardCredits();
     } else if (rewardKind === "coupon_5pct") {
       const g = await grantCouponOrPending(supabase, userId, now);
       couponPendingFromReward = g === "pending";

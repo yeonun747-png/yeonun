@@ -2,8 +2,8 @@ import { CallHistoryClient } from "@/components/history/CallHistoryClient";
 import { groupVoiceHistoryByKstMonth, listVoiceCallHistoryRows } from "@/lib/voice-call-history";
 
 export const metadata = {
-  title: "상담 히스토리 | 연운 緣運",
-  description: "음성 상담 기록",
+  title: "음성상담 보관함 | 연운 緣運",
+  description: "종료된 음성 상담 목록과 대화 글(전사)을 60일간 확인합니다.",
 };
 
 export const dynamic = "force-dynamic";

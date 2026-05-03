@@ -4,16 +4,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
-/** 마이 > 상담 히스토리 — 목업 바텀시트 */
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
+
+/** 마이 > 음성상담 보관함 — 목업 바텀시트 */
 export function CallHistorySheet({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   return (
+    <YeonunSheetPortal>
     <div
       className="y-modal open y-call-hist-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="상담 히스토리"
+      aria-label="음성상담 보관함"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) router.push("/my");
       }}
@@ -26,7 +29,7 @@ export function CallHistorySheet({ children }: { children: ReactNode }) {
               <path d="M15 18 L9 12 L15 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </Link>
-          <div className="y-modal-title">상담 히스토리</div>
+          <div className="y-modal-title">음성상담 보관함</div>
           <Link href="/my" className="y-modal-close" scroll={false} aria-label="닫기">
             ×
           </Link>
@@ -34,5 +37,6 @@ export function CallHistorySheet({ children }: { children: ReactNode }) {
         <div className="y-modal-scroll y-call-hist-scroll">{children}</div>
       </div>
     </div>
+    </YeonunSheetPortal>
   );
 }

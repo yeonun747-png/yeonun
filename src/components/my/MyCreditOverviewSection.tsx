@@ -5,23 +5,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { MySummaryPayload } from "@/app/api/my/summary/route";
 import { readAuthStubLoggedIn, YEONUN_AUTH_STUB_EVENT } from "@/lib/auth-stub";
-import {
-  LS_VOICE_BALANCE_SEC,
-  LS_VOICE_FREE_REMAINING_SEC,
-  readVoiceBalanceSecClient,
-  readVoiceFreeRemainingSecClient,
-  voiceMinutesFloor,
-  YEONUN_VOICE_BALANCE_UPDATE_EVENT,
-} from "@/lib/voice-balance-local";
+import { CREDIT_PACKAGES } from "@/lib/credit-policy";
+import { freeCredits, readWallet, spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-/** 10분 3,900원 패키지 → `PaymentModal`. 첫 충전 시만 쿼리에 보너스 플래그 포함(배너·전폭 버튼 동일). */
-function voiceCreditPaymentHref(firstChargeBonus: boolean): string {
+function creditPaymentHref(pkg: "basic" | "popular" | "premium"): string {
+  const p = CREDIT_PACKAGES[pkg];
+  const title =
+    pkg === "basic"
+      ? "크레딧 기본 충전"
+      : pkg === "popular"
+        ? "크레딧 인기 패키지"
+        : "크레딧 프리미엄 패키지";
+  const first = !readWallet().firstPurchaseDone;
   let q =
-    "modal=payment&product=voice-credit-10m&title=" +
-    encodeURIComponent("음성상담 10분 충전") +
-    "&price=3900&character_key=yeon&profile=single&minutes=10";
-  if (firstChargeBonus) q += "&first_voice_credit_bonus=1";
+    `modal=payment&product=credit-package-${pkg}&title=` +
+    encodeURIComponent(title) +
+    `&price=${p.priceKrw}&grant_base=${p.grantCredits}&character_key=yeon&profile=single`;
+  if (first) q += "&first_voice_credit_bonus=1";
   return `/my?${q}`;
 }
 
@@ -30,7 +31,7 @@ export function MyCreditOverviewSection() {
   const [balanceTick, setBalanceTick] = useState(0);
   const [summary, setSummary] = useState<MySummaryPayload | null>(null);
 
-  const refreshLocalVoice = useCallback(() => setBalanceTick((t) => t + 1), []);
+  const refreshCredits = useCallback(() => setBalanceTick((t) => t + 1), []);
 
   const fetchSummary = useCallback(async () => {
     const stub = readAuthStubLoggedIn();
@@ -61,50 +62,43 @@ export function MyCreditOverviewSection() {
 
   useEffect(() => {
     const onStub = () => void fetchSummary();
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === LS_VOICE_BALANCE_SEC || e.key === LS_VOICE_FREE_REMAINING_SEC) refreshLocalVoice();
-    };
     const onVis = () => {
       if (document.visibilityState === "visible") void fetchSummary();
     };
     window.addEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
-    window.addEventListener("storage", onStorage);
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("pageshow", fetchSummary);
-    const onVoiceBump = () => refreshLocalVoice();
-    window.addEventListener(YEONUN_VOICE_BALANCE_UPDATE_EVENT, onVoiceBump);
+    const onCredit = () => refreshCredits();
+    window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
     return () => {
       window.removeEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
-      window.removeEventListener("storage", onStorage);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("pageshow", fetchSummary);
-      window.removeEventListener(YEONUN_VOICE_BALANCE_UPDATE_EVENT, onVoiceBump);
+      window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
     };
-  }, [fetchSummary, refreshLocalVoice]);
+  }, [fetchSummary, refreshCredits]);
 
-  const voiceSec = useMemo(() => {
+  const totalCredits = useMemo(() => {
     void balanceTick;
-    return readVoiceBalanceSecClient();
+    return spendableTotalCredits();
   }, [balanceTick]);
 
-  const freeSec = useMemo(() => {
+  const freeRemain = useMemo(() => {
     void balanceTick;
-    return readVoiceFreeRemainingSecClient();
+    return freeCredits();
   }, [balanceTick]);
 
-  const voiceMin = voiceMinutesFloor(voiceSec);
-  const freeMin = voiceMinutesFloor(freeSec);
+  const showFirstChargeHint = !readWallet().firstPurchaseDone;
 
   const consultationCount = summary?.consultationCount ?? 0;
   const archiveCount = summary?.archiveCount ?? 0;
-  const showFirstChargeHint = summary ? !summary.hasCreditPurchaseHistory : true;
 
   if (guest) {
     return (
-      <section className="y-my-credit-guest-panel" aria-label="음성 크레딧 안내">
+      <section className="y-my-credit-guest-panel" aria-label="크레딧 안내">
         <div className="y-my-credit-login-card">
-          <p className="y-my-credit-login-title">음성 상담 크레딧 · 통계</p>
-          <p className="y-my-credit-login-desc">로그인 후 잔여 시간과 상담 기록을 확인할 수 있어요.</p>
+          <p className="y-my-credit-login-title">상담 크레딧 · 통계</p>
+          <p className="y-my-credit-login-desc">로그인 후 잔여 크레딧과 상담 기록을 확인할 수 있어요.</p>
           <Link className="y-my-credit-login-btn" href="/my?modal=auth">
             로그인
           </Link>
@@ -115,35 +109,33 @@ export function MyCreditOverviewSection() {
 
   return (
     <>
-      <section className="y-my-credit-block" aria-label="음성 크레딧">
-        <Link
-          className="y-vip-card y-vip-card--link"
-          href={voiceCreditPaymentHref(showFirstChargeHint)}
-          scroll={false}
-          aria-label="크레딧 충전 결제 열기"
-        >
-          <div className="y-vip-eyebrow">CREDIT · 음성 잔액</div>
-          <div className="y-vip-title">음성상담 잔여 시간 {voiceMin}분</div>
-          <div className="y-vip-desc">10분 3,900원부터. 충전 후 365일간 유효합니다.</div>
+      <section className="y-my-credit-block" aria-label="크레딧 잔액">
+        <Link className="y-vip-card y-vip-card--link" href="/checkout/credit" scroll={false} aria-label="크레딧 충전 열기">
+          <div className="y-vip-eyebrow">CREDIT · 상담 잔액</div>
+          <div className="y-vip-title">잔여 크레딧 {totalCredits.toLocaleString("ko-KR")}</div>
+          <div className="y-vip-desc">3,900원 충전 시 3,900 크레딧. 충전 후 365일 유효.</div>
           <span className="y-vip-arrow" aria-hidden>
             ›
           </span>
+          {showFirstChargeHint ? (
+            <span className="y-my-credit-first-badge" aria-label="첫 충전 혜택">
+              첫 충전 10% 추가
+            </span>
+          ) : null}
         </Link>
         {showFirstChargeHint ? (
           <div className="y-my-credit-charge-row">
             <Link
-              href={voiceCreditPaymentHref(true)}
+              href={creditPaymentHref("basic")}
               scroll={false}
               className="y-my-credit-charge-fullbtn"
-              aria-label="음성 상담 첫 충전 한정 10% 더 적립, 음성 크레딧 충전하기"
+              aria-label="첫 충전 한정 보너스, 크레딧 충전하기"
             >
-              <span className="y-my-credit-fullbtn-text">
-                음성 상담 첫 충전 한정 · 10% 더 적립
-              </span>
+              <span className="y-my-credit-fullbtn-text">첫 충전 한정 · 10% 더 적립</span>
               <span className="y-my-credit-fullbtn-sep" aria-hidden>
                 |
               </span>
-              <span className="y-my-credit-fullbtn-cta">음성 크레딧 충전하기</span>
+              <span className="y-my-credit-fullbtn-cta">크레딧 충전하기</span>
             </Link>
           </div>
         ) : null}
@@ -156,12 +148,12 @@ export function MyCreditOverviewSection() {
         </div>
         <div className="y-my-stat">
           <div className="y-my-stat-num">{archiveCount}</div>
-          <div className="y-my-stat-label">보관함</div>
+          <div className="y-my-stat-label">점사 보관함</div>
         </div>
         <div className="y-my-stat">
           <div className="y-my-stat-num">
-            {freeMin}
-            <span className="y-my-stat-unit">분</span>
+            {freeRemain.toLocaleString("ko-KR")}
+            <span className="y-my-stat-unit">크레딧</span>
           </div>
           <div className="y-my-stat-label">무료 잔여</div>
         </div>

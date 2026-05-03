@@ -80,7 +80,7 @@ export function ChatHistoryListClient({
 
         {!loadError ? (
           <p className="y-tchat-list-foot">
-            음성 상담에서 남은 대화 글과, 텍스트 전용으로 저장된 상담을 함께 보여 줍니다 · 목록은 최근 90일 기준입니다
+            음성 상담에서 남은 대화 글과, 텍스트 전용으로 저장된 상담을 함께 보여 줍니다 · 목록은 최근 60일 기준입니다
           </p>
         ) : null}
       </div>

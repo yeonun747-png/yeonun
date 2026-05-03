@@ -41,7 +41,7 @@ export type ServicePrompt = {
   is_active: boolean;
 };
 
-export type CharacterModePromptMode = "voice" | "fortune_text";
+export type CharacterModePromptMode = "voice" | "fortune_text" | "chat_text";
 
 export type CharacterModePrompt = {
   character_key: string;

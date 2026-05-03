@@ -19,6 +19,7 @@ import {
 import { formatKstDateKey } from "@/lib/datetime/kst";
 
 import { DailyRecordChipGlyph, type DailyChipKey } from "@/components/today/DailyRecordChipGlyph";
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 
 const MAX_LEN = 200;
 const WARN_FROM = 180;
@@ -331,6 +332,7 @@ export function TodayDailyRecordClient() {
       </div>
 
       {listOpen ? (
+        <YeonunSheetPortal>
         <div
           className="y-modal open"
           role="presentation"
@@ -397,9 +399,11 @@ export function TodayDailyRecordClient() {
             </div>
           </div>
         </div>
+        </YeonunSheetPortal>
       ) : null}
 
       {detail ? (
+        <YeonunSheetPortal>
         <div
           className="y-modal open"
           role="presentation"
@@ -464,6 +468,7 @@ export function TodayDailyRecordClient() {
             </div>
           </div>
         </div>
+        </YeonunSheetPortal>
       ) : null}
     </section>
   );

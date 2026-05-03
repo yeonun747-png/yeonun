@@ -1,6 +1,8 @@
 "use client";
 
-import type { VoiceCallHistoryRowVm } from "@/lib/voice-call-history-public";
+import Link from "next/link";
+
+import { VOICE_CALL_ARCHIVE_LIST_DAYS, type VoiceCallHistoryRowVm } from "@/lib/voice-call-history-public";
 
 import { CallHistorySheet } from "./CallHistorySheet";
 
@@ -65,17 +67,24 @@ export function CallHistoryClient({
                 <ul className="y-call-hist-list">
                   {block.rows.map((row) => (
                     <li key={row.id}>
-                      <div className="y-call-hist-row" role="group" aria-label={`${row.consultantName} 음성 상담 ${row.timeLine}`}>
-                        <div className="y-call-hist-icon">
+                      <Link
+                        href={`/history/calls/${row.id}`}
+                        className="y-call-hist-row"
+                        scroll={false}
+                        aria-label={`${row.consultantName}와 음성 상담 ${row.timeLine}, 대화 글 보기`}
+                      >
+                        <div className="y-call-hist-icon" aria-hidden>
                           <HeadphoneIcon />
                         </div>
                         <div className="y-call-hist-main">
                           <div className="y-call-hist-title">{row.consultantName}와 음성 상담</div>
                           <div className="y-call-hist-time">{row.timeLine}</div>
-                          {row.resultSnippet ? <p className="y-call-hist-snippet">{row.resultSnippet}</p> : null}
                         </div>
                         <span className="y-call-hist-badge">{row.badge}</span>
-                      </div>
+                        <span className="y-call-hist-chev" aria-hidden>
+                          ›
+                        </span>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -84,7 +93,9 @@ export function CallHistoryClient({
           : null}
 
         {!loadError ? (
-          <p className="y-call-hist-foot">상담 종료 시 저장된 요약·대화가 표시됩니다 · 최근 {90}일</p>
+          <p className="y-call-hist-foot">
+            항목을 누르면 해당 상담의 대화 글(전사)을 볼 수 있습니다 · 최근 {VOICE_CALL_ARCHIVE_LIST_DAYS}일
+          </p>
         ) : null}
       </div>
     </CallHistorySheet>

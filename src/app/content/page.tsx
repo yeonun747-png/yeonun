@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BottomNav } from "@/components/BottomNav";
 import { TopNav } from "@/components/TopNav";
 import { HomeContentGrid } from "@/components/HomeMoreSections";
+import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import type { Product } from "@/lib/data/content";
 import { getCategories, getProducts } from "@/lib/data/content";
 import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
@@ -86,7 +87,7 @@ export default async function ContentPage({
 
   const filtered = category === "all" ? allProducts : allProducts.filter((p) => p.category_slug === category);
   const products = sortContentProducts(filtered, sort);
-  const thumbFallback = await readProductThumbnailsForSlugs(products.map((p) => p.slug));
+  const thumbFallback = await readProductThumbnailsForSlugs(products.filter((p) => !p.thumbnail_svg).map((p) => p.slug));
 
   const categoryCounts: Record<string, number> = {};
   for (const c of categories) {
@@ -97,9 +98,15 @@ export default async function ContentPage({
   }
 
   const total = products.length;
+  const prefetchRoutes = categories.flatMap((c) => [
+    contentListHref(c.slug, "popular"),
+    contentListHref(c.slug, "latest-desc"),
+    contentListHref(c.slug, "price-asc"),
+  ]);
 
   return (
     <div className="yeonunPage">
+      <RoutePrefetcher routes={prefetchRoutes} />
       <TopNav />
       <main>
         <div className="yCatHeader">

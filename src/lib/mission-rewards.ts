@@ -1,32 +1,17 @@
-import { missionVoiceRewardSec, type MissionId } from "@/lib/daily-missions";
-import { LS_VOICE_BALANCE_SEC } from "@/lib/voice-balance-local";
+import { applyBonusCredits } from "@/lib/credit-balance-local";
+import { missionRewardCredits, type MissionId } from "@/lib/daily-missions";
 
-/** 로컬 음성 잔여(초)에 미션 보상 반영 */
-export function applyVoiceMissionRewardSeconds(id: MissionId): number {
-  const sec = missionVoiceRewardSec(id);
-  if (sec <= 0) return 0;
-  if (typeof window === "undefined") return sec;
-  try {
-    const v = localStorage.getItem(LS_VOICE_BALANCE_SEC);
-    const base = v === null ? 180 : Math.max(0, parseInt(v, 10) || 0);
-    const next = base + sec;
-    localStorage.setItem(LS_VOICE_BALANCE_SEC, String(next));
-  } catch {
-    // ignore
-  }
-  return sec;
+/** 미션 완료 시 무료 크레딧 적립 */
+export function applyMissionCreditReward(id: MissionId): number {
+  const credits = missionRewardCredits(id);
+  if (credits <= 0) return 0;
+  applyBonusCredits(credits);
+  return credits;
 }
 
-/** 매일 출석 7일 보상 등 임의 초 단위 음성 크레딧 적립 */
-export function applyAttendanceVoiceRewardSeconds(sec: number): number {
-  if (sec <= 0) return 0;
-  if (typeof window === "undefined") return sec;
-  try {
-    const v = localStorage.getItem(LS_VOICE_BALANCE_SEC);
-    const base = v === null ? 180 : Math.max(0, parseInt(v, 10) || 0);
-    localStorage.setItem(LS_VOICE_BALANCE_SEC, String(base + sec));
-  } catch {
-    // ignore
-  }
-  return sec;
+/** 출석 7일 보상 등 — 크레딧 수치(기존 필드명 voiceSecondsAdded와 호환 위해 숫자만 전달) */
+export function applyAttendanceCreditReward(credits: number): number {
+  if (credits <= 0) return 0;
+  applyBonusCredits(credits);
+  return credits;
 }

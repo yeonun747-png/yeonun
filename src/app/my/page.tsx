@@ -1,13 +1,27 @@
 import { BottomNav } from "@/components/BottomNav";
+import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import { TopNav } from "@/components/TopNav";
 import { MyCreditBalanceLine } from "@/components/my/MyCreditBalanceLine";
 import { MyCreditOverviewSection } from "@/components/my/MyCreditOverviewSection";
 import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
 import Link from "next/link";
 
+const MY_PREFETCH_ROUTES = [
+  "/library",
+  "/history/calls",
+  "/history/chats",
+  "/my/payments",
+  "/checkout/credit",
+  "/settings/notifications",
+  "/notices",
+  "/support",
+  "/today",
+];
+
 export default function MyPage() {
   return (
     <div className="yeonunPage">
+      <RoutePrefetcher routes={MY_PREFETCH_ROUTES} />
       <TopNav />
       <main>
         <div className="y-my-guest-card">
@@ -52,7 +66,7 @@ export default function MyPage() {
               </svg>
             </div>
             <div className="y-my-menu-text">
-              <div className="y-my-menu-name">보관함</div>
+              <div className="y-my-menu-name">점사 보관함</div>
               <div className="y-my-menu-desc">구매한 풀이 60일간 보관</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
@@ -66,20 +80,20 @@ export default function MyPage() {
               </svg>
             </div>
             <div className="y-my-menu-text">
-              <div className="y-my-menu-name">상담 히스토리</div>
-              <div className="y-my-menu-desc">최근 90일간 보관</div>
+              <div className="y-my-menu-name">음성상담 보관함</div>
+              <div className="y-my-menu-desc">60일간 보관 · 대화 글 열람</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
           </Link>
           <Link className="y-my-menu-item" href="/history/chats">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
               </svg>
             </div>
             <div className="y-my-menu-text">
-              <div className="y-my-menu-name">텍스트 대화 기록</div>
-              <div className="y-my-menu-desc">최근 30일</div>
+              <div className="y-my-menu-name">채팅상담 보관함</div>
+              <div className="y-my-menu-desc">30일간 보관 · 크레딧 상담 기록</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
           </Link>

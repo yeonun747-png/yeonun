@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
 import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
+import { dispatchMissionsReconcile } from "@/lib/mission-reconcile";
 
 type CalendarMode = "yang" | "eum";
 
@@ -103,6 +104,7 @@ export function SajuModal() {
       localStorage.setItem(__YEONUN_SAJU_STORAGE_KEY__, JSON.stringify(payload));
       // 같은 탭에서 /my 카드가 즉시 갱신되도록 커스텀 이벤트를 쏜다.
       window.dispatchEvent(new Event("yeonun:saju-updated"));
+      dispatchMissionsReconcile();
     } catch {
       // ignore
     }

@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { ContentPurchaseFooter } from "@/components/content/ContentPurchaseFooter";
 import { TopNav } from "@/components/TopNav";
+import { YeonunRoutedBottomSheetPortal } from "@/components/YeonunRoutedBottomSheetPortal";
 import { getProductBySlugCached, getReviewsByProductSlugCached } from "@/lib/data/content";
 
 type Props = {
@@ -335,23 +335,9 @@ export default async function ContentDetailPage({ params, searchParams }: Props)
   }
 
   return (
-    <div className="y-modal open" role="dialog" aria-modal="true" aria-label="상세 풀이">
-      <div className="y-modal-sheet">
-        <div className="y-modal-handle" />
-        <div className="y-modal-head">
-          <Link className="y-modal-back" href={backHref} scroll={false} aria-label="뒤로">
-            <svg viewBox="0 0 24 24">
-              <path d="M15 18 L9 12 L15 6" />
-            </svg>
-          </Link>
-          <div className="y-modal-title">상세 풀이</div>
-          <Link className="y-modal-close" href={backHref} scroll={false} aria-label="닫기">
-            ×
-          </Link>
-        </div>
-        <div className="y-modal-scroll">{Page}</div>
-      </div>
-    </div>
+    <YeonunRoutedBottomSheetPortal backHref={backHref} ariaLabel="상세 풀이" title="상세 풀이">
+      {Page}
+    </YeonunRoutedBottomSheetPortal>
   );
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { buildRollingWindowAnthropicInput, type DialogTurnMsg } from "@/lib/dialog-window-claude";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
 
@@ -20,8 +21,15 @@ function requiredEnv(name: string): string {
   return v;
 }
 
-async function callAnthropic(params: { system: string; user: string; max_tokens: number }) {
+async function callAnthropic(params: { system: string; max_tokens: number; user?: string; messages?: DialogTurnMsg[] }) {
   const apiKey = requiredEnv("ANTHROPIC_API_KEY");
+  const msgs: DialogTurnMsg[] =
+    Array.isArray(params.messages) && params.messages.length > 0
+      ? params.messages
+      : [{ role: "user", content: String(params.user ?? "").trim() }];
+  if (msgs.length === 0 || msgs[msgs.length - 1].role !== "user") {
+    throw new Error("Anthropic messages must be non-empty and end with a user turn");
+  }
   // 기본은 Claude 4.6 Sonnet 최신을 사용.
   // 배포 환경에서 모델명이 바뀌거나 권한이 없을 때 404가 날 수 있어, 아래에서 fallback 재시도를 한다.
   // Anthropic 최신 SDK 기준 모델명: "claude-sonnet-4-6" / "claude-opus-4-6"
@@ -47,7 +55,7 @@ async function callAnthropic(params: { system: string; user: string; max_tokens:
         max_tokens: Math.max(64, Math.min(1200, Math.floor(params.max_tokens))),
         temperature: 0.85,
         system: params.system,
-        messages: [{ role: "user", content: params.user }],
+        messages: msgs.map((m) => ({ role: m.role, content: m.content })),
       }),
     });
     const textBody = await res.text().catch(() => "");
@@ -199,8 +207,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .select("role,text,created_at")
     .eq("session_id", id)
     .order("created_at", { ascending: false })
-    .limit(8);
-  const recentTurns = Array.isArray(recentTurnsRaw) ? (recentTurnsRaw as any[]).reverse() : [];
+    .limit(500);
+  const recentTurns = Array.isArray(recentTurnsRaw) ? (recentTurnsRaw as any[]).slice().reverse() : [];
   const transcript = buildRecentTranscript(recentTurns);
 
   // 4) LLM 호출
@@ -214,17 +222,40 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           ? "__SILENCE_BREAK__"
           : userText;
 
-    const blocks: string[] = [];
-    if (transcript) blocks.push(`[최근 대화]\n${transcript}`);
-    blocks.push("[요청]\n위 맥락을 이어서 답변하세요.");
-    blocks.push(`[이번 입력]\n${baseUserPrompt}`);
-    const userPrompt = blocks.join("\n\n");
-    // opening은 짧게 뽑아야 체감 지연이 줄어든다.
-    // 체감 속도를 위해 user 턴도 과도하게 길게 생성하지 않는다.
     const maxTokens = trigger === "opening" ? 240 : trigger === "silence" ? 220 : 520;
-    const out = await callAnthropic({ system, user: userPrompt, max_tokens: maxTokens });
-    assistantText = out.text || "";
-    modelUsed = out.model;
+
+    if (trigger === "opening") {
+      const blocks: string[] = [];
+      if (transcript) blocks.push(`[최근 대화]\n${transcript}`);
+      blocks.push("[요청]\n위 맥락을 이어서 답변하세요.");
+      blocks.push(`[이번 입력]\n${baseUserPrompt}`);
+      const userPrompt = blocks.join("\n\n");
+      const out = await callAnthropic({ system, user: userPrompt, max_tokens: maxTokens });
+      assistantText = out.text || "";
+      modelUsed = out.model;
+    } else {
+      const linear: DialogTurnMsg[] = recentTurns
+        .map((t) => ({
+          role: String(t.role ?? "").trim() === "assistant" ? ("assistant" as const) : ("user" as const),
+          content: String(t.text ?? "").trim(),
+        }))
+        .filter((m) => m.content.length > 0);
+      const apiKey = requiredEnv("ANTHROPIC_API_KEY");
+      let out: { text: string; model: string };
+      if (linear.length > 0 && linear[linear.length - 1].role === "user") {
+        const rolled = await buildRollingWindowAnthropicInput({ apiKey, linearMessages: linear });
+        out = await callAnthropic({ system: system + rolled.systemAddendum, messages: rolled.messages, max_tokens: maxTokens });
+      } else {
+        const blocks: string[] = [];
+        if (transcript) blocks.push(`[최근 대화]\n${transcript}`);
+        blocks.push("[요청]\n위 맥락을 이어서 답변하세요.");
+        blocks.push(`[이번 입력]\n${baseUserPrompt}`);
+        const userPrompt = blocks.join("\n\n");
+        out = await callAnthropic({ system, user: userPrompt, max_tokens: maxTokens });
+      }
+      assistantText = out.text || "";
+      modelUsed = out.model;
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "LLM request failed";
     // Anthropic 키 미설정이면 501로 명확히 표시
@@ -244,16 +275,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   // 6) 메모리 요약 갱신 (긴 대화에서만, 비용/지연 최소화)
-  // - sliding window(14행)만으로는 오래 대화하면 잘리므로, user 턴에서만 업데이트를 시도한다.
-  // - 최근 로그가 충분히 쌓였을 때(14행 꽉 찼을 때)만 요약을 갱신한다.
+  // - user 턴에서만 업데이트를 시도한다.
+  // - 최근 로그가 충분히 쌓였을 때만 요약을 갱신한다.
   try {
     const recentLen = Array.isArray(recentTurnsRaw) ? recentTurnsRaw.length : 0;
-    if (trigger === "user" && recentLen >= 8) {
+    if (trigger === "user" && recentLen >= 20) {
       await updateMemorySummary({
         supabase,
         sessionId: id,
         prevSummary: memorySummary,
-        recentTranscript: transcript,
+        recentTranscript: buildRecentTranscript(recentTurns.slice(-24)),
         characterKey: character_key,
       });
     }

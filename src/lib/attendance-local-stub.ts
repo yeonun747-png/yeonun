@@ -4,7 +4,7 @@
  */
 
 import {
-  attendanceVoiceRewardSeconds,
+  attendanceVoiceRewardCredits,
   cycleRewardLineKo,
   rewardKindForCycle,
   type AttendanceRewardKind,
@@ -152,7 +152,7 @@ export function syncLocalAttendanceStub(now: Date): LocalAttendancePayload {
     completedSeven = true;
     rewardKind = rewardKindForCycle(cycle);
     if (rewardKind === "voice_5min") {
-      voiceSecondsAdded = attendanceVoiceRewardSeconds();
+      voiceSecondsAdded = attendanceVoiceRewardCredits();
     } else if (rewardKind === "coupon_5pct") {
       couponPendingFromReward = true;
     }

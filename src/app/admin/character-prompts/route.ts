@@ -12,7 +12,10 @@ export async function POST(request: Request) {
   const tts_voice_raw = String(form.get("tts_voice_id") ?? "").trim();
   const tts_voice_id = mode === "voice" && tts_voice_raw ? tts_voice_raw : null;
 
-  const hash = mode === "voice" ? "voice" : mode === "fortune_text" ? "fortune" : "dashboard";
+  const hash = mode === "voice" ? "voice" : mode === "fortune_text" ? "fortune" : mode === "chat_text" ? "chat" : "dashboard";
+  if (!["voice", "fortune_text", "chat_text"].includes(mode)) {
+    return NextResponse.redirect(new URL("/admin#dashboard", request.url), 303);
+  }
   if (!character_key || !mode || !title || !prompt) return NextResponse.redirect(new URL(`/admin#${hash}`, request.url), 303);
 
   await supabaseServer()

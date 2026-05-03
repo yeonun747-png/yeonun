@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import { RoutePrefetcher } from "@/components/RoutePrefetcher";
+
+const PRIMARY_ROUTES = ["/meet", "/today", "/content", "/my"];
+
 export function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -11,10 +15,13 @@ export function BottomNav() {
 
   return (
     <nav className="y-bottom-nav" role="navigation" aria-label="주요 메뉴">
+      <RoutePrefetcher routes={PRIMARY_ROUTES} />
       <Link
         className={`y-bn-item ${isActive("/") ? "active" : ""}`}
         href="/"
         aria-label="홈"
+        onPointerEnter={() => router.prefetch("/")}
+        onFocus={() => router.prefetch("/")}
         onClick={(e) => {
           // 같은 홈(/)에서 재클릭 시에도 “최초 접속 상태”로: 쿼리 제거 + 스크롤 최상단
           const hasQuery = typeof window !== "undefined" && window.location.search.length > 1;
@@ -42,6 +49,8 @@ export function BottomNav() {
         className={`y-bn-item signature ${isActive("/meet") ? "active" : ""}`}
         href="/meet"
         aria-label="만남"
+        onPointerEnter={() => router.prefetch("/meet")}
+        onFocus={() => router.prefetch("/meet")}
       >
         <div className="y-bn-icon" aria-hidden="true">
           <svg
@@ -64,6 +73,8 @@ export function BottomNav() {
         className={`y-bn-item ${isActive("/today") ? "active" : ""}`}
         href="/today"
         aria-label="오늘"
+        onPointerEnter={() => router.prefetch("/today")}
+        onFocus={() => router.prefetch("/today")}
       >
         <div className="y-bn-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -78,6 +89,8 @@ export function BottomNav() {
         className={`y-bn-item ${isActive("/content") ? "active" : ""}`}
         href="/content"
         aria-label="풀이"
+        onPointerEnter={() => router.prefetch("/content")}
+        onFocus={() => router.prefetch("/content")}
       >
         <div className="y-bn-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -93,6 +106,8 @@ export function BottomNav() {
         className={`y-bn-item ${isActive("/my") ? "active" : ""}`}
         href="/my"
         aria-label="마이"
+        onPointerEnter={() => router.prefetch("/my")}
+        onFocus={() => router.prefetch("/my")}
       >
         <div className="y-bn-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">

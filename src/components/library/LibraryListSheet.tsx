@@ -4,16 +4,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
-/** 마이 > 보관함 — 목업 바텀시트(딤·핸들·뒤로·닫기) */
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
+
+/** 마이 > 점사 보관함 — 목업 바텀시트(딤·핸들·뒤로·닫기) */
 export function LibraryListSheet({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   return (
+    <YeonunSheetPortal>
     <div
       className="y-modal open y-lib-list-modal"
       role="dialog"
       aria-modal="true"
-      aria-label="보관함"
+      aria-label="점사 보관함"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) router.push("/my");
       }}
@@ -26,7 +29,7 @@ export function LibraryListSheet({ children }: { children: ReactNode }) {
               <path d="M15 18 L9 12 L15 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </Link>
-          <div className="y-modal-title">보관함</div>
+          <div className="y-modal-title">점사 보관함</div>
           <Link href="/my" className="y-modal-close" scroll={false} aria-label="닫기">
             ×
           </Link>
@@ -34,5 +37,6 @@ export function LibraryListSheet({ children }: { children: ReactNode }) {
         <div className="y-modal-scroll y-lib-sheet-scroll">{children}</div>
       </div>
     </div>
+    </YeonunSheetPortal>
   );
 }

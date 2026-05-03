@@ -1,7 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { MySajuCardClient } from "@/components/my/MySajuCardClient";
 
 export function MySajuCardBlock() {
-  return <MySajuCardClient />;
+  return (
+    <Suspense fallback={null}>
+      <MySajuCardClient />
+    </Suspense>
+  );
 }

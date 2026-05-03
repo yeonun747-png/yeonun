@@ -634,19 +634,19 @@ export async function HomeMoreSections() {
 
           <div className="y-price-card">
             <div className="y-price-tier">VOICE · 음성 상담</div>
-            <div className="y-price-name">분 단위 결제</div>
-            <p className="y-price-tagline">상담 시간만큼 정직하게</p>
+            <div className="y-price-name">크레딧 상담</div>
+            <p className="y-price-tagline">음성·채팅 모두 크레딧으로</p>
             <div className="y-price-amount">
               <span className="y-price-currency">₩</span>
               <span className="y-price-num">390</span>
             </div>
-            <div className="y-price-period">/ 1분 (10분부터)</div>
+            <div className="y-price-period">/ 1분 음성 (분당 390 크레딧)</div>
             <div className="y-price-spacer" />
             <ul className="y-price-features">
-              <li>10분 3,900원</li>
-              <li>30분 9,900원 (15%↓)</li>
-              <li>60분 17,900원 (24%↓)</li>
-              <li>크레딧 365일 유효</li>
+              <li>3,900 크레딧 = 3,900원</li>
+              <li>11,880 크레딧 = 9,900원 (+20%)</li>
+              <li>25,870 크레딧 = 19,900원 (+30%)</li>
+              <li>충전 크레딧 365일 유효</li>
               <li>4명 안내자 자유 선택</li>
             </ul>
             <Link className="y-price-cta" href="/checkout/credit">

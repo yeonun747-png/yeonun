@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { yeonunHasOpenableManseDetail } from "@/components/my/MySajuCardClient";
+import {
+  dispatchMissionsReconcile,
+  missionStorageKeysThatTriggerReconcile,
+  reconcileMissionStateWithExternalFacts,
+  YEONUN_MISSIONS_RECONCILE_EVENT,
+} from "@/lib/mission-reconcile";
+
 import { formatKstDateKey, msUntilNextKstMidnight } from "@/lib/datetime/kst";
 import {
   defaultMissionState,
@@ -16,7 +24,7 @@ import {
   type MissionId,
   type MissionRuntimeState,
 } from "@/lib/daily-missions";
-import { applyVoiceMissionRewardSeconds } from "@/lib/mission-rewards";
+import { applyMissionCreditReward } from "@/lib/mission-rewards";
 import { MissionGlyph } from "@/components/today/MissionGlyph";
 
 const LEGACY_MISSION_KEY = "yeonun_daily_missions_v1";
@@ -79,19 +87,35 @@ function formatRefreshLabel(ms: number): string {
   return `${s}초 후 갱신`;
 }
 
+const SAJU_UPDATED_EVENT = "yeonun:saju-updated";
+
 export function TodayMissionsClient() {
   const [mounted, setMounted] = useState(false);
   const [runtime, setRuntime] = useState<MissionRuntimeState>(() => defaultMissionState("1970-01-01"));
   const [countdownMs, setCountdownMs] = useState(0);
   const markedIoRef = useRef<Set<MissionId>>(new Set());
+  const reconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pullAndReconcileRuntime = useCallback((): MissionRuntimeState => {
+    const raw = loadState();
+    const s0 = syncMissionState(new Date(), raw).state;
+    const next = reconcileMissionStateWithExternalFacts(new Date(), s0);
+    persist(next);
+    return next;
+  }, []);
+
+  const scheduleReconcileFromStorage = useCallback(() => {
+    if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
+    reconcileTimerRef.current = setTimeout(() => {
+      reconcileTimerRef.current = null;
+      setRuntime(pullAndReconcileRuntime());
+    }, 60);
+  }, [pullAndReconcileRuntime]);
 
   useEffect(() => {
     setMounted(true);
-    const raw = loadState();
-    const synced = syncMissionState(new Date(), raw);
-    persist(synced.state);
-    setRuntime(synced.state);
-  }, []);
+    setRuntime(pullAndReconcileRuntime());
+  }, [pullAndReconcileRuntime]);
 
   const snapshot = useMemo(() => syncMissionState(new Date(), runtime), [runtime]);
 
@@ -120,6 +144,33 @@ export function TodayMissionsClient() {
     };
   }, [mounted]);
 
+  /** 다른 탭·화면에서 미션 사실이 쌓인 뒤 오늘 탭으로 돌아올 때 LS 기준으로 다시 맞춤 */
+  useEffect(() => {
+    if (!mounted) return;
+    const onReconcile = () => scheduleReconcileFromStorage();
+    const onVis = () => {
+      if (document.visibilityState === "visible") scheduleReconcileFromStorage();
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (missionStorageKeysThatTriggerReconcile(e.key)) scheduleReconcileFromStorage();
+    };
+    window.addEventListener(YEONUN_MISSIONS_RECONCILE_EVENT, onReconcile);
+    window.addEventListener(SAJU_UPDATED_EVENT, onReconcile);
+    window.addEventListener("focus", onReconcile);
+    window.addEventListener("pageshow", onReconcile);
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
+      window.removeEventListener(YEONUN_MISSIONS_RECONCILE_EVENT, onReconcile);
+      window.removeEventListener(SAJU_UPDATED_EVENT, onReconcile);
+      window.removeEventListener("focus", onReconcile);
+      window.removeEventListener("pageshow", onReconcile);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [mounted, scheduleReconcileFromStorage]);
+
   const { trio, allComplete } = snapshot;
   const doneCount = trio.filter((m) => isMissionCompleted(m.id, runtime.completedOnce, runtime.completedToday)).length;
 
@@ -130,7 +181,7 @@ export function TodayMissionsClient() {
         if (!tr.some((t) => t.id === id)) return prev;
         if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return prev;
         const marked = markMissionCompleteInState(s0, id, tr, Date.now());
-        applyVoiceMissionRewardSeconds(id);
+        applyMissionCreditReward(id);
         const { state: s2 } = syncMissionState(new Date(), marked);
         persist(s2);
         try {
@@ -247,7 +298,12 @@ export function TodayMissionsClient() {
       </div>
       <div className="y-mission-list">
         {trio.map((m) => {
-          const href = missionActionHref(m.id);
+          const href =
+            m.id === "M10"
+              ? !mounted || !yeonunHasOpenableManseDetail()
+                ? "/my?modal=saju"
+                : "/my?modal=manse"
+              : missionActionHref(m.id);
           const done = isMissionCompleted(m.id, runtime.completedOnce, runtime.completedToday);
           const cta = missionCtaLabel(m.id);
           const ui = missionUiLines(m.id);

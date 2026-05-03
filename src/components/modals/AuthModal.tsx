@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
@@ -24,6 +25,9 @@ const TIME_TABS = [
 
 export function AuthModal() {
   const { close } = useModalControls();
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
   const [step, setStep] = useState<AuthStep>("login");
   const [timeIdx, setTimeIdx] = useState(3);
   const [unknownTime, setUnknownTime] = useState(false);
@@ -211,7 +215,23 @@ export function AuthModal() {
                 </div>
               </div>
               <div className="y-onboard-foot">
-                <button className="y-onboard-next" type="button" onClick={close}>
+                <button
+                  className="y-onboard-next"
+                  type="button"
+                  onClick={() => {
+                    const after = sp.get("after_auth") ?? "";
+                    const next = new URLSearchParams(sp.toString());
+                    next.delete("modal");
+                    next.delete("after_auth");
+                    if (after.startsWith("chat:")) {
+                      const ck = after.slice(5);
+                      next.set("modal", "chat_consult");
+                      next.set("character_key", ck);
+                    }
+                    const qs = next.toString();
+                    router.replace(qs ? `${pathname}?${qs}` : pathname);
+                  }}
+                >
                   완료 · 연운 시작하기
                 </button>
               </div>

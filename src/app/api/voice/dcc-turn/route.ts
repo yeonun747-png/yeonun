@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import WebSocket from "ws";
 
 import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
+import { buildRollingWindowAnthropicInput, type DialogTurnMsg } from "@/lib/dialog-window-claude";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -226,7 +227,9 @@ async function updateMemorySummary(args: {
 
 async function streamClaudeToCartesiaAndClient(args: {
   system: string;
-  user: string;
+  /** 멀티턴 — 있으면 `user` 대신 Anthropic에 전달(마지막은 user). */
+  messages?: DialogTurnMsg[];
+  user?: string;
   voiceExternalId: string;
   cartesiaModelId: string;
   cartesiaVersion: string;
@@ -234,13 +237,21 @@ async function streamClaudeToCartesiaAndClient(args: {
   const anthropicKey = requiredEnv("ANTHROPIC_API_KEY");
   const cartesiaKey = requiredEnv("CARTESIA_API_KEY");
 
+  const msgs: DialogTurnMsg[] =
+    Array.isArray(args.messages) && args.messages.length > 0
+      ? args.messages
+      : [{ role: "user", content: String(args.user ?? "").trim() }];
+  if (msgs.length === 0 || msgs[msgs.length - 1]?.role !== "user") {
+    throw new Error("Claude messages must be non-empty and end with a user turn");
+  }
+
   const claudeBody = {
-    model: "claude-sonnet-4-6",
+    model: String(process.env.VOICE_LLM_MODEL ?? "claude-sonnet-4-6").trim() || "claude-sonnet-4-6",
     max_tokens: 1800,
     stream: true,
     temperature: 0.85,
     system: args.system,
-    messages: [{ role: "user", content: args.user }],
+    messages: msgs.map((m) => ({ role: m.role, content: m.content })),
   };
 
   const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
@@ -630,24 +641,21 @@ export async function POST(request: Request) {
   let recentTranscript = "";
   let recentTurnsRaw: any[] = [];
   if (supabase && sessionId) {
-    /** 이번 사용자 발화는 `[이번 입력]`으로 따로 넣으므로, 최근 대화 조회와 사용자 행 삽입은 독립 → 병렬로 STT 이후 지연 감소 */
-    const insertUser =
-      userTranscript.trim().length > 0
-        ? supabase.from("voice_turns").insert({
-            session_id: sessionId,
-            role: "user",
-            text: userTranscript,
-          })
-        : Promise.resolve({ error: null as unknown });
-    const selectRecent = supabase
+    if (userTranscript.trim().length > 0) {
+      await supabase.from("voice_turns").insert({
+        session_id: sessionId,
+        role: "user",
+        text: userTranscript,
+      });
+    }
+    const { data: recentData } = await supabase
       .from("voice_turns")
       .select("role,text,created_at")
       .eq("session_id", sessionId)
       .order("created_at", { ascending: false })
-      .limit(10);
-    const [, recentRes] = await Promise.all([insertUser, selectRecent]);
-    recentTurnsRaw = Array.isArray(recentRes.data) ? (recentRes.data as any[]) : [];
-    recentTranscript = buildRecentTranscript(recentTurnsRaw.reverse());
+      .limit(500);
+    recentTurnsRaw = Array.isArray(recentData) ? [...recentData].reverse() : [];
+    recentTranscript = buildRecentTranscript(recentTurnsRaw);
   }
 
   const manseBlock = manseContext ? `\n\n[사용자 사주 명식 데이터]\n${manseContext.slice(0, 4000)}` : "";
@@ -683,6 +691,28 @@ export async function POST(request: Request) {
       ]
         .filter(Boolean)
         .join("\n\n");
+
+  let claudeStreamInput: { system: string; user?: string; messages?: DialogTurnMsg[] } = {
+    system: baseSystem,
+    user: userForLlm || userTranscript,
+  };
+  if (!isOpening && supabase && sessionId && userTranscript.trim().length > 0) {
+    const linear: DialogTurnMsg[] = recentTurnsRaw
+      .map((t) => ({
+        role: String(t.role ?? "").trim() === "assistant" ? ("assistant" as const) : ("user" as const),
+        content: String(t.text ?? "").trim(),
+      }))
+      .filter((m) => m.content.length > 0);
+    if (linear.length > 0 && linear[linear.length - 1].role === "user") {
+      try {
+        const ak = requiredEnv("ANTHROPIC_API_KEY");
+        const rolled = await buildRollingWindowAnthropicInput({ apiKey: ak, linearMessages: linear });
+        claudeStreamInput = { system: baseSystem + rolled.systemAddendum, messages: rolled.messages };
+      } catch {
+        claudeStreamInput = { system: baseSystem, user: userForLlm || userTranscript };
+      }
+    }
+  }
 
   // 스트리밍 시작 전에 userTranscript를 먼저 내려줌(클라가 자막/상태를 바로 갱신)
   const encoder = new TextEncoder();
@@ -720,8 +750,9 @@ export async function POST(request: Request) {
       try {
         let assistantTextForMemory = "";
         const inner = await streamClaudeToCartesiaAndClient({
-          system: baseSystem,
-          user: userForLlm || userTranscript,
+          system: claudeStreamInput.system,
+          user: claudeStreamInput.user,
+          messages: claudeStreamInput.messages,
           voiceExternalId,
           cartesiaModelId,
           cartesiaVersion,
@@ -757,12 +788,12 @@ export async function POST(request: Request) {
             text: assistantTextForMemory,
           });
           try {
-            if (recentTurnsRaw.length >= 10) {
+            if (recentTurnsRaw.length >= 20) {
               await updateMemorySummary({
                 supabase,
                 sessionId,
                 prevSummary: memorySummary,
-                recentTranscript,
+                recentTranscript: buildRecentTranscript(recentTurnsRaw.slice(-24)),
               });
             }
           } catch {

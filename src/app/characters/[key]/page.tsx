@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { TopNav } from "@/components/TopNav";
+import { YeonunRoutedBottomSheetPortal } from "@/components/YeonunRoutedBottomSheetPortal";
 import { HomeContentGrid } from "@/components/HomeMoreSections";
 import { getCharacterPersonaCached, getCharactersCached } from "@/lib/data/characters";
 import { getProductsByCharacterKeyCached, getReviewsByProductSlugCached } from "@/lib/data/content";
@@ -41,12 +42,16 @@ export default async function CharacterPage({ params, searchParams }: Props) {
   const from = sp.from;
   const closeHref = from === "meet" ? "/meet" : "/";
 
-  const catalog = await getProductsByCharacterKeyCached(c.key);
-  const thumbFallback = await readProductThumbnailsForSlugs(catalog.map((p) => p.slug));
-  const reviews = await getReviewsByProductSlugCached(catalog[0]?.slug ?? "reunion-maybe", { limit: 6 });
+  const [catalog, persona] = await Promise.all([
+    getProductsByCharacterKeyCached(c.key),
+    getCharacterPersonaCached(c.key),
+  ]);
+  const [thumbFallback, reviews] = await Promise.all([
+    readProductThumbnailsForSlugs(catalog.filter((p) => !p.thumbnail_svg).map((p) => p.slug)),
+    getReviewsByProductSlugCached(catalog[0]?.slug ?? "reunion-maybe", { limit: 6 }),
+  ]);
   const backToCharacter = `/characters/${c.key}?sheet=1&from=${from ?? "home"}`;
   const contentLinkExtra = `&ck=${encodeURIComponent(c.key)}&back=${encodeURIComponent(backToCharacter)}`;
-  const persona = await getCharacterPersonaCached(c.key);
   const specialties = persona?.specialties?.length
     ? persona.specialties
     : [
@@ -187,23 +192,9 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
   if (asSheet) {
     return (
-      <div className="y-modal open" role="dialog" aria-modal="true" aria-label="인연 안내자">
-        <div className="y-modal-sheet">
-          <div className="y-modal-handle" />
-          <div className="y-modal-head">
-            <Link className="y-modal-back" href={closeHref} scroll={false} aria-label="뒤로">
-              <svg viewBox="0 0 24 24">
-                <path d="M15 18 L9 12 L15 6" />
-              </svg>
-            </Link>
-            <div className="y-modal-title">인연 안내자</div>
-            <Link className="y-modal-close" href={closeHref} scroll={false} aria-label="닫기">
-              ×
-            </Link>
-          </div>
-          <div className="y-modal-scroll">{Body}</div>
-        </div>
-      </div>
+      <YeonunRoutedBottomSheetPortal backHref={closeHref} ariaLabel="인연 안내자" title="인연 안내자">
+        {Body}
+      </YeonunRoutedBottomSheetPortal>
     );
   }
 

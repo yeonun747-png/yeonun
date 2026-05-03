@@ -1,10 +1,11 @@
 /** 출석 7일 보상 종류 (사이클 번호로 결정) */
 export type AttendanceRewardKind = "voice_5min" | "coupon_5pct" | "dream_once";
 
-const VOICE_SEC = 300;
+/** 7일 사이클 음성 보상 → 크레딧 (5분 = 300초 × 6.5 = 1,950) */
+const VOICE_CYCLE_CREDITS = 1950;
 
-export function attendanceVoiceRewardSeconds(): number {
-  return VOICE_SEC;
+export function attendanceVoiceRewardCredits(): number {
+  return VOICE_CYCLE_CREDITS;
 }
 
 /** cycle 번호(1부터)에 해당하는 이번 7일 완주 보상 */
@@ -20,13 +21,13 @@ export function cycleRewardLineKo(cycle: number): string {
   const k = rewardKindForCycle(cycle);
   if (k === "coupon_5pct") return "7일 연속 달성 보상: 콘텐츠 5% 할인 쿠폰";
   if (k === "dream_once") return "7일 연속 달성 보상: 무료 꿈해몽 풀이 1회";
-  return "7일 연속 달성 보상: 음성 상담 5분 추가";
+  return "7일 연속 달성 보상: 1,950 크레딧 적립";
 }
 
 export function rewardModalTitleKo(kind: AttendanceRewardKind): string {
   switch (kind) {
     case "voice_5min":
-      return "음성 상담 5분 추가";
+      return "1,950 크레딧 적립";
     case "coupon_5pct":
       return "콘텐츠 5% 할인 쿠폰";
     case "dream_once":
@@ -42,7 +43,7 @@ export function rewardModalBodyKo(kind: AttendanceRewardKind, couponPending: boo
   }
   switch (kind) {
     case "voice_5min":
-      return "음성 상담 시간에 5분이 더해졌어요.";
+      return "상담 크레딧 1,950이 적립됐어요.";
     case "coupon_5pct":
       return "구매 시 적용할 수 있는 할인 쿠폰이 발급됐어요.";
     case "dream_once":

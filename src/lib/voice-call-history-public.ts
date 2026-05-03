@@ -12,11 +12,12 @@ export type VoiceCallHistoryRowVm = {
   timeLine: string;
   /** 우측 배지 */
   badge: string;
-  /** 상담 요약·메모리 요약 등 결과 텍스트 */
-  resultSnippet: string | null;
   /** 월 그룹용 */
   started_at: string;
 };
+
+/** 점사 보관함과 동일 — 음성상담 보관함 목록·조회 기간(일) */
+export const VOICE_CALL_ARCHIVE_LIST_DAYS = 60;
 
 /** 목록 월 제목 (예: 2026년 4월) */
 export function voiceCallHistoryMonthHeading(iso: string): string {
@@ -38,10 +39,9 @@ export function formatVoiceDurationKo(sec: number): string {
   return `${m}분 ${String(r).padStart(2, "0")}초`;
 }
 
-/** 종료 요약 배지: 무료 구간 추정 + 일반 통화 시간 */
-export function formatVoiceHistoryBadge(durationSec: number, costKrw: number): string {
+/** 종료 요약 배지: 실제 통화 길이(초) */
+export function formatVoiceHistoryBadge(durationSec: number): string {
   if (durationSec <= 0) return "기록 없음";
-  if (costKrw === 0 && durationSec <= 180) return "3분 무료";
   return formatVoiceDurationKo(durationSec);
 }
 
@@ -66,14 +66,6 @@ export function formatVoiceHistoryTimeLine(iso: string): string {
   } catch {
     return "";
   }
-}
-
-export function pickVoiceResultSnippet(summary: string | null | undefined, memorySummary: string | null | undefined): string | null {
-  const s = String(summary ?? "").trim();
-  if (s) return s.length > 280 ? `${s.slice(0, 277)}…` : s;
-  const m = String(memorySummary ?? "").trim();
-  if (m) return m.length > 280 ? `${m.slice(0, 277)}…` : m;
-  return null;
 }
 
 export function groupVoiceHistoryByKstMonth(

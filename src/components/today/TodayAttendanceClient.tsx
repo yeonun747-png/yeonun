@@ -8,7 +8,7 @@ import { readAuthStubLoggedIn, YEONUN_AUTH_STUB_EVENT } from "@/lib/auth-stub";
 import type { AttendanceRewardKind } from "@/lib/attendance-rewards";
 import { rewardModalBodyKo, rewardModalTitleKo } from "@/lib/attendance-rewards";
 import { syncLocalAttendanceStub } from "@/lib/attendance-local-stub";
-import { applyAttendanceVoiceRewardSeconds } from "@/lib/mission-rewards";
+import { applyAttendanceCreditReward } from "@/lib/mission-rewards";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 type SyncPayload = {
@@ -48,7 +48,7 @@ export function TodayAttendanceClient() {
 
   const applyCompletionUi = useCallback((p: SyncPayload, modalUserId: string) => {
     if (p.voiceSecondsAdded > 0) {
-      applyAttendanceVoiceRewardSeconds(p.voiceSecondsAdded);
+      applyAttendanceCreditReward(p.voiceSecondsAdded);
     }
     if (p.pendingCouponGranted) {
       window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "대기 중이던 할인 쿠폰이 발급됐어요" } }));

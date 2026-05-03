@@ -1,6 +1,8 @@
 import { cache } from "react";
 
 import type { TextChatDetail, TextChatListRow, TextChatMessageRow } from "@/lib/text-chat-history-public";
+import { isUuidSessionId } from "@/lib/text-chat-history-public";
+import { VOICE_CALL_ARCHIVE_LIST_DAYS } from "@/lib/voice-call-history-public";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export type { TextChatDetail, TextChatListRow, TextChatMessageRow, TextChatMessageGroupedDay } from "@/lib/text-chat-history-public";
@@ -16,9 +18,9 @@ export {
   textChatListMonthHeading,
 } from "@/lib/text-chat-history-public";
 
-const HISTORY_DAYS = 90;
-/** 상세·목록 메타 보관일 안내(음성 세션은 DB 컬럼 없음 → 종료/시작 +30일) */
-const RETENTION_DISPLAY_DAYS = 30;
+const HISTORY_DAYS = VOICE_CALL_ARCHIVE_LIST_DAYS;
+/** 상세·목록 메타 보관일 안내(음성 세션은 DB 컬럼 없음 → 종료/시작 +60일, 점사 보관함과 통일) */
+const RETENTION_DISPLAY_DAYS = VOICE_CALL_ARCHIVE_LIST_DAYS;
 
 function historySinceIso(): string {
   return new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString();
@@ -282,4 +284,10 @@ export const getTextChatSessionDetail = cache(async (sessionId: string): Promise
   const fromVoice = await getTextChatDetailFromVoice(supabase, sessionId);
   if (fromVoice) return fromVoice;
   return getTextChatDetailFromTextTables(supabase, sessionId);
+});
+
+/** 음성 세션(`voice_sessions` + `voice_turns`)만 — 음성상담 보관함 상세용 */
+export const getVoiceSessionConversationDetail = cache(async (sessionId: string): Promise<TextChatDetail | null> => {
+  if (!isUuidSessionId(sessionId)) return null;
+  return getTextChatDetailFromVoice(supabaseServer(), sessionId);
 });

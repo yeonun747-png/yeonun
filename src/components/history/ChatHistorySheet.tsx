@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
+
 /** 마이 > 텍스트 대화 기록 — 목업 바텀시트 */
 export function ChatHistorySheet({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   return (
+    <YeonunSheetPortal>
     <div
       className="y-modal open y-tchat-list-modal"
       role="dialog"
@@ -34,5 +37,6 @@ export function ChatHistorySheet({ children }: { children: ReactNode }) {
         <div className="y-modal-scroll y-tchat-list-scroll">{children}</div>
       </div>
     </div>
+    </YeonunSheetPortal>
   );
 }
