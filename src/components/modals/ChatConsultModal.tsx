@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useModalControls } from "@/components/modals/useModalControls";
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import {
   chatConsultAppendMessages,
   chatConsultGetSession,
@@ -453,6 +454,7 @@ export function ChatConsultModal() {
   };
 
   return (
+    <YeonunSheetPortal>
     <div className="y-modal open y-chat-consult-root" role="dialog" aria-modal="true" aria-label="채팅 상담" onMouseDown={close}>
       <div className="y-modal-sheet y-chat-consult-sheet" onMouseDown={(ev) => ev.stopPropagation()}>
         <div className="y-modal-handle" />
@@ -549,5 +551,6 @@ export function ChatConsultModal() {
         </footer>
       </div>
     </div>
+    </YeonunSheetPortal>
   );
 }

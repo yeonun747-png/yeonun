@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { readAuthStubLoggedIn, YEONUN_AUTH_STUB_EVENT } from "@/lib/auth-stub";
 import type { AttendanceRewardKind } from "@/lib/attendance-rewards";
 import { rewardModalBodyKo, rewardModalTitleKo } from "@/lib/attendance-rewards";
@@ -254,11 +254,8 @@ export function TodayAttendanceClient() {
         </>
       )}
 
-      {mounted &&
-        rewardOpen &&
-        data?.rewardKind &&
-        typeof document !== "undefined" &&
-        createPortal(
+      {mounted && rewardOpen && data?.rewardKind ? (
+        <YeonunSheetPortal>
           <div
             className="y-modal open"
             data-modal="reward"
@@ -291,9 +288,9 @@ export function TodayAttendanceClient() {
                 )}
               </div>
             </div>
-          </div>,
-          document.body,
-        )}
+          </div>
+        </YeonunSheetPortal>
+      ) : null}
     </div>
   );
 }

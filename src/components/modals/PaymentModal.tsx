@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import {
   applyPurchasedCredits,
   markFirstCreditPurchaseDone,
@@ -130,6 +131,7 @@ export function PaymentModal() {
   };
 
   return (
+    <YeonunSheetPortal>
     <div className="y-modal open" role="dialog" aria-modal="true" aria-label="결제하기" onMouseDown={close}>
       <div className="y-modal-sheet" onMouseDown={(e) => e.stopPropagation()}>
         <div className="y-modal-handle" />
@@ -277,5 +279,6 @@ export function PaymentModal() {
         </div>
       </div>
     </div>
+    </YeonunSheetPortal>
   );
 }

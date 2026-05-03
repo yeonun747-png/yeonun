@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { clearPartnerInfo, writePartnerInfo, type PartnerInfoPayload } from "@/lib/partner-info-storage";
 
 /** 12시진 — 저장용 key + 화면 표시는 시간대만 */
@@ -184,6 +185,7 @@ export function PartnerInfoModal() {
   );
 
   return (
+    <YeonunSheetPortal>
     <div className="y-modal open y-partner-modal" role="dialog" aria-modal="true" aria-label="상대방 정보 입력">
       <div className="y-modal-sheet y-partner-sheet" onMouseDown={(e) => e.stopPropagation()}>
         <div className="y-modal-handle" />
@@ -322,5 +324,6 @@ export function PartnerInfoModal() {
         </div>
       </div>
     </div>
+    </YeonunSheetPortal>
   );
 }

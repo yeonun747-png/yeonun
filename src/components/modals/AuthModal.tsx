@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { setAuthStubLoggedIn } from "@/lib/auth-stub";
 
 type AuthStep = "login" | "birth" | "time" | "gender";
@@ -53,6 +54,7 @@ export function AuthModal() {
   }
 
   return (
+    <YeonunSheetPortal>
     <div className="y-modal open" role="dialog" aria-modal="true" aria-label="시작하기" onMouseDown={close}>
       <div className="y-modal-sheet" onMouseDown={(e) => e.stopPropagation()}>
         <div className="y-modal-handle" />
@@ -240,6 +242,7 @@ export function AuthModal() {
         </div>
       </div>
     </div>
+    </YeonunSheetPortal>
   );
 }
 

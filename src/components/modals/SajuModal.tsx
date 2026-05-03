@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
 import { dispatchMissionsReconcile } from "@/lib/mission-reconcile";
 
@@ -112,6 +113,7 @@ export function SajuModal() {
   }
 
   return (
+    <YeonunSheetPortal>
     <div
       className="y-modal y-modal--saju open"
       role="dialog"
@@ -244,6 +246,7 @@ export function SajuModal() {
         </div>
       </div>
     </div>
+    </YeonunSheetPortal>
   );
 }
 

@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
+import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { markMissionFactM10ManseViewedNow } from "@/lib/mission-reconcile";
 import {
   branchEumyangHangul,
@@ -280,16 +280,11 @@ export function MySajuCardClient() {
 
   useEffect(() => {
     if (!sheetOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSheetOpen(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [sheetOpen]);
 
   const computed = useMemo(() => {
@@ -352,12 +347,8 @@ export function MySajuCardClient() {
   }, [saved, computed, manse]);
 
   const sheetNode =
-    mounted &&
-    sheetOpen &&
-    hasData &&
-    manse &&
-    typeof document !== "undefined" &&
-    createPortal(
+    mounted && sheetOpen && hasData && manse ? (
+      <YeonunSheetPortal>
       <div
         className="y-modal open y-modal--manse-detail"
         role="presentation"
@@ -491,9 +482,9 @@ export function MySajuCardClient() {
             </div>
           </div>
         </div>
-      </div>,
-      document.body
-    );
+      </div>
+      </YeonunSheetPortal>
+    ) : null;
 
   return (
     <div className="y-my-saju-card">
