@@ -4,6 +4,7 @@
  */
 
 import {
+  defaultMissionState,
   isMissionCompleted,
   markMissionCompleteInState,
   MISSION_STORAGE_KEY,
@@ -17,6 +18,68 @@ import { formatKstDateKey } from "@/lib/datetime/kst";
 export const YEONUN_MISSIONS_RECONCILE_EVENT = "yeonun:missions-reconcile";
 
 const SAJU_LS_KEY = "yeonun_saju_v1";
+const LEGACY_MISSION_KEY = "yeonun_daily_missions_v1";
+
+function loadMissionRuntimeStateForExternal(now: Date): MissionRuntimeState | null {
+  if (typeof window === "undefined") return null;
+  const today = formatKstDateKey(now);
+  try {
+    let raw = localStorage.getItem(MISSION_STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(LEGACY_MISSION_KEY);
+    if (!raw) {
+      const s = defaultMissionState(today);
+      localStorage.setItem(MISSION_STORAGE_KEY, JSON.stringify(s));
+      return s;
+    }
+    const p = JSON.parse(raw) as Partial<MissionRuntimeState> & { lastAssigned24hMs?: unknown };
+    const signup =
+      typeof p.signupKstDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.signupKstDate)
+        ? p.signupKstDate
+        : today;
+    const base = defaultMissionState(signup);
+    const lastCompletedAtMs =
+      p.lastCompletedAtMs && typeof p.lastCompletedAtMs === "object"
+        ? (p.lastCompletedAtMs as MissionRuntimeState["lastCompletedAtMs"])
+        : {};
+    return {
+      ...base,
+      ...p,
+      signupKstDate: signup,
+      rolledDayKst: typeof p.rolledDayKst === "string" ? p.rolledDayKst : base.rolledDayKst,
+      rolledIds: Array.isArray(p.rolledIds) ? (p.rolledIds as MissionId[]) : base.rolledIds,
+      completedOnce: { ...base.completedOnce, ...p.completedOnce },
+      completedToday: { ...base.completedToday, ...p.completedToday },
+      lastCompletedAtMs: { ...base.lastCompletedAtMs, ...lastCompletedAtMs },
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 오늘의 미션에 M07이 있고 미완료일 때만 LS·보상·토스트 반영(만남·음성·채팅 탭에서 호출) */
+export function tryPersistMissionM07CompleteIfEligible(now: Date = new Date()): void {
+  if (typeof window === "undefined") return;
+  const state0 = loadMissionRuntimeStateForExternal(now);
+  if (!state0) return;
+  const { trio, state: s0 } = syncMissionState(now, state0);
+  const id: MissionId = "M07";
+  if (!trio.some((t) => t.id === id)) return;
+  if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return;
+  applyMissionCreditReward(id);
+  const marked = markMissionCompleteInState(s0, id, trio, now.getTime());
+  const { state: s2 } = syncMissionState(now, marked);
+  try {
+    localStorage.setItem(MISSION_STORAGE_KEY, JSON.stringify(s2));
+  } catch {
+    /* ignore */
+  }
+  dispatchMissionsReconcile();
+  try {
+    window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "미션 완료 · 보상이 적립됐어요" } }));
+  } catch {
+    /* ignore */
+  }
+}
 
 export function missionFactM03Key(kst: string): string {
   return `yeonun:mission-fact:m03-iljin:${kst}`;

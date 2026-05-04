@@ -13,7 +13,10 @@ import {
   spendCreditsForOrder,
   YEONUN_CREDIT_UPDATE_EVENT,
 } from "@/lib/credit-balance-local";
+import { readAuthStubLoggedIn } from "@/lib/auth-stub";
 import { firstChargeTotalCredits } from "@/lib/credit-policy";
+import { appendStubPayment } from "@/lib/payments-history-stub";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 export function PaymentModal() {
   const { close } = useModalControls();
@@ -67,6 +70,14 @@ export function PaymentModal() {
       if (method === "credit" && !isCreditTopup) {
         const spent = spendCreditsForOrder(price);
         if (spent < price) throw new Error("크레딧이 부족합니다.");
+        if (readAuthStubLoggedIn()) {
+          appendStubPayment({
+            productSlug: product,
+            title,
+            amountKrw: price,
+            method: "credit",
+          });
+        }
         setStatus("idle");
         const next = new URLSearchParams(sp.toString());
         next.set("modal", profile === "pair" ? "partner_info" : "fortune_stream");
@@ -79,6 +90,10 @@ export function PaymentModal() {
         return;
       }
 
+      const sb = supabaseBrowser();
+      const session = sb ? (await sb.auth.getSession()).data.session : null;
+      const userRef = session?.user?.id ?? "guest";
+
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,7 +102,7 @@ export function PaymentModal() {
           title,
           price_krw: price,
           method,
-          user_ref: "guest",
+          user_ref: userRef,
           first_voice_credit_bonus: isCreditTopup ? firstVoiceCreditBonus : false,
           voice_package_minutes: isVoiceCreditLegacy ? voicePackageMinutes : null,
         }),
@@ -95,6 +110,15 @@ export function PaymentModal() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) throw new Error(data?.error || "결제 요청 저장 실패");
       setStatus("idle");
+
+      if (readAuthStubLoggedIn()) {
+        appendStubPayment({
+          productSlug: product,
+          title,
+          amountKrw: price,
+          method,
+        });
+      }
 
       if (isCreditTopup) {
         const walletBefore = readWallet();

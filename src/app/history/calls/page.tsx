@@ -1,4 +1,5 @@
 import { CallHistoryClient } from "@/components/history/CallHistoryClient";
+import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { groupVoiceHistoryByKstMonth, listVoiceCallHistoryRows } from "@/lib/voice-call-history";
 
 export const metadata = {
@@ -20,5 +21,10 @@ export default async function CallHistoryPage() {
     loadError = e instanceof Error ? e.message : "목록을 불러오지 못했습니다.";
   }
 
-  return <CallHistoryClient grouped={grouped} loadError={loadError} />;
+  return (
+    <>
+      <MyTabBackdrop />
+      <CallHistoryClient grouped={grouped} loadError={loadError} />
+    </>
+  );
 }

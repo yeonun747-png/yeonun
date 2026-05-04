@@ -2,22 +2,14 @@
 
 import Link from "next/link";
 
-import { TopNav } from "@/components/TopNav";
+import { MySheetLink } from "@/components/my/MySheetLink";
+import { MySubpageSheet } from "@/components/my/MySubpageSheet";
+
+const SUP_Q = `back=${encodeURIComponent("/support")}`;
 
 export function SupportMockClient() {
   return (
-    <div className="yeonunPage">
-      <TopNav />
-      <header className="y-page-sub-head">
-        <Link href="/my" className="y-page-sub-back" aria-label="마이로">
-          <svg viewBox="0 0 24 24" aria-hidden>
-            <path d="M15 18 L9 12 L15 6" fill="none" stroke="currentColor" strokeWidth="2" />
-          </svg>
-        </Link>
-        <h1 className="y-page-sub-title">고객센터</h1>
-        <span className="y-page-sub-spacer" aria-hidden />
-      </header>
-
+    <MySubpageSheet title="고객센터" ariaLabel="고객센터">
       <div className="y-sub-scroll-page">
         <div className="y-support-hero">
           <div className="y-support-hero-han">問</div>
@@ -48,29 +40,29 @@ export function SupportMockClient() {
         </div>
         <div className="y-support-faq">
           <div className="y-support-faq-title">자주 묻는 질문</div>
-          <Link href="/legal/terms" className="y-support-faq-item">
+          <MySheetLink href={`/legal/terms?${SUP_Q}`} className="y-support-faq-item">
             결제는 어떻게 진행되나요?
             <span>›</span>
-          </Link>
-          <Link href="/legal/refund" className="y-support-faq-item">
+          </MySheetLink>
+          <MySheetLink href={`/legal/refund?${SUP_Q}`} className="y-support-faq-item">
             환불 정책은 어떻게 되나요?
             <span>›</span>
-          </Link>
-          <Link href="/checkout/credit" className="y-support-faq-item">
+          </MySheetLink>
+          <MySheetLink href={`/checkout/credit?${SUP_Q}`} className="y-support-faq-item">
             음성 크레딧은 어떻게 사용하나요?
             <span>›</span>
-          </Link>
+          </MySheetLink>
           <Link href="/my?modal=saju" className="y-support-faq-item">
             사주 정보를 어떻게 수정하나요?
             <span>›</span>
           </Link>
-          <Link href="/library" className="y-support-faq-item">
+          <MySheetLink href={`/library?${SUP_Q}`} className="y-support-faq-item">
             보관함 만료 전 연장이 가능한가요?
             <span>›</span>
-          </Link>
+          </MySheetLink>
         </div>
         <div style={{ height: 40 }} />
       </div>
-    </div>
+    </MySubpageSheet>
   );
 }

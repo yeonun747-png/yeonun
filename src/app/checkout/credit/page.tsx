@@ -1,4 +1,7 @@
+import { Suspense } from "react";
+
 import { CreditChargeMockClient } from "@/components/checkout/CreditChargeMockClient";
+import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 
 export const metadata = {
   title: "크레딧 충전 | 연운 緣運",
@@ -6,5 +9,12 @@ export const metadata = {
 };
 
 export default function CreditCheckoutPage() {
-  return <CreditChargeMockClient />;
+  return (
+    <>
+      <MyTabBackdrop />
+      <Suspense fallback={null}>
+        <CreditChargeMockClient />
+      </Suspense>
+    </>
+  );
 }

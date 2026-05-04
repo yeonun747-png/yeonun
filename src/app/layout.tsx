@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import "./globals.css";
 import { ModalLayer } from "@/components/ModalLayer";
+import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 
 export const metadata: Metadata = {
@@ -41,6 +42,7 @@ export default function RootLayout({
         />
       </head>
       <body>
+        <PrimaryTabScrollClient />
         {children}
         <YeonunToastHost />
         <Suspense fallback={null}>

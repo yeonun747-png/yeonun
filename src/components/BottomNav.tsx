@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import {
+  SCROLL_RESET_KEY,
+  scrollSavedStorageKey,
+  tabKeyFromBottomHref,
+} from "@/components/PrimaryTabScrollClient";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 
 const PRIMARY_ROUTES = ["/meet", "/today", "/content", "/my"];
@@ -27,13 +32,31 @@ export function BottomNav() {
           const hasQuery = typeof window !== "undefined" && window.location.search.length > 1;
           if (pathname === "/" && !hasQuery) {
             e.preventDefault();
+            try {
+              sessionStorage.removeItem(scrollSavedStorageKey("home"));
+              sessionStorage.removeItem(SCROLL_RESET_KEY);
+            } catch {
+              /* ignore */
+            }
             window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
             return;
           }
           if (pathname === "/" && hasQuery) {
             e.preventDefault();
             router.push("/");
+            try {
+              sessionStorage.removeItem(scrollSavedStorageKey("home"));
+              sessionStorage.removeItem(SCROLL_RESET_KEY);
+            } catch {
+              /* ignore */
+            }
             window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+            return;
+          }
+          try {
+            sessionStorage.setItem(SCROLL_RESET_KEY, tabKeyFromBottomHref("/"));
+          } catch {
+            /* ignore */
           }
         }}
       >
@@ -51,6 +74,24 @@ export function BottomNav() {
         aria-label="만남"
         onPointerEnter={() => router.prefetch("/meet")}
         onFocus={() => router.prefetch("/meet")}
+        onClick={(e) => {
+          if (pathname === "/meet") {
+            e.preventDefault();
+            try {
+              sessionStorage.removeItem(scrollSavedStorageKey("meet"));
+              sessionStorage.removeItem(SCROLL_RESET_KEY);
+            } catch {
+              /* ignore */
+            }
+            window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+            return;
+          }
+          try {
+            sessionStorage.setItem(SCROLL_RESET_KEY, tabKeyFromBottomHref("/meet"));
+          } catch {
+            /* ignore */
+          }
+        }}
       >
         <div className="y-bn-icon" aria-hidden="true">
           <svg
@@ -75,6 +116,24 @@ export function BottomNav() {
         aria-label="오늘"
         onPointerEnter={() => router.prefetch("/today")}
         onFocus={() => router.prefetch("/today")}
+        onClick={(e) => {
+          if (pathname === "/today") {
+            e.preventDefault();
+            try {
+              sessionStorage.removeItem(scrollSavedStorageKey("today"));
+              sessionStorage.removeItem(SCROLL_RESET_KEY);
+            } catch {
+              /* ignore */
+            }
+            window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+            return;
+          }
+          try {
+            sessionStorage.setItem(SCROLL_RESET_KEY, tabKeyFromBottomHref("/today"));
+          } catch {
+            /* ignore */
+          }
+        }}
       >
         <div className="y-bn-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -91,6 +150,24 @@ export function BottomNav() {
         aria-label="풀이"
         onPointerEnter={() => router.prefetch("/content")}
         onFocus={() => router.prefetch("/content")}
+        onClick={(e) => {
+          if (pathname === "/content") {
+            e.preventDefault();
+            try {
+              sessionStorage.removeItem(scrollSavedStorageKey("content"));
+              sessionStorage.removeItem(SCROLL_RESET_KEY);
+            } catch {
+              /* ignore */
+            }
+            window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+            return;
+          }
+          try {
+            sessionStorage.setItem(SCROLL_RESET_KEY, tabKeyFromBottomHref("/content"));
+          } catch {
+            /* ignore */
+          }
+        }}
       >
         <div className="y-bn-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">
@@ -108,6 +185,24 @@ export function BottomNav() {
         aria-label="마이"
         onPointerEnter={() => router.prefetch("/my")}
         onFocus={() => router.prefetch("/my")}
+        onClick={(e) => {
+          if (pathname === "/my") {
+            e.preventDefault();
+            try {
+              sessionStorage.removeItem(scrollSavedStorageKey("my"));
+              sessionStorage.removeItem(SCROLL_RESET_KEY);
+            } catch {
+              /* ignore */
+            }
+            window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+            return;
+          }
+          try {
+            sessionStorage.setItem(SCROLL_RESET_KEY, tabKeyFromBottomHref("/my"));
+          } catch {
+            /* ignore */
+          }
+        }}
       >
         <div className="y-bn-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24">

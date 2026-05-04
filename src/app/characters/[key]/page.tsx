@@ -5,6 +5,7 @@ import Link from "next/link";
 import { TopNav } from "@/components/TopNav";
 import { YeonunRoutedBottomSheetPortal } from "@/components/YeonunRoutedBottomSheetPortal";
 import { HomeContentGrid } from "@/components/HomeMoreSections";
+import { SheetBackdropFrame } from "@/components/my/MySheetBackdropFrame";
 import { getCharacterPersonaCached, getCharactersCached } from "@/lib/data/characters";
 import { getProductsByCharacterKeyCached, getReviewsByProductSlugCached } from "@/lib/data/content";
 import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
@@ -192,9 +193,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
   if (asSheet) {
     return (
-      <YeonunRoutedBottomSheetPortal backHref={closeHref} ariaLabel="인연 안내자" title="인연 안내자">
-        {Body}
-      </YeonunRoutedBottomSheetPortal>
+      <>
+        <SheetBackdropFrame />
+        <YeonunRoutedBottomSheetPortal backHref={closeHref} ariaLabel="인연 안내자" title="인연 안내자">
+          {Body}
+        </YeonunRoutedBottomSheetPortal>
+      </>
     );
   }
 

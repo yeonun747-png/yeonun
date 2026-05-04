@@ -1,4 +1,5 @@
 import { LibraryListScreenClient } from "@/components/library/LibraryListScreenClient";
+import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { getProductsBySlugsCached } from "@/lib/data/content";
 import { buildLibraryListItemVm } from "@/lib/library-list-vm";
 import { listFortuneLibraryItems, type FortuneLibraryListRow } from "@/lib/library-fortune";
@@ -18,7 +19,20 @@ function rowSortTime(row: FortuneLibraryListRow): number {
   return Number.isFinite(t) ? t : 0;
 }
 
-export default async function LibraryPage() {
+function resolveBackHref(raw: string | string[] | undefined): string {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof v === "string" && v.startsWith("/") && !v.startsWith("//")) return v;
+  return "/my";
+}
+
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ back?: string | string[] }>;
+}) {
+  const sp = await searchParams;
+  const backHref = resolveBackHref(sp.back);
+
   let rows: FortuneLibraryListRow[] = [];
   let loadError: string | null = null;
   try {
@@ -34,5 +48,10 @@ export default async function LibraryPage() {
   const sorted = [...rows].sort((a, b) => rowSortTime(b) - rowSortTime(a));
   const items = sorted.map((r) => buildLibraryListItemVm(r, productTitleBySlug));
 
-  return <LibraryListScreenClient items={items} loadError={loadError} />;
+  return (
+    <>
+      <MyTabBackdrop />
+      <LibraryListScreenClient items={items} loadError={loadError} backHref={backHref} />
+    </>
+  );
 }

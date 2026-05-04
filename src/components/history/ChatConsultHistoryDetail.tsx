@@ -31,9 +31,20 @@ export function ChatConsultHistoryDetail({ sessionId }: { sessionId: string }) {
   const router = useRouter();
   const [session, setSession] = useState<ChatConsultSession | null>(null);
   const [ready, setReady] = useState(false);
+
+  const backToChatList = () => {
+    if (typeof window !== "undefined" && window.history.length <= 1) {
+      router.push("/history/chats");
+      return;
+    }
+    router.back();
+  };
   useEffect(() => {
-    setSession(chatConsultGetSession(sessionId));
-    setReady(true);
+    const id = requestAnimationFrame(() => {
+      setSession(chatConsultGetSession(sessionId));
+      setReady(true);
+    });
+    return () => cancelAnimationFrame(id);
   }, [sessionId]);
 
   if (!ready) {
@@ -74,7 +85,7 @@ export function ChatConsultHistoryDetail({ sessionId }: { sessionId: string }) {
     <div className="yeonunPage">
       <TopNav />
       <header className="y-page-sub-head">
-        <button type="button" className="y-page-sub-back" aria-label="목록으로" onClick={() => router.push("/history/chats")}>
+        <button type="button" className="y-page-sub-back" aria-label="목록으로" onClick={backToChatList}>
           <svg viewBox="0 0 24 24" aria-hidden>
             <path d="M15 18 L9 12 L15 6" fill="none" stroke="currentColor" strokeWidth="2" />
           </svg>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SheetLink } from "@/components/SheetLink";
 
 import { getProductsBySlugsCached, getReviewsByProductSlugCached } from "@/lib/data/content";
 import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
@@ -402,7 +403,7 @@ export function HomeContentGrid({
         const inlineSvg = (p.thumbnail_svg?.trim() || fallbackSvgBySlug[p.slug]?.trim() || "").trim();
         const han = hanDisplayChar?.trim() ? hanDisplayChar : m.han;
         return (
-          <Link key={p.slug} href={`/content/${p.slug}?sheet=1${suffix}`} className={`y-content-card ${variant}`}>
+          <SheetLink key={p.slug} href={`/content/${p.slug}?sheet=1${suffix}`} className={`y-content-card ${variant}`}>
             <div className="y-content-visual">
               {p.badge ? <span className={`y-content-badge ${badgeClass}`}>{p.badge}</span> : null}
               <div className="y-content-han" aria-hidden="true">
@@ -428,7 +429,7 @@ export function HomeContentGrid({
                 </div>
               </div>
             </div>
-          </Link>
+          </SheetLink>
         );
       })}
     </div>

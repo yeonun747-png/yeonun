@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useState } from "react";
 
-import { TopNav } from "@/components/TopNav";
+import { MySubpageSheet } from "@/components/my/MySubpageSheet";
 
 const TIME_CHIPS: { label: string; sub: string }[] = [
   { label: "오전 6시", sub: "이른 아침" },
@@ -34,20 +33,10 @@ export function NotificationSettingsClient() {
   }, []);
 
   const timeLabel = TIME_CHIPS[activeTimeIdx]?.label ?? "오전 8시";
+  const sheetTitle = step === "main" ? "알림 설정" : "알림 시간";
 
   return (
-    <div className="yeonunPage">
-      <TopNav />
-      <header className="y-page-sub-head">
-        <Link href="/my" className="y-page-sub-back" aria-label="마이로">
-          <svg viewBox="0 0 24 24" aria-hidden>
-            <path d="M15 18 L9 12 L15 6" fill="none" stroke="currentColor" strokeWidth="2" />
-          </svg>
-        </Link>
-        <h1 className="y-page-sub-title">{step === "main" ? "알림 설정" : "알림 시간"}</h1>
-        <span className="y-page-sub-spacer" aria-hidden />
-      </header>
-
+    <MySubpageSheet title={sheetTitle} ariaLabel="알림 설정">
       <div className="y-sub-scroll-page">
         {step === "main" ? (
           <>
@@ -158,6 +147,6 @@ export function NotificationSettingsClient() {
           </>
         )}
       </div>
-    </div>
+    </MySubpageSheet>
   );
 }

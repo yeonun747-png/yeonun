@@ -7,7 +7,8 @@ import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { buildFortuneManseContext } from "@/lib/fortune-manse-context";
 import { computeManseFromFormInput } from "@/lib/manse-ryeok";
-import { VOICE_CHARS_CONSULTED_KEY } from "@/lib/daily-missions";
+import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
+import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
 import { clearVoiceManseMeta, readVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 import { VoiceDccAudioRecorder } from "@/lib/voice-dcc/audio-recorder";
 import { VoiceLiveAudioStreamer } from "@/lib/voice-live/audio-streamer";
@@ -115,20 +116,8 @@ export default function CallDccPageClient() {
             localStorage.setItem(FIRST, "1");
             window.dispatchEvent(new Event("yeonun:first-voice-session-ended"));
           }
-          const raw = localStorage.getItem(VOICE_CHARS_CONSULTED_KEY);
-          let arr: string[] = [];
-          try {
-            const p = JSON.parse(raw || "[]");
-            arr = Array.isArray(p) ? p.filter((x: unknown) => typeof x === "string") : [];
-          } catch {
-            arr = [];
-          }
-          const wasNew = !arr.includes(characterKey);
-          if (!arr.includes(characterKey)) arr = [...arr, characterKey];
-          localStorage.setItem(VOICE_CHARS_CONSULTED_KEY, JSON.stringify(arr));
-          if (wasNew) {
-            window.dispatchEvent(new CustomEvent("yeonun:voice-new-character", { detail: { characterKey } }));
-          }
+          recordMeetConsultCharacterForM07(characterKey);
+          tryPersistMissionM07CompleteIfEligible();
         } catch {
           // ignore
         }

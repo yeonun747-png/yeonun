@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
+import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
 import type { SajuInputProfile } from "@/lib/data/content";
 
 type Props = {
@@ -64,7 +65,14 @@ export function ContentPurchaseFooter({ slug, title, priceKrw, characterKey, saj
             <span className="small">원</span>
           </div>
         </div>
-        <button type="button" className="y-cd-buy-btn" onClick={() => router.push(paymentHref, { scroll: false })}>
+        <button
+          type="button"
+          className="y-cd-buy-btn"
+          onClick={() => {
+            rememberSheetBackdropScrollY();
+            router.push(paymentHref, { scroll: false });
+          }}
+        >
           결제하기
         </button>
       </div>

@@ -4,6 +4,7 @@ import { TopNav } from "@/components/TopNav";
 import { MyCreditBalanceLine } from "@/components/my/MyCreditBalanceLine";
 import { MyCreditOverviewSection } from "@/components/my/MyCreditOverviewSection";
 import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
+import { MySheetLink } from "@/components/my/MySheetLink";
 import Link from "next/link";
 
 const MY_PREFETCH_ROUTES = [
@@ -52,14 +53,9 @@ export default function MyPage() {
 
         <MyCreditOverviewSection />
 
-        <p className="y-my-mission-hint">
-          매일 미션·출석 보상은 <Link href="/today">오늘 탭</Link>에서 확인하세요. 할인 쿠폰은 동시 1매만 보유할 수
-          있습니다.
-        </p>
-
         <div className="y-my-menu-section">
           <div className="y-my-menu-section-title">콘텐츠</div>
-          <Link className="y-my-menu-item" href="/library">
+          <MySheetLink className="y-my-menu-item" href="/library">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
@@ -70,8 +66,8 @@ export default function MyPage() {
               <div className="y-my-menu-desc">구매한 풀이 60일간 보관</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
-          </Link>
-          <Link className="y-my-menu-item" href="/history/calls">
+          </MySheetLink>
+          <MySheetLink className="y-my-menu-item" href="/history/calls">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
@@ -84,8 +80,8 @@ export default function MyPage() {
               <div className="y-my-menu-desc">60일간 보관 · 대화 글 열람</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
-          </Link>
-          <Link className="y-my-menu-item" href="/history/chats">
+          </MySheetLink>
+          <MySheetLink className="y-my-menu-item" href="/history/chats">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
@@ -96,12 +92,12 @@ export default function MyPage() {
               <div className="y-my-menu-desc">30일간 보관 · 크레딧 상담 기록</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
-          </Link>
+          </MySheetLink>
         </div>
 
         <div className="y-my-menu-section">
           <div className="y-my-menu-section-title">결제·멤버십</div>
-          <Link className="y-my-menu-item" href="/my/payments">
+          <MySheetLink className="y-my-menu-item" href="/my/payments">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <rect x="2" y="5" width="20" height="14" rx="2" />
@@ -113,8 +109,8 @@ export default function MyPage() {
               <div className="y-my-menu-desc">최근 12개월</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
-          </Link>
-          <Link className="y-my-menu-item" href="/checkout/credit">
+          </MySheetLink>
+          <MySheetLink className="y-my-menu-item" href="/checkout/credit">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" />
@@ -128,12 +124,12 @@ export default function MyPage() {
               </div>
             </div>
             <span className="y-my-menu-arrow">›</span>
-          </Link>
+          </MySheetLink>
         </div>
 
         <div className="y-my-menu-section">
           <div className="y-my-menu-section-title">설정</div>
-          <Link className="y-my-menu-item" href="/settings/notifications">
+          <MySheetLink className="y-my-menu-item" href="/settings/notifications">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -145,8 +141,8 @@ export default function MyPage() {
               <div className="y-my-menu-desc">매일 한 마디 · 길조 알림</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
-          </Link>
-          <Link className="y-my-menu-item" href="/notices">
+          </MySheetLink>
+          <MySheetLink className="y-my-menu-item" href="/notices">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" />
@@ -159,8 +155,8 @@ export default function MyPage() {
               <div className="y-my-menu-desc">2026 신년 이벤트 외 3건</div>
             </div>
             <span className="y-my-menu-badge">3</span>
-          </Link>
-          <Link className="y-my-menu-item" href="/support">
+          </MySheetLink>
+          <MySheetLink className="y-my-menu-item" href="/support">
             <div className="y-my-menu-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" />
@@ -173,7 +169,7 @@ export default function MyPage() {
               <div className="y-my-menu-desc">카카오톡 채널 · 이메일</div>
             </div>
             <span className="y-my-menu-arrow">›</span>
-          </Link>
+          </MySheetLink>
         </div>
 
         <div className="y-my-foot" aria-label="약관">

@@ -81,9 +81,13 @@ export async function POST(request: Request) {
     .select("id,status")
     .maybeSingle();
 
-  if (paymentError) {
-    return NextResponse.json({ error: paymentError.message }, { status: 500 });
+  if (paymentError || !payment) {
+    return NextResponse.json({ error: paymentError?.message || "Payment creation failed" }, { status: 500 });
   }
+
+  const paidAt = new Date().toISOString();
+  await supabase.from("payments").update({ status: "paid", paid_at: paidAt }).eq("id", payment.id);
+  await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
 
   const { data: fortuneRequest } = await supabase
     .from("fortune_requests")

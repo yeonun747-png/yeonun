@@ -21,9 +21,11 @@ function kickerClass(characterKey: LibraryListItemVm["characterKey"]): string {
 export function LibraryListScreenClient({
   items,
   loadError,
+  backHref = "/my",
 }: {
   items: LibraryListItemVm[];
   loadError: string | null;
+  backHref?: string;
 }) {
   const [filter, setFilter] = useState<FilterKey>("all");
 
@@ -33,7 +35,7 @@ export function LibraryListScreenClient({
   }, [items, filter]);
 
   return (
-    <LibraryListSheet>
+    <LibraryListSheet backHref={backHref}>
       <div className="y-lib-mock-wrap">
         {loadError ? (
           <p className="y-lib-error y-lib-error--sheet" role="alert">

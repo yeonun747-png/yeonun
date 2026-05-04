@@ -41,6 +41,30 @@ export function chatMessagesFromCredits(credits: number): string {
   return `채팅 약 ${n}건(보내기 기준)`;
 }
 
+/** 목업형 카드용 — 정수 분 */
+export function voiceWholeMinutesFromCredits(credits: number): number {
+  return Math.floor(credits / CREDIT_VOICE_PER_MINUTE);
+}
+
+/** 목업형 카드용 — 정수 건수 */
+export function chatWholeCountFromCredits(credits: number): number {
+  return Math.floor(credits / CREDIT_CHAT_PER_USER_MESSAGE);
+}
+
+/** 패키지 내장 보너스 크레딧(원화 1:1 대비 초과분) */
+export function packageIntrinsicBonusCredits(pkgKey: keyof typeof CREDIT_PACKAGES): number {
+  const p = CREDIT_PACKAGES[pkgKey];
+  return Math.max(0, p.grantCredits - p.priceKrw);
+}
+
+/** 표시용 보너스 % (예: 20, 30) — 없으면 null */
+export function packageBonusPercentRounded(pkgKey: keyof typeof CREDIT_PACKAGES): number | null {
+  const bonus = packageIntrinsicBonusCredits(pkgKey);
+  if (bonus <= 0) return null;
+  const p = CREDIT_PACKAGES[pkgKey];
+  return Math.round((bonus / p.priceKrw) * 100);
+}
+
 export function firstChargeTotalCredits(baseGrant: number): number {
   return Math.round(baseGrant * 1.1);
 }

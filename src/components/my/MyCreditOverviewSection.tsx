@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { MySummaryPayload } from "@/app/api/my/summary/route";
 import { readAuthStubLoggedIn, YEONUN_AUTH_STUB_EVENT } from "@/lib/auth-stub";
 import { CREDIT_PACKAGES } from "@/lib/credit-policy";
-import { freeCredits, readWallet, spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
+import { readWallet, spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 function creditPaymentHref(pkg: "basic" | "popular" | "premium"): string {
@@ -29,76 +28,52 @@ function creditPaymentHref(pkg: "basic" | "popular" | "premium"): string {
 export function MyCreditOverviewSection() {
   const [guest, setGuest] = useState(true);
   const [balanceTick, setBalanceTick] = useState(0);
-  const [summary, setSummary] = useState<MySummaryPayload | null>(null);
 
   const refreshCredits = useCallback(() => setBalanceTick((t) => t + 1), []);
 
-  const fetchSummary = useCallback(async () => {
+  const refreshGuest = useCallback(async () => {
     const stub = readAuthStubLoggedIn();
     const sb = supabaseBrowser();
     const session = sb ? (await sb.auth.getSession()).data.session : null;
     const loggedIn = Boolean(session?.access_token) || stub;
     setGuest(!loggedIn);
-    if (!loggedIn) return;
-    if (!session?.access_token) {
-      setSummary(null);
-      return;
-    }
-    try {
-      const res = await fetch("/api/my/summary", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const j = (await res.json()) as MySummaryPayload | { ok: false };
-      if ("ok" in j && j.ok === true) setSummary(j);
-      else setSummary(null);
-    } catch {
-      setSummary(null);
-    }
   }, []);
 
   useEffect(() => {
-    void fetchSummary();
-  }, [fetchSummary]);
+    void refreshGuest();
+  }, [refreshGuest]);
 
   useEffect(() => {
-    const onStub = () => void fetchSummary();
+    const onStub = () => void refreshGuest();
     const onVis = () => {
-      if (document.visibilityState === "visible") void fetchSummary();
+      if (document.visibilityState === "visible") void refreshGuest();
     };
     window.addEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
     document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("pageshow", fetchSummary);
+    window.addEventListener("pageshow", refreshGuest);
     const onCredit = () => refreshCredits();
     window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
     return () => {
       window.removeEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
       document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("pageshow", fetchSummary);
+      window.removeEventListener("pageshow", refreshGuest);
       window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
     };
-  }, [fetchSummary, refreshCredits]);
+  }, [refreshGuest, refreshCredits]);
 
   const totalCredits = useMemo(() => {
     void balanceTick;
     return spendableTotalCredits();
   }, [balanceTick]);
 
-  const freeRemain = useMemo(() => {
-    void balanceTick;
-    return freeCredits();
-  }, [balanceTick]);
-
   const showFirstChargeHint = !readWallet().firstPurchaseDone;
-
-  const consultationCount = summary?.consultationCount ?? 0;
-  const archiveCount = summary?.archiveCount ?? 0;
 
   if (guest) {
     return (
       <section className="y-my-credit-guest-panel" aria-label="크레딧 안내">
         <div className="y-my-credit-login-card">
-          <p className="y-my-credit-login-title">상담 크레딧 · 통계</p>
-          <p className="y-my-credit-login-desc">로그인 후 잔여 크레딧과 상담 기록을 확인할 수 있어요.</p>
+          <p className="y-my-credit-login-title">상담 크레딧</p>
+          <p className="y-my-credit-login-desc">로그인 후 잔여 크레딧을 확인할 수 있어요.</p>
           <Link className="y-my-credit-login-btn" href="/my?modal=auth">
             로그인
           </Link>
@@ -140,24 +115,6 @@ export function MyCreditOverviewSection() {
           </div>
         ) : null}
       </section>
-
-      <div className="y-my-stats" aria-label="통계">
-        <div className="y-my-stat">
-          <div className="y-my-stat-num">{consultationCount}</div>
-          <div className="y-my-stat-label">상담 횟수</div>
-        </div>
-        <div className="y-my-stat">
-          <div className="y-my-stat-num">{archiveCount}</div>
-          <div className="y-my-stat-label">점사 보관함</div>
-        </div>
-        <div className="y-my-stat">
-          <div className="y-my-stat-num">
-            {freeRemain.toLocaleString("ko-KR")}
-            <span className="y-my-stat-unit">크레딧</span>
-          </div>
-          <div className="y-my-stat-label">무료 잔여</div>
-        </div>
-      </div>
     </>
   );
 }

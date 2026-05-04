@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
 import {
   chatConsultListPreview,
   chatConsultListSessions,
@@ -50,8 +51,14 @@ function formatListDateLabel(iso: string): string {
 }
 
 export function ChatConsultHistoryList() {
+  const router = useRouter();
   const [sessions, setSessions] = useState<ChatConsultSession[]>([]);
-  useEffect(() => setSessions(chatConsultListSessions()), []);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      setSessions(chatConsultListSessions());
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   const stats = useMemo(() => {
     let msgs = 0;
@@ -105,7 +112,15 @@ export function ChatConsultHistoryList() {
                   const preview = chatConsultListPreview(s);
                   return (
                     <li key={s.id}>
-                      <Link className="y-chat-consult-mock-row" href={`/history/chats/${s.id}`} scroll={false}>
+                      <button
+                        type="button"
+                        className="y-chat-consult-mock-row"
+                        aria-label={`${CHAR_NAME[s.character_key] ?? s.character_key} 상담 기록 열기`}
+                        onClick={() => {
+                          rememberSheetBackdropScrollY();
+                          void router.push(`/history/chats/${encodeURIComponent(s.id)}`);
+                        }}
+                      >
                         <div className={`y-chat-consult-mock-avatar ${s.character_key}`} aria-hidden>
                           {CHAR_HAN[s.character_key] ?? "緣"}
                         </div>
@@ -123,7 +138,7 @@ export function ChatConsultHistoryList() {
                             <span className="y-chat-consult-mock-credit">-{s.credits_used.toLocaleString("ko-KR")} 크레딧</span>
                           </div>
                         </div>
-                      </Link>
+                      </button>
                     </li>
                   );
                 })}

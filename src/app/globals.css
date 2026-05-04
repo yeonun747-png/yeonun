@@ -1196,6 +1196,7 @@ ul {
   --y-rose-soft: #f5dae0;
   --y-rose-mid: #ecc5d0;
   --y-rose-deep: #8c2a40;
+  --y-bonus-pill: #ea580c;
 
   --y-yeon-bg: #f5dae0;
   --y-yeon-mid: #ecc5d0;
@@ -1275,6 +1276,44 @@ ul {
   overflow: visible;
 }
 
+.y-my-sheet-backdrop-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--y-bg);
+}
+/* 스냅샷 HTML은 표시만; 자식이 pointer-events:auto로 되살아 클릭을 삼키는 경우 방지 */
+.y-my-sheet-backdrop-page,
+.y-my-sheet-backdrop-page * {
+  pointer-events: none !important;
+}
+.y-my-sheet-backdrop-page {
+  width: 100%;
+  will-change: transform;
+}
+.y-my-sheet-backdrop-page .y-modal.open,
+.y-my-sheet-backdrop-page .y-modal--snapshot {
+  position: static;
+  display: flex;
+  min-height: 100vh;
+  transform: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.y-my-sheet-backdrop-page .y-modal--snapshot::before {
+  content: none;
+}
+
+/* 마이형 백드롭(z-index:0) 위에 실제 라우트 본문이 쌓이도록(스냅샷 transform 스택킹 이슈 방지) */
+.y-history-route-live {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+
 /* ===== Modal — yeonun_v16.html `.y-modal` 과 동일 (보관함·만세력 등 공통 스크림) ===== */
 .y-modal {
   position: fixed;
@@ -1291,10 +1330,8 @@ ul {
 .y-modal.open {
   display: flex;
 }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .y-modal {
-    background: rgba(26, 24, 21, 0.72);
-  }
+body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
+  filter: blur(6px);
 }
 @keyframes yModalFade {
   from {
@@ -2833,6 +2870,16 @@ ul {
   text-decoration: none;
   color: inherit;
   -webkit-tap-highlight-color: transparent;
+}
+button.y-chat-consult-mock-row {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  box-sizing: border-box;
 }
 .y-chat-consult-mock-row:active {
   background: rgba(0, 0, 0, 0.03);
@@ -6012,12 +6059,15 @@ button.y-dw-listen:disabled {
   text-align: center;
 }
 
-/* 전역 토스트 (yeonun:toast) */
+/* 전역 토스트 (yeonun:toast) — 뷰포트(세이프 영역 안) 정중앙 */
 .y-toast-host {
   position: fixed;
-  left: 50%;
-  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
+  inset: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 9999;
   pointer-events: none;
 }
@@ -10021,6 +10071,17 @@ a.y-vip-card--link {
 }
 .y-credit-package-info {
   flex: 1;
+  min-width: 0;
+}
+.y-credit-package-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.y-credit-package-title-row .y-credit-package-name {
+  margin-bottom: 0;
 }
 .y-credit-package-name {
   font-size: 14px;
@@ -10028,12 +10089,37 @@ a.y-vip-card--link {
   color: var(--y-ink);
   margin-bottom: 3px;
 }
+.y-credit-package-pill {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--y-bonus-pill);
+  padding: 4px 9px;
+  border-radius: 999px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
 .y-credit-package-desc {
   font-size: 11.5px;
   color: var(--y-mute);
+  line-height: 1.45;
+}
+.y-credit-package-value-line {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--y-rose-deep);
+  margin-top: 4px;
+  line-height: 1.45;
 }
 .y-credit-package-price-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
   text-align: right;
+  flex-shrink: 0;
 }
 .y-credit-package-price {
   font-size: 15px;

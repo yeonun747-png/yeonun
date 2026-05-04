@@ -1,6 +1,7 @@
 type CharKey = "yeon" | "byeol" | "yeo" | "un";
 
 import Link from "next/link";
+import { SheetLink } from "@/components/SheetLink";
 
 const CHAR: Record<
   CharKey,
@@ -171,7 +172,7 @@ export function CharacterCarousel() {
       <div className="yCarousel">
         <div className="yCarouselTrack">
           {keys.map((k) => (
-            <Link
+            <SheetLink
               key={k}
               className={`yCharCard ${k}`}
               href={`/characters/${k}?sheet=1&from=home`}
@@ -193,7 +194,7 @@ export function CharacterCarousel() {
                 <p className="yCharQuote">{CHAR[k].quote}</p>
                 <div className="yCharTags">{CHAR[k].tags}</div>
               </div>
-            </Link>
+            </SheetLink>
           ))}
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { SupportMockClient } from "@/components/support/SupportMockClient";
+import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 
 export const metadata = {
   title: "고객센터 | 연운 緣運",
@@ -6,5 +7,10 @@ export const metadata = {
 };
 
 export default function SupportPage() {
-  return <SupportMockClient />;
+  return (
+    <>
+      <MyTabBackdrop />
+      <SupportMockClient />
+    </>
+  );
 }

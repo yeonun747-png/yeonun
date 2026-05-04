@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { TextChatDetailShell } from "@/components/history/TextChatDetailShell";
 import { TextChatDetailThread } from "@/components/history/TextChatDetailThread";
+import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { getVoiceSessionConversationDetail } from "@/lib/text-chat-history";
 import {
   formatKstYmdDots,
@@ -49,8 +50,11 @@ export default async function VoiceCallConversationPage({ params }: Props) {
   const consultHref = `/meet?character_key=${encodeURIComponent(detail.character_key)}`;
 
   return (
-    <TextChatDetailShell title={title} retentionLine={retentionLine} consultHref={consultHref} listHref="/history/calls">
-      <TextChatDetailThread grouped={grouped} characterHan={detail.character_han} />
-    </TextChatDetailShell>
+    <>
+      <MyTabBackdrop />
+      <TextChatDetailShell title={title} retentionLine={retentionLine} consultHref={consultHref} listHref="/history/calls">
+        <TextChatDetailThread grouped={grouped} characterHan={detail.character_han} />
+      </TextChatDetailShell>
+    </>
   );
 }

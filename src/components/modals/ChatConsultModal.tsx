@@ -21,6 +21,8 @@ import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { formatUserManseFromYeonunSajuJson } from "@/lib/fortune-manse-context";
 import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
 import { spendableTotalCredits, trySpendChatMessageCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
+import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
+import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
 
 const CHAR_NAME: Record<string, string> = {
   yeon: "연화",
@@ -174,6 +176,8 @@ export function ChatConsultModal() {
       if (pendingSessionRef.current?.id === sessionId) pendingSessionRef.current = null;
       setMessages(chatConsultGetSession(sessionId)?.messages ?? []);
       refreshCredits();
+      recordMeetConsultCharacterForM07(characterKey);
+      tryPersistMissionM07CompleteIfEligible();
       return true;
     };
 
@@ -443,6 +447,8 @@ export function ChatConsultModal() {
     });
     if (pendingSessionRef.current?.id === sessionId) pendingSessionRef.current = null;
     refreshCredits();
+    recordMeetConsultCharacterForM07(characterKey);
+    tryPersistMissionM07CompleteIfEligible();
     setBusy(false);
   };
 

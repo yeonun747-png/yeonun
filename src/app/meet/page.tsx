@@ -1,5 +1,6 @@
 import { BottomNav } from "@/components/BottomNav";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
+import { SheetLink } from "@/components/SheetLink";
 import { TopNav } from "@/components/TopNav";
 import { MeetCallButton } from "@/components/meet/MeetCallButton";
 import { MeetChatButton } from "@/components/meet/MeetChatButton";
@@ -116,9 +117,9 @@ export default async function MeetPage() {
                       채팅상담
                     </MeetChatButton>
                   </Suspense>
-                  <Link className="y-meet-detail-btn y-meet-detail-btn--full" href={`/characters/${c.key}?sheet=1&from=meet`} scroll={false}>
+                  <SheetLink className="y-meet-detail-btn y-meet-detail-btn--full" href={`/characters/${c.key}?sheet=1&from=meet`} scroll={false}>
                     자세히 보기
-                  </Link>
+                  </SheetLink>
                 </div>
               </div>
             </article>

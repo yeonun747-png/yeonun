@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { yeonunHasOpenableManseDetail } from "@/components/my/MySajuCardClient";
 import {
-  dispatchMissionsReconcile,
   missionStorageKeysThatTriggerReconcile,
   reconcileMissionStateWithExternalFacts,
   YEONUN_MISSIONS_RECONCILE_EVENT,
@@ -90,6 +90,7 @@ function formatRefreshLabel(ms: number): string {
 const SAJU_UPDATED_EVENT = "yeonun:saju-updated";
 
 export function TodayMissionsClient() {
+  const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
   const [runtime, setRuntime] = useState<MissionRuntimeState>(() => defaultMissionState("1970-01-01"));
   const [countdownMs, setCountdownMs] = useState(0);
@@ -171,6 +172,12 @@ export function TodayMissionsClient() {
     };
   }, [mounted, scheduleReconcileFromStorage]);
 
+  /** 만남·음성·채팅 등에서 LS만 갱신된 뒤 오늘 탭으로 올 때(같은 창) 포커스 이벤트 없이도 동기화 */
+  useEffect(() => {
+    if (!mounted || pathname !== "/today") return;
+    scheduleReconcileFromStorage();
+  }, [mounted, pathname, scheduleReconcileFromStorage]);
+
   const { trio, allComplete } = snapshot;
   const doneCount = trio.filter((m) => isMissionCompleted(m.id, runtime.completedOnce, runtime.completedToday)).length;
 
@@ -201,19 +208,16 @@ export function TodayMissionsClient() {
       if (d?.kstDate === formatKstDateKey(new Date())) markComplete("M11");
     };
     const onFirstVoice = () => markComplete("M02");
-    const onNewChar = () => markComplete("M07");
     const onDailyWordsShare = (e: Event) => {
       const d = (e as CustomEvent<{ kstDate?: string }>).detail;
       if (d?.kstDate === formatKstDateKey(new Date())) markComplete("M12");
     };
     window.addEventListener("yeonun:daily-note-first-save", onFirstNote);
     window.addEventListener("yeonun:first-voice-session-ended", onFirstVoice);
-    window.addEventListener("yeonun:voice-new-character", onNewChar);
     window.addEventListener("yeonun:daily-words-share-complete", onDailyWordsShare);
     return () => {
       window.removeEventListener("yeonun:daily-note-first-save", onFirstNote);
       window.removeEventListener("yeonun:first-voice-session-ended", onFirstVoice);
-      window.removeEventListener("yeonun:voice-new-character", onNewChar);
       window.removeEventListener("yeonun:daily-words-share-complete", onDailyWordsShare);
     };
   }, [markComplete]);

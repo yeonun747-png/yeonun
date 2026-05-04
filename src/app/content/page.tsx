@@ -98,6 +98,8 @@ export default async function ContentPage({
   }
 
   const total = products.length;
+  const backHref = contentListHref(category, sort);
+  const sheetLinkExtra = `back=${encodeURIComponent(backHref)}`;
   const prefetchRoutes = categories.flatMap((c) => [
     contentListHref(c.slug, "popular"),
     contentListHref(c.slug, "latest-desc"),
@@ -182,7 +184,7 @@ export default async function ContentPage({
 
         <div className="y-content-tab-wrap" aria-label="풀이 목록">
           {products.length ? (
-            <HomeContentGrid items={products} fallbackSvgBySlug={thumbFallback} />
+            <HomeContentGrid items={products} fallbackSvgBySlug={thumbFallback} extraSearchParams={sheetLinkExtra} />
           ) : (
             <p className="y-content-empty">이 카테고리에 등록된 풀이가 없습니다.</p>
           )}

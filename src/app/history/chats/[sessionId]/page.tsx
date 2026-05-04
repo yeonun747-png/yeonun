@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ChatConsultHistoryDetail } from "@/components/history/ChatConsultHistoryDetail";
 import { TextChatDetailShell } from "@/components/history/TextChatDetailShell";
 import { TextChatDetailThread } from "@/components/history/TextChatDetailThread";
+import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { getTextChatSessionDetail } from "@/lib/text-chat-history";
 import {
   formatKstYmdDots,
@@ -17,7 +18,7 @@ export const revalidate = 0;
 type Props = { params: Promise<{ sessionId: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { sessionId } = await params;
+  const sessionId = decodeURIComponent((await params).sessionId);
   if (!isUuidSessionId(sessionId)) return { title: "채팅 상담 | 연운 緣運", robots: { index: false, follow: true } };
   const detail = await getTextChatSessionDetail(sessionId);
   if (!detail) return { title: "채팅 상담 | 연운 緣運", robots: { index: false, follow: true } };
@@ -29,7 +30,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function TextChatOrConsultHistoryPage({ params }: Props) {
-  const { sessionId } = await params;
+  const raw = (await params).sessionId;
+  const sessionId = decodeURIComponent(raw);
 
   if (isUuidSessionId(sessionId)) {
     const detail = await getTextChatSessionDetail(sessionId);
@@ -45,12 +47,24 @@ export default async function TextChatOrConsultHistoryPage({ params }: Props) {
       const consultHref = `/meet?character_key=${encodeURIComponent(detail.character_key)}`;
 
       return (
-        <TextChatDetailShell title={title} retentionLine={retentionLine} consultHref={consultHref}>
-          <TextChatDetailThread grouped={grouped} characterHan={detail.character_han} />
-        </TextChatDetailShell>
+        <>
+          <MyTabBackdrop />
+          <div className="y-history-route-live">
+            <TextChatDetailShell title={title} retentionLine={retentionLine} consultHref={consultHref}>
+              <TextChatDetailThread grouped={grouped} characterHan={detail.character_han} />
+            </TextChatDetailShell>
+          </div>
+        </>
       );
     }
   }
 
-  return <ChatConsultHistoryDetail sessionId={sessionId} />;
+  return (
+    <>
+      <MyTabBackdrop />
+      <div className="y-history-route-live">
+        <ChatConsultHistoryDetail sessionId={sessionId} />
+      </div>
+    </>
+  );
 }

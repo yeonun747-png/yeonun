@@ -4,11 +4,12 @@ import type { Metadata } from "next";
 import { ContentPurchaseFooter } from "@/components/content/ContentPurchaseFooter";
 import { TopNav } from "@/components/TopNav";
 import { YeonunRoutedBottomSheetPortal } from "@/components/YeonunRoutedBottomSheetPortal";
+import { SheetBackdropFrame } from "@/components/my/MySheetBackdropFrame";
 import { getProductBySlugCached, getReviewsByProductSlugCached } from "@/lib/data/content";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ sheet?: string; ck?: string; back?: string }>;
+  searchParams?: Promise<{ sheet?: string; ck?: string; back?: string; modal?: string }>;
 };
 
 const HAN_BY_KEY: Record<string, string> = {
@@ -132,9 +133,10 @@ export default async function ContentDetailPage({ params, searchParams }: Props)
   const product = await getProductBySlugCached(slug);
   if (!product) notFound();
 
-  const sp = (((await searchParams?.catch?.(() => ({}))) ?? {}) as { sheet?: string; ck?: string; back?: string });
+  const sp = (((await searchParams?.catch?.(() => ({}))) ?? {}) as { sheet?: string; ck?: string; back?: string; modal?: string });
   const sheet = sp.sheet;
   const asModal = sheet === "1";
+  const hasStackedModal = Boolean(sp.modal);
   const themeKey = normalizeThemeKey(sp.ck || product.character_key || "yeon");
   const backHref = sp.back ? decodeURIComponent(sp.back) : "/";
 
@@ -334,10 +336,17 @@ export default async function ContentDetailPage({ params, searchParams }: Props)
     );
   }
 
+  if (hasStackedModal) {
+    return <SheetBackdropFrame />;
+  }
+
   return (
-    <YeonunRoutedBottomSheetPortal backHref={backHref} ariaLabel="상세 풀이" title="상세 풀이">
-      {Page}
-    </YeonunRoutedBottomSheetPortal>
+    <>
+      <SheetBackdropFrame />
+      <YeonunRoutedBottomSheetPortal backHref={backHref} ariaLabel="상세 풀이" title="상세 풀이">
+        {Page}
+      </YeonunRoutedBottomSheetPortal>
+    </>
   );
 }
 

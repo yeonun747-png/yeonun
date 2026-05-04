@@ -173,8 +173,38 @@ export function seededShuffleMissionIds(pool: MissionId[], seed: string): Missio
   return arr;
 }
 
-/** 음성 상담 완료한 캐릭터 키 — M07 후보 조건 */
+/** 음성·채팅 상담으로 만난 캐릭터 키 — M07 후보·완료 판정 공통 */
 export const VOICE_CHARS_CONSULTED_KEY = "yeonun_voice_chars_consulted_v1";
+
+const M07_CHARACTER_KEYS = ["yeon", "byeol", "yeo", "un"] as const;
+export type M07CharacterKey = (typeof M07_CHARACTER_KEYS)[number];
+
+/**
+ * 해당 캐릭터와 상담(음성 세션 종료 또는 채팅에서 실제 저장 턴)을 기록합니다.
+ * @returns 이번 상담으로 해당 캐릭터가 **처음** 기록된 경우 true — M07 완료 처리는 호출부에서 `tryPersistMissionM07CompleteIfEligible` 등으로 이어갑니다.
+ */
+export function recordMeetConsultCharacterForM07(rawCharacterKey: string): boolean {
+  if (typeof window === "undefined") return false;
+  const k = String(rawCharacterKey ?? "").trim();
+  if (!M07_CHARACTER_KEYS.includes(k as M07CharacterKey)) return false;
+  const characterKey = k as M07CharacterKey;
+  try {
+    const raw = localStorage.getItem(VOICE_CHARS_CONSULTED_KEY);
+    let arr: string[] = [];
+    try {
+      const p = JSON.parse(raw || "[]");
+      arr = Array.isArray(p) ? p.filter((x: unknown) => typeof x === "string") : [];
+    } catch {
+      arr = [];
+    }
+    const wasNew = !arr.includes(characterKey);
+    if (!arr.includes(characterKey)) arr = [...arr, characterKey];
+    localStorage.setItem(VOICE_CHARS_CONSULTED_KEY, JSON.stringify(arr));
+    return wasNew;
+  } catch {
+    return false;
+  }
+}
 
 export function m07EligibleForPool(): boolean {
   if (typeof window === "undefined") return true;
@@ -344,7 +374,7 @@ export function markMissionCompleteInState(
 ): MissionRuntimeState {
   if (!trio.some((t) => t.id === id)) return state;
   const def = MISSIONS[id];
-  let lastCompletedAtMs = { ...state.lastCompletedAtMs };
+  const lastCompletedAtMs = { ...state.lastCompletedAtMs };
   if (HOURS24_IDS.has(id) || def.cadence === "hours24") {
     lastCompletedAtMs[id] = nowMs;
   }
