@@ -23,6 +23,7 @@ import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
 import { spendableTotalCredits, trySpendChatMessageCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
 import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
+import { useVisualViewportSheetInset } from "@/hooks/useVisualViewportSheetInset";
 
 const CHAR_NAME: Record<string, string> = {
   yeon: "연화",
@@ -87,7 +88,10 @@ export function ChatConsultModal() {
   const [typing, setTyping] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const consultRootRef = useRef<HTMLDivElement | null>(null);
+  const consultSheetRef = useRef<HTMLDivElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  useVisualViewportSheetInset(consultRootRef, consultSheetRef);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatConsultMessage[]>([]);
   messagesRef.current = messages;
@@ -461,8 +465,19 @@ export function ChatConsultModal() {
 
   return (
     <YeonunSheetPortal>
-    <div className="y-modal open y-chat-consult-root" role="dialog" aria-modal="true" aria-label="채팅 상담" onMouseDown={close}>
-      <div className="y-modal-sheet y-chat-consult-sheet" onMouseDown={(ev) => ev.stopPropagation()}>
+    <div
+      ref={consultRootRef}
+      className="y-modal open y-chat-consult-root"
+      role="dialog"
+      aria-modal="true"
+      aria-label="채팅 상담"
+      onMouseDown={close}
+    >
+      <div
+        ref={consultSheetRef}
+        className="y-modal-sheet y-chat-consult-sheet"
+        onMouseDown={(ev) => ev.stopPropagation()}
+      >
         <div className="y-modal-handle" />
         <header className="y-chat-consult-head">
           <div className={`y-chat-consult-avatar ${characterKey}`} aria-hidden>

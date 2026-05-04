@@ -39,7 +39,9 @@ a {
 
 /* ============ ADMIN OPS ============ */
 .y-admin-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
   background:
     radial-gradient(circle at 10% 0%, rgba(245, 218, 224, 0.8), transparent 38%),
     linear-gradient(180deg, #fafaf7 0%, #f7f2e7 100%);
@@ -91,6 +93,24 @@ a {
   width: min(1160px, 100%);
   margin: 0 auto;
   padding: 22px 18px 80px;
+}
+.y-admin-main-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.y-admin-main-single {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.y-admin-nav a[data-active="true"] {
+  background: var(--y-ink);
+  color: #fff;
+  border-color: var(--y-ink);
 }
 .y-admin-hero {
   display: grid;
@@ -1129,6 +1149,11 @@ a {
   .y-admin-shell {
     display: grid;
     grid-template-columns: 260px 1fr;
+    min-height: 100dvh;
+  }
+  .y-admin-main-wrap {
+    height: 100vh;
+    min-height: 0;
   }
   .y-admin-side {
     height: 100vh;

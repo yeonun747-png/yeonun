@@ -1,10 +1,13 @@
 import { supabaseServer } from "@/lib/supabase/server";
 
+import { AdminCharacterModePromptEditor } from "@/components/admin/AdminCharacterModePromptEditor";
+import { AdminServicePromptForm } from "@/components/admin/AdminServicePromptForm";
+import { AdminWorkspace } from "@/components/admin/AdminWorkspace";
 import { ProductEditorBlock } from "@/components/admin/ProductEditorClient";
 import { ProductNewFormClient } from "@/components/admin/ProductNewFormClient";
 import { TtsVoiceListPreview } from "@/components/admin/TtsVoiceListPreview";
 import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
-import { VoiceCharacterPromptTtsFields, type TtsVoiceOption } from "@/components/admin/VoiceCharacterPromptTtsFields";
+import type { TtsVoiceOption } from "@/components/admin/VoiceCharacterPromptTtsFields";
 
 type Row = Record<string, unknown>;
 
@@ -109,23 +112,10 @@ export default async function AdminHomePage() {
   ];
 
   return (
-    <div className="y-admin-shell">
-      <aside className="y-admin-side">
-        <div className="y-admin-brand">연운 管理</div>
-        <p>운영, 결제, 점사, 음성·채팅 상담을 한 화면에서 관리합니다.</p>
-        <nav className="y-admin-nav" aria-label="어드민 메뉴">
-          <a href="#dashboard">Dashboard</a>
-          <a href="#content">Content</a>
-          <a href="#commerce">Orders</a>
-          <a href="#voice">VoiceOps</a>
-          <a href="#fortune">Fortune</a>
-          <a href="#chat">채팅운영</a>
-          <a href="#logs">Logs</a>
-        </nav>
-      </aside>
-
-      <main className="y-admin-main">
-        <section id="dashboard" className="y-admin-hero">
+    <AdminWorkspace
+      dashboard={
+        <>
+        <section className="y-admin-hero">
           <div>
             <div className="y-admin-eyebrow">YEONUN OPS CONSOLE</div>
             <h1>운영 대시보드</h1>
@@ -147,8 +137,10 @@ export default async function AdminHomePage() {
             </div>
           ))}
         </section>
-
-        <section id="content" className="y-admin-section">
+        </>
+      }
+      content={
+        <section className="y-admin-section">
           <div className="y-admin-section-head">
             <div>
               <span className="y-admin-eyebrow">CONTENT OPS</span>
@@ -230,8 +222,9 @@ export default async function AdminHomePage() {
             ))}
           </CrudSection>
         </section>
-
-        <section id="commerce" className="y-admin-section">
+      }
+      commerce={
+        <section className="y-admin-section">
           <div className="y-admin-section-head">
             <div>
               <span className="y-admin-eyebrow">COMMERCE OPS</span>
@@ -275,8 +268,9 @@ export default async function AdminHomePage() {
             items={["주문 생성 후 PG 요청", "결제 콜백 HMAC 검증", "payments/webhook_events 원본 payload 저장", "환불은 결제 상태와 별도 refunds로 추적"]}
           />
         </section>
-
-        <section id="voice" className="y-admin-section">
+      }
+      voice={
+        <section className="y-admin-section">
           <div className="y-admin-section-head">
             <div>
               <span className="y-admin-eyebrow">VOICE OPS</span>
@@ -285,13 +279,17 @@ export default async function AdminHomePage() {
             <StatusPill tone={voiceSessions.ready ? "good" : "warn"}>{voiceSessions.ready ? "세션 연결" : "스키마 준비"}</StatusPill>
           </div>
           <div className="y-admin-card" style={{ marginBottom: 12 }}>
-            <h3>공통 프롬프트 — 음성상담형</h3>
-            <ServicePromptEditor row={servicePrompts.rows.find((p) => text(p.key) === "yeonun_common_system")} />
+            <h3>공통 프롬프트 — 음성 상담형</h3>
+            <AdminServicePromptForm
+              promptKey="yeonun_common_system"
+              defaultTitle="공통 프롬프트 — 음성 상담형"
+              row={servicePrompts.rows.find((p) => text(p.key) === "yeonun_common_system")}
+            />
           </div>
           <TtsVoicesRegistry data={ttsVoices} />
           <CrudSection
             id="admin-character-voice-prompts"
-            title="캐릭터별 프롬프트 — 음성상담형"
+            title="캐릭터별 프롬프트 — 음성 상담형"
             hint="음성 상담에서 캐릭터 말투/역할을 고정하는 프롬프트입니다. (공통 프롬프트 + 캐릭터 프롬프트로 합성)"
           >
             {characters.rows.map((c) => {
@@ -299,12 +297,12 @@ export default async function AdminHomePage() {
                 (p) => text(p.character_key) === text(c.key) && text(p.mode) === "voice",
               );
               return (
-                <CharacterModePromptEditor
+                <AdminCharacterModePromptEditor
                   key={`${text(c.key)}-voice`}
                   character={c}
                   mode="voice"
                   row={row}
-                  defaultTitle={`${text(c.name)} — 음성상담형`}
+                  defaultTitle={`${text(c.name)} — 음성 상담형`}
                   ttsVoiceOptions={ttsVoiceOptionsActive}
                 />
               );
@@ -316,18 +314,19 @@ export default async function AdminHomePage() {
             items={["세션 생성/종료 상태 확인", "turn transcript와 audio url 보존", "Cloudways WS 프록시 상태 확인", "사용량/비용 추정치를 세션별 집계"]}
           />
         </section>
-
-        <section id="fortune" className="y-admin-section">
+      }
+      fortune={
+        <section className="y-admin-section">
           <div className="y-admin-section-head">
             <div>
               <span className="y-admin-eyebrow">FORTUNE OPS</span>
-              <h2>Claude 점사 운영</h2>
+              <h2>점사 운영</h2>
             </div>
             <StatusPill tone={fortuneRequests.ready ? "good" : "warn"}>{fortuneRequests.ready ? "요청 연결" : "스키마 준비"}</StatusPill>
           </div>
           <div className="y-admin-card" style={{ marginBottom: 12 }}>
             <h3>공통 프롬프트 — 텍스트 점사형</h3>
-            <ServicePromptEditorKey
+            <AdminServicePromptForm
               promptKey="yeonun_fortune_text_system"
               defaultTitle="공통 프롬프트 — 텍스트 점사형"
               row={servicePrompts.rows.find((p) => text(p.key) === "yeonun_fortune_text_system")}
@@ -343,7 +342,7 @@ export default async function AdminHomePage() {
                 (p) => text(p.character_key) === text(c.key) && text(p.mode) === "fortune_text",
               );
               return (
-                <CharacterModePromptEditor
+                <AdminCharacterModePromptEditor
                   key={`${text(c.key)}-fortune_text`}
                   character={c}
                   mode="fortune_text"
@@ -357,12 +356,13 @@ export default async function AdminHomePage() {
             <OpsList title="점사 요청" data={fortuneRequests} fields={["product_slug", "status", "model", "created_at"]} table="fortune_requests" hash="fortune" statuses={["queued", "streaming", "completed", "failed", "retrying"]} />
           </div>
           <OpsRunbook
-            title="Claude 점사 운영 체크"
+            title="점사 운영 체크"
             items={["fortune_requests 상태 전이 확인", "Cloudways SSE 프록시 health 확인", "프롬프트 활성 버전과 모델명 관리", "결과 HTML sanitize 후 fortune_results 저장"]}
           />
         </section>
-
-        <section id="chat" className="y-admin-section">
+      }
+      chat={
+        <section className="y-admin-section">
           <div className="y-admin-section-head">
             <div>
               <span className="y-admin-eyebrow">CHAT OPS</span>
@@ -373,11 +373,11 @@ export default async function AdminHomePage() {
           <p className="y-admin-muted" style={{ margin: "0 0 14px" }}>
             앱의 채팅 상담(`/api/chat/consult-stream`)은 <strong>공통 프롬프트 — 텍스트 채팅형</strong>과 선택 캐릭터의{" "}
             <strong>텍스트 채팅형</strong> 프롬프트를 합친 뒤, 페르소나·사주명식 블록을 이어 붙입니다. 채팅형 행이 없으면
-            음성상담형 프롬프트로 자동 대체합니다.
+            음성 상담형 프롬프트로 자동 대체합니다.
           </p>
           <div className="y-admin-card" style={{ marginBottom: 12 }}>
             <h3>공통 프롬프트 — 텍스트 채팅형</h3>
-            <ServicePromptEditorKey
+            <AdminServicePromptForm
               promptKey="yeonun_chat_text_system"
               defaultTitle="공통 프롬프트 — 텍스트 채팅형"
               row={servicePrompts.rows.find((p) => text(p.key) === "yeonun_chat_text_system")}
@@ -393,7 +393,7 @@ export default async function AdminHomePage() {
                 (p) => text(p.character_key) === text(c.key) && text(p.mode) === "chat_text",
               );
               return (
-                <CharacterModePromptEditor
+                <AdminCharacterModePromptEditor
                   key={`${text(c.key)}-chat_text`}
                   character={c}
                   mode="chat_text"
@@ -408,8 +408,9 @@ export default async function AdminHomePage() {
             items={["프롬프트 저장 후 만남 탭 채팅 모달에서 응답 톤 확인", "공통·캐릭터 프롬프트 비활성 시 API 폴백(구 공통 키·음성형) 동작 확인", "크레딧 차감·스트림 오류 로그 모니터링"]}
           />
         </section>
-
-        <section id="logs" className="y-admin-section">
+      }
+      logs={
+        <section className="y-admin-section">
           <div className="y-admin-section-head">
             <div>
               <span className="y-admin-eyebrow">LOGS</span>
@@ -419,8 +420,8 @@ export default async function AdminHomePage() {
           </div>
           <OpsList title="웹훅 이벤트" data={webhooks} fields={["provider", "event_type", "status", "processed_at"]} table="webhook_events" hash="logs" statuses={["received", "processed", "failed", "ignored"]} />
         </section>
-      </main>
-    </div>
+      }
+    />
   );
 }
 
@@ -554,96 +555,6 @@ function PersonaEditor({ character, persona }: { character: Row; persona?: Row }
   );
 }
 
-function ServicePromptEditor({ row }: { row?: Row }) {
-  return (
-    <form action="/admin/service-prompts" method="post" className="y-admin-form">
-      <input type="hidden" name="key" value="yeonun_common_system" />
-      <input name="title" defaultValue={text(row?.title, "공통 프롬프트 — 음성상담형")} placeholder="프롬프트명" />
-      <textarea name="prompt" defaultValue={text(row?.prompt, "")} placeholder="공통 시스템 프롬프트" />
-      <select name="is_active" defaultValue={String(row?.is_active ?? true)}>
-        <option value="true">활성</option>
-        <option value="false">비활성</option>
-      </select>
-      <button type="submit">프롬프트 저장</button>
-    </form>
-  );
-}
-
-function ServicePromptEditorKey({
-  promptKey,
-  defaultTitle,
-  row,
-}: {
-  promptKey: string;
-  defaultTitle: string;
-  row?: Row;
-}) {
-  return (
-    <form action="/admin/service-prompts" method="post" className="y-admin-form">
-      <input type="hidden" name="key" value={promptKey} />
-      <input name="title" defaultValue={text(row?.title, defaultTitle)} placeholder="프롬프트명" />
-      <textarea name="prompt" defaultValue={text(row?.prompt, "")} placeholder="공통 프롬프트" />
-      <select name="is_active" defaultValue={String(row?.is_active ?? true)}>
-        <option value="true">활성</option>
-        <option value="false">비활성</option>
-      </select>
-      <button type="submit">프롬프트 저장</button>
-    </form>
-  );
-}
-
-function CharacterModePromptEditor({
-  character,
-  mode,
-  row,
-  defaultTitle,
-  ttsVoiceOptions,
-}: {
-  character: Row;
-  mode: "voice" | "fortune_text" | "chat_text";
-  row?: Row;
-  defaultTitle: string;
-  ttsVoiceOptions?: TtsVoiceOption[];
-}) {
-  const summary = mode === "voice" ? "음성상담형" : mode === "fortune_text" ? "텍스트 점사형" : "텍스트 채팅형";
-  const defaultVoiceId = row?.tts_voice_id != null ? text(row.tts_voice_id, "") : "";
-  return (
-    <details className="y-admin-editor" suppressHydrationWarning>
-      <summary>
-        <span>
-          <strong>{text(character.name)} · {summary}</strong>
-          <em>{text(character.key)} · updated {text(row?.updated_at, "-")}</em>
-        </span>
-        <StatusPill tone={row?.is_active === false ? "warn" : "good"}>{row?.is_active === false ? "비활성" : "활성"}</StatusPill>
-      </summary>
-      <form action="/admin/character-prompts" method="post" className="y-admin-form y-admin-edit-form">
-        <input type="hidden" name="character_key" value={text(character.key, "")} />
-        <input type="hidden" name="mode" value={mode} />
-        <input name="title" defaultValue={text(row?.title, defaultTitle)} placeholder="프롬프트명" />
-        <textarea name="prompt" defaultValue={text(row?.prompt, "")} placeholder="캐릭터 프롬프트" />
-        {mode === "voice" && ttsVoiceOptions ? (
-          <div className="y-admin-voice-prompt-foot">
-            <VoiceCharacterPromptTtsFields
-              voices={ttsVoiceOptions}
-              defaultVoiceId={defaultVoiceId}
-              isActiveDefault={String(row?.is_active ?? true)}
-            />
-            <button type="submit">프롬프트 저장</button>
-          </div>
-        ) : (
-          <>
-            <select name="is_active" defaultValue={String(row?.is_active ?? true)}>
-              <option value="true">활성</option>
-              <option value="false">비활성</option>
-            </select>
-            <button type="submit">프롬프트 저장</button>
-          </>
-        )}
-      </form>
-    </details>
-  );
-}
-
 function TtsVoicesRegistry({ data }: { data: { rows: Row[]; ready: boolean; error?: string } }) {
   if (!data.ready) {
     return (
@@ -662,7 +573,7 @@ function TtsVoicesRegistry({ data }: { data: { rows: Row[]; ready: boolean; erro
     <CrudSection
       id="admin-tts-voices"
       title="Cartesia TTS 보이스 등록"
-      hint="라벨·성별·Cartesia Voice UUID(external_id)를 관리합니다. 아래 「캐릭터별 프롬프트 — 음성상담형」에서 드롭다운으로 연결합니다."
+      hint="라벨·성별·Cartesia Voice UUID(external_id)를 관리합니다. 아래 「캐릭터별 프롬프트 — 음성 상담형」에서 드롭다운으로 연결합니다."
     >
       <div className="y-admin-tts-registry">
         <div className="y-admin-card y-admin-tts-quick">
