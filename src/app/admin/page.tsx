@@ -14,6 +14,10 @@ type Row = Record<string, unknown>;
 const PRODUCTS_SELECT_NO_PROFILE =
   "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,created_at";
 
+/** `/admin`은 클라이언트 워크스페이스로 내려가므로 PG 결제코드는 조회에서 제외 */
+const PRODUCTS_SELECT_ADMIN =
+  "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,created_at";
+
 async function readRows(table: string, select = "*", order?: string, limit = 20): Promise<{ rows: Row[]; ready: boolean; error?: string }> {
   const supabase = supabaseServer();
   try {
@@ -74,12 +78,7 @@ function EmptyPanel({ label, error }: { label: string; error?: string }) {
 export default async function AdminHomePage() {
   const [products, characters, personas, servicePrompts, characterModePrompts, ttsVoices, categories, reviews, orders, payments, coupons, webhooks, voiceSessions, fortuneRequests] =
     await Promise.all([
-      readRows(
-        "products",
-        "*",
-        "created_at",
-        80
-      ),
+      readRows("products", PRODUCTS_SELECT_ADMIN, "created_at", 80),
       readRows("characters", "key,name,han,en,spec,greeting", "key", 20),
       readRows("character_personas", "character_key,color_hex,age_impression,voice_tone,honorific_style,field_core,emotional_distance,sentence_tempo,endings,specialties,temperament,speech_style,emotion_style,strengths,keywords,is_active", "character_key", 20),
       readRows("service_prompts", "key,title,prompt,is_active", "created_at", 10),
@@ -88,7 +87,7 @@ export default async function AdminHomePage() {
       readRows("categories", "slug,label,sort_order", "sort_order", 50),
       readRows("reviews", "id,product_slug,user_mask,stars,body,tags,created_at", "created_at", 30),
       readRows("orders", "id,order_no,product_slug,status,amount_krw,created_at", "created_at", 20),
-      readRows("payments", "id,order_id,provider,method,status,paid_at,raw_payload", "paid_at", 20),
+      readRows("payments", "id,order_id,provider,method,status,paid_at", "paid_at", 20),
       readRows("coupons", "id,code,type,value,is_active,used_count,max_uses", "created_at", 20),
       readRows("webhook_events", "id,provider,event_type,status,processed_at", "processed_at", 20),
       readRows("voice_sessions", "id,character_key,status,started_at,ended_at,duration_sec,cost_krw,summary", "started_at", 20),

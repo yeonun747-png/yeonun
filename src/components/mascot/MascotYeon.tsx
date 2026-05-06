@@ -4,31 +4,14 @@ import { useAnimations, useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef } from "react";
-import { getClipActionOrFirst } from "./mascotAnimation";
-import { YEON, YEON_GLB } from "./mascotAssets";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef } from "react";
+import { configureMascotPbrMaterials } from "./mascotMaterials";
+import { YEON_GLB, YEON_CLIP_SEQUENCE } from "./mascotAssets";
+import { useMascotSequentialPlayback } from "./useMascotSequentialPlayback";
 import type { MascotHandle } from "./useMascotState";
 import { clientToWorldOnZPlane, worldToClient } from "./screenToWorld";
 
 useGLTF.preload(YEON_GLB);
-
-function applyToonMaterials(root: THREE.Object3D) {
-  root.traverse((obj) => {
-    if (!(obj instanceof THREE.Mesh)) return;
-    const skinning = obj instanceof THREE.SkinnedMesh;
-    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-    const next = mats.map((m) => {
-      const mat = m as THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial | THREE.MeshLambertMaterial;
-      const toon = new THREE.MeshToonMaterial({
-        map: mat.map ?? undefined,
-        color: mat.color ?? new THREE.Color(0xffffff),
-      });
-      if (skinning) (toon as unknown as { skinning: boolean }).skinning = true;
-      return toon;
-    });
-    obj.material = next.length === 1 ? next[0]! : next;
-  });
-}
 
 export const MascotYeon = forwardRef<
   MascotHandle,
@@ -45,11 +28,6 @@ export const MascotYeon = forwardRef<
   /** primitive ref는 마운트 타이밍 이슈가 있어, 믹서 루트는 이 group에만 둡니다. */
   const { actions, mixer } = useAnimations(animations, groupRef);
 
-  const currentActionRef = useRef<THREE.AnimationAction | null>(null);
-  const currentNameRef = useRef<string | null>(null);
-  const currentLoopRef = useRef(true);
-  const finishedHandlerRef = useRef<((e: THREE.Event) => void) | null>(null);
-
   const tailBones = useRef<THREE.Bone[]>([]);
   const earBones = useRef<THREE.Bone[]>([]);
   const tailBaseZ = useRef(new Map<THREE.Bone, number>());
@@ -60,12 +38,13 @@ export const MascotYeon = forwardRef<
 
   const targetWorld = useRef(new THREE.Vector3());
   const posWorld = useRef(new THREE.Vector3());
-  const stillMs = useRef(0);
 
   const { camera, size, invalidate } = useThree();
 
+  const playClip = useMascotSequentialPlayback(actions, mixer, YEON_CLIP_SEQUENCE, invalidate);
+
   useLayoutEffect(() => {
-    applyToonMaterials(model);
+    configureMascotPbrMaterials(model);
 
     tailBones.current = [];
     earBones.current = [];
@@ -91,46 +70,6 @@ export const MascotYeon = forwardRef<
     for (const b of earBones.current) earBaseZ.current.set(b, b.rotation.z);
   }, [model]);
 
-  const playClip = useCallback(
-    (clipName: string, loop: boolean) => {
-      if (currentNameRef.current === clipName && currentLoopRef.current === loop) return;
-      const next = getClipActionOrFirst(actions, clipName);
-      if (!next || !mixer) return;
-
-      if (finishedHandlerRef.current) {
-        mixer.removeEventListener("finished", finishedHandlerRef.current);
-        finishedHandlerRef.current = null;
-      }
-
-      const prev = currentActionRef.current;
-      if (prev && prev !== next) prev.fadeOut(0.3);
-
-      next.reset();
-      next.clampWhenFinished = !loop;
-      next.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
-      next.fadeIn(0.3);
-      next.play();
-
-      currentActionRef.current = next;
-      currentNameRef.current = clipName;
-      currentLoopRef.current = loop;
-
-      if (!loop) {
-        const onFinished = (e: THREE.Event & { action?: THREE.AnimationAction }) => {
-          if (e.action !== next) return;
-          mixer.removeEventListener("finished", onFinished);
-          finishedHandlerRef.current = null;
-          playClip(YEON.idle, true);
-        };
-        finishedHandlerRef.current = onFinished;
-        mixer.addEventListener("finished", onFinished);
-      }
-
-      invalidate();
-    },
-    [actions, invalidate, mixer],
-  );
-
   useImperativeHandle(
     ref,
     () => ({
@@ -139,11 +78,6 @@ export const MascotYeon = forwardRef<
     }),
     [playClip],
   );
-
-  /** ref 마운트 직후 idle 재생 (useEffect보다 먼저 실행되어 clipAction이 안 붙는 경우 방지) */
-  useLayoutEffect(() => {
-    playClip(YEON.idle, true);
-  }, [playClip]);
 
   useEffect(() => {
     if (!allowMouseFollow) return;
@@ -166,39 +100,18 @@ export const MascotYeon = forwardRef<
     return () => window.removeEventListener("mousemove", onMove);
   }, [allowMouseFollow, camera, invalidate, size]);
 
-  useFrame((state, dt) => {
+  useFrame((state) => {
     const g = groupRef.current;
     if (!g) return;
 
     const scaleBase = size.width <= 480 ? 0.6 : size.width < 768 ? 0.7 : 1.0;
-
-    const ms = dt * 1000;
     const clock = state.clock;
 
     if (allowMouseFollow) {
       posWorld.current.lerp(targetWorld.current, 0.05);
       g.position.copy(posWorld.current);
 
-      const curPx = worldToClient(posWorld.current, camera, size);
       const tgtPx = worldToClient(targetWorld.current, camera, size);
-      const dx = tgtPx.x - curPx.x;
-      const dy = tgtPx.y - curPx.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < 8) {
-        stillMs.current += ms;
-        if (stillMs.current >= 1000 && currentNameRef.current !== YEON.idle) {
-          playClip(YEON.idle, true);
-        }
-      } else {
-        stillMs.current = 0;
-        if (dist >= 150) {
-          if (currentNameRef.current !== YEON.run) playClip(YEON.run, true);
-        } else if (dist >= 50) {
-          if (currentNameRef.current === YEON.run) playClip(YEON.walk, true);
-          else if (currentNameRef.current !== YEON.walk) playClip(YEON.walk, true);
-        }
-      }
-
       const face = tgtPx.x < size.width / 2 ? -1 : 1;
       g.scale.set(scaleBase * face, scaleBase, scaleBase);
     } else {

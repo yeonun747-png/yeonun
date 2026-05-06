@@ -23,3 +23,25 @@ export const UN = {
   walk: "Walking",
   run: "Running",
 } as const;
+
+/** 연이: 순차 반복 재생 순서 */
+export const YEON_CLIP_SEQUENCE = [
+  YEON.idle,
+  YEON.happy,
+  YEON.thinking,
+  YEON.walk,
+  YEON.run,
+  YEON.dance,
+  YEON.dance2,
+  YEON.dance3,
+] as const;
+
+/** 운이: 순차 반복 재생 순서 */
+export const UN_CLIP_SEQUENCE = [
+  UN.idle,
+  UN.happy,
+  UN.jump,
+  UN.dance,
+  UN.walk,
+  UN.run,
+] as const;

@@ -28,7 +28,6 @@ export function ProductNewFormClient({
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [svgBusy, setSvgBusy] = useState(false);
-  const [assignedPc, setAssignedPc] = useState<number | null>(null);
 
   const runSave = useCallback(async () => {
     const form = formRef.current;
@@ -44,12 +43,11 @@ export function ProductNewFormClient({
         headers: { Accept: "application/json", "X-Admin-Fetch": "1" },
         body: fd,
       });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; payment_code?: number };
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !j.ok) {
         throw new Error(typeof j.error === "string" ? j.error : "저장 실패");
       }
       setSaveMsg("저장되었습니다.");
-      if (typeof j.payment_code === "number") setAssignedPc(j.payment_code);
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : "저장 실패");
     }
@@ -89,10 +87,6 @@ export function ProductNewFormClient({
 
   return (
     <form ref={formRef} className="y-admin-form" onSubmit={onSubmit}>
-      <label className="y-admin-field-stack">
-        <span className="y-admin-stack-legend">결제코드 (저장 시 자동 부여)</span>
-        <input value={assignedPc != null ? String(assignedPc) : "(저장 후 표시)"} readOnly className="y-admin-readonly" />
-      </label>
       <label className="y-admin-field-stack">
         <span className="y-admin-stack-legend">slug</span>
         <input name="slug" placeholder="예: reunion-maybe" required />

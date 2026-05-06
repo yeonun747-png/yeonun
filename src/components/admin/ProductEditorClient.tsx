@@ -24,13 +24,12 @@ function StatusPill({ children, tone = "base" }: { children: React.ReactNode; to
 
 function ProductEditorSummary({ row }: { row: Row }) {
   const tagsArr = Array.isArray(row.tags) ? (row.tags as unknown[]).map((t) => String(t)) : [];
-  const pc = row.payment_code != null && row.payment_code !== "" ? text(row.payment_code) : "—";
   return (
     <summary>
       <span>
         <strong>{text(row.title)}</strong>
         <em>
-          결제코드 {pc} · {text(row.slug)} · {text(row.category_slug)} · {text(row.character_key)} ·{" "}
+          {text(row.slug)} · {text(row.category_slug)} · {text(row.character_key)} ·{" "}
           {text(row.saju_input_profile, "single") === "pair" ? "궁합형" : "사주형"} · 홈섹션 {text(row.home_section_slug, "—")} · {text(row.badge)}
           {tagsArr.length ? ` · ${tagsArr.slice(0, 3).join(" ")}` : ""}
         </em>
@@ -45,15 +44,11 @@ function ProductEditorForm({
   categories,
   characters,
   previewVariant,
-  displayPaymentCode,
-  onPaymentAssigned,
 }: {
   row: Row;
   categories: Row[];
   characters: Row[];
   previewVariant: string;
-  displayPaymentCode: number | null;
-  onPaymentAssigned?: (code: number) => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const tagsArr = Array.isArray(row.tags) ? (row.tags as unknown[]).map((t) => String(t)) : [];
@@ -82,18 +77,15 @@ function ProductEditorForm({
         headers: { Accept: "application/json", "X-Admin-Fetch": "1" },
         body: fd,
       });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; payment_code?: number };
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || !j.ok) {
         throw new Error(typeof j.error === "string" ? j.error : "저장 실패");
       }
       setSaveMsg("저장되었습니다.");
-      if (typeof j.payment_code === "number") {
-        onPaymentAssigned?.(j.payment_code);
-      }
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : "저장 실패");
     }
-  }, [fortuneMenu, thumb, onPaymentAssigned]);
+  }, [fortuneMenu, thumb]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,14 +121,6 @@ function ProductEditorForm({
 
   return (
     <form ref={formRef} className="y-admin-form y-admin-edit-form" onSubmit={onSubmit}>
-      <label className="y-admin-field-stack">
-        <span className="y-admin-stack-legend">결제코드 (PG 구분 · 자동 부여 · 수정 불가)</span>
-        <input
-          value={displayPaymentCode != null && Number.isFinite(displayPaymentCode) ? String(displayPaymentCode) : "(저장 시 자동 부여)"}
-          readOnly
-          className="y-admin-readonly"
-        />
-      </label>
       <label className="y-admin-field-stack">
         <span className="y-admin-stack-legend">slug</span>
         <input name="slug" defaultValue={text(row.slug, "")} />
@@ -248,26 +232,14 @@ export function ProductEditorBlock({
   characters: Row[];
   previewVariant: string;
 }) {
-  const initialPc =
-    row.payment_code != null && row.payment_code !== ""
-      ? Number(row.payment_code)
-      : Number.isFinite(Number(row.payment_code))
-        ? Number(row.payment_code)
-        : null;
-  const [paymentOverride, setPaymentOverride] = useState<number | null>(null);
-  const effectivePc = paymentOverride ?? initialPc;
-  const summaryRow = { ...row, payment_code: effectivePc };
-
   return (
     <details className="y-admin-editor" suppressHydrationWarning>
-      <ProductEditorSummary row={summaryRow} />
+      <ProductEditorSummary row={row} />
       <ProductEditorForm
         row={row}
         categories={categories}
         characters={characters}
         previewVariant={previewVariant}
-        displayPaymentCode={effectivePc}
-        onPaymentAssigned={(code) => setPaymentOverride(code)}
       />
       <form id={`delete-product-${text(row.slug)}`} action="/admin/products/delete" method="post">
         <input type="hidden" name="slug" value={text(row.slug, "")} />
