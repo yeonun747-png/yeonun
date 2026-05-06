@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import "./globals.css";
 import { ModalLayer } from "@/components/ModalLayer";
+import { MascotSceneDynamic } from "@/components/mascot/MascotSceneDynamic";
 import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 
@@ -45,6 +46,9 @@ export default function RootLayout({
         <PrimaryTabScrollClient />
         {children}
         <YeonunToastHost />
+        <Suspense fallback={null}>
+          <MascotSceneDynamic />
+        </Suspense>
         <Suspense fallback={null}>
           <ModalLayer />
         </Suspense>
