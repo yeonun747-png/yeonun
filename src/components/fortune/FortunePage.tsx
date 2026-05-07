@@ -38,23 +38,6 @@ const STEP_SUBTITLE: Record<FortuneStep, string> = {
   7: "풀이 결과",
 };
 
-function fixedMascotStorageKey(productSlug: string) {
-  return `yeonun_fortune_fixed_mascot:${productSlug}`;
-}
-
-function readOrInitFixedMascot(productSlug: string): "yeon" | "un" {
-  const fallback: "yeon" | "un" = Math.random() > 0.5 ? "yeon" : "un";
-  try {
-    const key = fixedMascotStorageKey(productSlug);
-    const v = sessionStorage.getItem(key);
-    if (v === "yeon" || v === "un") return v;
-    sessionStorage.setItem(key, fallback);
-    return fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 function defaultForm(): FortuneFlowForm {
   return {
     name: "",
@@ -135,9 +118,7 @@ export function FortunePage({
   const abortRef = useRef<AbortController | null>(null);
   const savedResultRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const mascotInitializedRef = useRef(false);
-  const [mascot, setMascot] = useState<"yeon" | "un">(() => (Math.random() > 0.5 ? "yeon" : "un"));
-  const initialMascotRef = useRef(mascot);
+  const [mascot, setMascot] = useState<"yeon" | "un">("yeon");
   const resultStream = useFortuneResultStream({
     enabled: resultStreamEnabled,
     productSlug: product.slug,
@@ -148,15 +129,15 @@ export function FortunePage({
     onPatch: setPrefetch,
   });
 
+  /** 상품(점사) 진입할 때마다 연이/운이 중 하나 — 같은 세션에 재방문해도 다시 랜덤 (sessionStorage 고정 제거) */
+  useLayoutEffect(() => {
+    setMascot(Math.random() < 0.5 ? "yeon" : "un");
+  }, [product.slug]);
+
   useEffect(() => {
     const prev = readStoredSaju();
     setStored(prev);
     setPrefetch(readFortunePrefetch(product.slug));
-    // 점사 메뉴카드 클릭 시 1회 랜덤 선택 → Step0~7 내내 동일 마스코트 유지
-    const fixed = readOrInitFixedMascot(product.slug);
-    mascotInitializedRef.current = true;
-    initialMascotRef.current = fixed;
-    setMascot(fixed);
     if (!prev) {
       setStep(1);
     }

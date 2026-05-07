@@ -8,7 +8,12 @@ import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import { configureMascotPbrMaterials } from "@/components/mascot/mascotMaterials";
-import { getClipAction } from "@/components/mascot/mascotAnimation";
+import {
+  findAnimationClipByLogicalName,
+  findMascotIdleAnimationClip,
+  findRunningAnimationClip,
+  findWalkingAnimationClip,
+} from "@/components/mascot/mascotAnimation";
 import { UN, UN_GLB, YEON, YEON_GLB } from "@/components/mascot/mascotAssets";
 import type { FortuneGuideState, MascotKind, MascotPosKey } from "@/components/fortune/fortuneFlowTypes";
 
@@ -20,28 +25,41 @@ function pickClip(kind: MascotKind, clip?: string) {
   return kind === "yeon" ? YEON.idle : UN.idle;
 }
 
-/** actions 객체 키(mixamo.com|Walking 등)에서 마지막 세그먼트만 비교할 때 사용 */
-function lastClipSeg(key: string) {
-  const afterPipe = key.split("|").pop() ?? key;
-  return afterPipe.split("/").pop() ?? afterPipe;
+/** 클론 스켈레톤에 이전 애니 포즈가 남으면 다음 클립이 일부 본만 덮어 ‘wave처럼’ 보일 수 있음 */
+function resetSkinnedBindPose(root: THREE.Object3D) {
+  root.traverse((obj) => {
+    if (!(obj instanceof THREE.SkinnedMesh) || !obj.skeleton) return;
+    obj.skeleton.pose();
+  });
 }
 
 function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: string; yaw: number; onReady: () => void }) {
   const path = kind === "yeon" ? YEON_GLB : UN_GLB;
   const fallback = kind === "yeon" ? YEON.idle : UN.idle;
-  const isWalkClip = !!clip && /walk/i.test(clip);
+  /** `Idle_9` 등에 `walk` 부분문자열이 섞이면 안 되므로 걷기는 `Walking` 논리명만 인정 */
+  const isWalkClip = clip === YEON.walk || clip === UN.walk;
   const { scene, animations } = useGLTF(path) as unknown as {
     scene: THREE.Object3D;
     animations: THREE.AnimationClip[];
   };
   const groupRef = useRef<THREE.Group>(null);
   const model = useMemo(() => cloneSkinned(scene), [scene]);
-  const { actions, mixer } = useAnimations(animations, groupRef);
+  const { mixer } = useAnimations(animations, groupRef);
   const { invalidate } = useThree();
   const currentActionRef = useRef<THREE.AnimationAction | null>(null);
   /** useFrame에서 키 문자열 불일치로 잘못된 액션만 stop 하는 것 방지 */
   const playbackModeRef = useRef<"walk" | "idle">("idle");
   const walkEnsureRef = useRef<{ lastBadAt: number; lastRestartAt: number }>({ lastBadAt: 0, lastRestartAt: 0 });
+
+  /** Walking ↔ Idle 전환 시에만 사용 (제미나이 예시의 fadeOut/fadeIn — actions 전체 순회는 하지 않음) */
+  const CLIP_CROSSFADE_SEC = 0.2;
+
+  /** 개발 모드: GLB의 `animations[].name` 순서 확인용 (에디터 테이블·mascotAssets 시퀀스와 대조) */
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const lines = animations.map((c, i) => `  [${i}] ${c.name}`).join("\n");
+    console.info(`[MascotGuide GLB] ${kind} ← ${path}\n${lines}`);
+  }, [animations, kind, path]);
 
   useLayoutEffect(() => {
     configureMascotPbrMaterials(model);
@@ -52,110 +70,109 @@ function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: str
     const requestedName = pickClip(kind, clip);
     playbackModeRef.current = isWalkClip ? "walk" : "idle";
 
-    let action: THREE.AnimationAction | null = null;
+    /**
+     * Three.js: mixer.clipAction(clip)은 같은 clip·root면 동일 AnimationAction을 반환.
+     * drei's actions[name] getter는 클립마다 clipAction을 지연 생성함 → keys/actions 전체 순회는
+     * 모든 클립을 믹서에 올려 바인딩이 겹치거나 '순차 재생'처럼 보일 수 있음.
+     * 따라서 AnimationClip 배열에서만 고르고 clip 객체 하나로만 clipAction을 연다.
+     */
+    let clipObj: THREE.AnimationClip | undefined;
     if (isWalkClip) {
-      action =
-        getClipAction(actions, requestedName) ??
-        (() => {
-          const actionNames = Object.keys(actions);
-          const walkKey =
-            actionNames.find((n) => /(^|_)Walking$/i.test(lastClipSeg(n))) ??
-            actionNames.find((n) => /walk/i.test(n)) ??
-            actionNames.find((n) => /run/i.test(n));
-          return walkKey && actions[walkKey] ? actions[walkKey]! : getClipAction(actions, fallback);
-        })();
+      clipObj =
+        findAnimationClipByLogicalName(animations, requestedName) ??
+        findWalkingAnimationClip(animations) ??
+        findRunningAnimationClip(animations) ??
+        findAnimationClipByLogicalName(animations, fallback);
     } else {
-      // 정지: GLB 키가 mixamo.com|Idle_9 형태여도 getClipAction으로 Idle_9 / Idle_3 에 매칭
-      action = getClipAction(actions, fallback) ?? getClipAction(actions, requestedName);
+      /** Idle_9 / Idle_3 만 사용. 느슨한 폴백 시 댄스 등 다른 클립이 잡혀 ‘idle 이 아닌 것’처럼 보임 */
+      clipObj = findMascotIdleAnimationClip(kind, animations);
     }
 
-    if (!action) {
+    if (!clipObj) {
+      /** idle 클립 탐색 실패 시에도 이전 액션 정지 — 안 하면 걷기/댄스 클립이 그대로 루프됨 */
+      mixer.stopAllAction();
+      currentActionRef.current = null;
       onReady();
-      return;
-    }
-
-    // 같은 액션이 이미 실행 중이면 불필요한 reset/play로 루프가 '초반 프레임만' 반복되는 문제를 막는다.
-    const isSame = currentActionRef.current === action;
-    if (isSame && action.isRunning()) {
-      if (isWalkClip) {
-        action.paused = false;
-        action.enabled = true;
-        action.setLoop(THREE.LoopRepeat, Infinity);
-        action.clampWhenFinished = false;
-        action.setEffectiveTimeScale(1.35);
-      }
       invalidate();
       return;
     }
 
-    // 걷기든 정지든, 재생 전에 다른 클립 잔류 제거(순차·겹침 재생 방지)
-    mixer.stopAllAction();
-    for (const k of Object.keys(actions)) {
-      const a = actions[k];
-      if (!a) continue;
-      if (a !== action) {
-        a.stop();
-        a.enabled = false;
-        a.setEffectiveWeight(0);
+    /**
+     * drei `useAnimations(clips, groupRef)`는 믹서 `_root`를 바깥 `<group ref={groupRef}>`로 둠.
+     * `clipAction(clip, model)`처럼 다른 루트를 넘기면 GLB 트랙 경로와 불일치해 Idle이 본에 안 걸리고
+     * 이전 클립 포즈(Superlove 등)가 남은 것처럼 보일 수 있음 → 두 번째 인자 없이 `_root`와 동일하게 바인딩.
+     */
+    const applyLoopAndScale = (a: THREE.AnimationAction) => {
+      a.setLoop(THREE.LoopRepeat, Infinity);
+      a.clampWhenFinished = false;
+      a.setEffectiveTimeScale(isWalkClip ? 1.35 : 1);
+      a.paused = false;
+      a.enabled = true;
+    };
+
+    /**
+     * 정지(idle): 먼저 전부 정지·포즈 리셋 후 clipAction — clipAction을 먼저 만들면 잠깐 이중 바인딩이 생길 수 있음.
+     */
+    if (!isWalkClip) {
+      mixer.stopAllAction();
+      resetSkinnedBindPose(model);
+      const nextAction = mixer.clipAction(clipObj);
+      nextAction.reset();
+      applyLoopAndScale(nextAction);
+      nextAction.setEffectiveWeight(1);
+      nextAction.time = 0;
+      nextAction.play();
+      currentActionRef.current = nextAction;
+      if (process.env.NODE_ENV === "development") {
+        const i = animations.indexOf(clipObj);
+        console.info("[MascotGuide idle playing]", clipObj.name, "animations[" + i + "]");
       }
+      onReady();
+      invalidate();
+      return;
     }
 
-    if (isWalkClip) {
-      action.setLoop(THREE.LoopRepeat, Infinity);
-      action.clampWhenFinished = false;
-      action.setEffectiveTimeScale(1.35);
-      action.paused = false;
-      action.enabled = true;
-      action.weight = 1;
-    } else {
-      action.setLoop(THREE.LoopRepeat, Infinity);
-      action.clampWhenFinished = false;
-      action.setEffectiveTimeScale(1);
-      action.paused = false;
+    const prevAction = currentActionRef.current;
+    const nextAction = mixer.clipAction(clipObj);
+
+    // 이하 걷기만
+    if (prevAction === nextAction && nextAction.isRunning()) {
+      nextAction.paused = false;
+      nextAction.enabled = true;
+      nextAction.setLoop(THREE.LoopRepeat, Infinity);
+      nextAction.clampWhenFinished = false;
+      nextAction.setEffectiveTimeScale(1.35);
+      invalidate();
+      return;
     }
-    // 설정을 먼저 하고, 마지막에 play()로 확정
-    action.enabled = true;
-    action.setEffectiveWeight(1);
-    action.reset();
-    action.time = 0;
-    if (!isWalkClip) action.fadeIn(0.18);
-    // Walking은 즉시 play(페이드 없이)로 확정
-    action.play();
-    currentActionRef.current = action;
-    // 워킹 상태 진입 시 ensure 타이머 초기화
+
+    if (prevAction && prevAction !== nextAction) {
+      prevAction.fadeOut(CLIP_CROSSFADE_SEC);
+      nextAction.reset();
+      applyLoopAndScale(nextAction);
+      nextAction.fadeIn(CLIP_CROSSFADE_SEC).play();
+    } else {
+      mixer.stopAllAction();
+      nextAction.reset();
+      applyLoopAndScale(nextAction);
+      nextAction.setEffectiveWeight(1);
+      nextAction.time = 0;
+      nextAction.play();
+    }
+
+    currentActionRef.current = nextAction;
     if (isWalkClip) {
       walkEnsureRef.current = { lastBadAt: 0, lastRestartAt: performance.now() };
     }
     onReady();
     invalidate();
     return undefined;
-  }, [actions, clip, fallback, isWalkClip, kind, onReady]);
+  }, [animations, mixer, clip, fallback, isWalkClip, kind, onReady]);
 
   useFrame((state, _delta) => {
     const g = groupRef.current;
     if (!g) return;
-    // drei useAnimations 가 mixer.update — 이 컴포넌트에서는 mixer.update 금지(이중 업데이트 시 클립이 뒤섞여 보임)
-    const keep = currentActionRef.current;
-    if (keep) {
-      for (const key of Object.keys(actions)) {
-        const act = actions[key];
-        if (!act) continue;
-        if (act !== keep) {
-          act.stop();
-          act.enabled = false;
-          act.setEffectiveWeight(0);
-        } else {
-          act.setLoop(THREE.LoopRepeat, Infinity);
-          act.clampWhenFinished = false;
-          act.paused = false;
-          act.enabled = true;
-          if (!act.isRunning()) {
-            act.setEffectiveWeight(1);
-            act.reset().play();
-          }
-        }
-      }
-    }
+    // mixer.update는 drei useAnimations가 담당. 여기서는 다른 액션을 매 프레임 스캔하지 않음.
     const faceY = -yaw;
     if (playbackModeRef.current === "walk") {
       g.rotation.y = faceY;
