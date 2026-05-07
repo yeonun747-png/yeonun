@@ -386,6 +386,140 @@ export function toHanjaJi(jiHangul: string) {
   return index >= 0 ? SIBIJI[index] : jiHangul;
 }
 
+function stemMetaphor(gan: string) {
+  const han = toHanjaGan(gan);
+  const oh = OHENG[gan] ?? "";
+  const label = `${gan}${oh ? oh : ""}(${han}${oh ? ohangHanja(oh) : ""})`;
+  const desc =
+    gan === "갑"
+      ? "하늘을 향해 쭉 뻗는 큰 나무처럼 곧고 주도적인 기운이에요."
+      : gan === "을"
+        ? "바람에 흔들리며 자라나는 풀·덩굴처럼 유연하고 섬세한 기운이에요."
+        : gan === "병"
+          ? "햇살처럼 밝고 확장하는 열정의 기운이에요."
+          : gan === "정"
+            ? "촛불처럼 따뜻하게 비추는 집중과 배려의 기운이에요."
+            : gan === "무"
+              ? "큰 산처럼 든든하게 버티는 중심의 기운이에요."
+              : gan === "기"
+                ? "기름진 흙처럼 받아주고 키우는 돌봄의 기운이에요."
+                : gan === "경"
+                  ? "잘 벼린 칼처럼 결단과 정리가 빠른 기운이에요."
+                  : gan === "신"
+                    ? "보석처럼 단정하고 기준이 분명한 기운이에요."
+                    : gan === "임"
+                      ? "큰 강처럼 흐름이 크고 유연한 기운이에요."
+                      : gan === "계"
+                        ? "이슬비처럼 조용히 스며드는 감각의 기운이에요."
+                        : "그 글자만의 고유한 성향이 있어요.";
+  return { label, desc };
+}
+
+function branchMetaphor(ji: string) {
+  const han = toHanjaJi(ji);
+  const oh = OHENG[ji] ?? "";
+  const label = `${ji}${oh ? oh : ""}(${han}${oh ? ohangHanja(oh) : ""})`;
+  const desc =
+    ji === "인"
+      ? "시작과 추진력이 강해요."
+      : ji === "묘"
+        ? "관계와 감각이 섬세해요."
+        : ji === "진"
+          ? "기반을 다지고 쌓아가는 힘이 있어요."
+          : ji === "사"
+            ? "몰입과 집중이 좋아요."
+            : ji === "오"
+              ? "표현과 자신감이 강해요."
+              : ji === "미"
+                ? "정서·돌봄의 기운이 있어요."
+                : ji === "신"
+                  ? "변화에 빠르고 머리가 잘 돌아가요."
+                  : ji === "유"
+                    ? "정리정돈·완성도가 중요해요."
+                    : ji === "술"
+                      ? "원칙과 책임감이 있어요."
+                      : ji === "해"
+                        ? "직관과 상상력이 좋아요."
+                        : ji === "자"
+                          ? "감수성이 깊고 생각이 많아요."
+                          : ji === "축"
+                            ? "끈기와 인내가 강해요."
+                            : "그 지지만의 기운이 있어요.";
+  return { label, desc };
+}
+
+function pillarSlotLabel(pillarType: "year" | "month" | "day" | "hour") {
+  if (pillarType === "year") return "년주";
+  if (pillarType === "month") return "월주";
+  if (pillarType === "day") return "일주";
+  return "시주";
+}
+
+/** 이 기둥이 사주 안에서 어떻게 읽히는지 한 문장(사전식 정의보다, 클릭한 칸 맥락). */
+function pillarReadingHint(pillarType: "year" | "month" | "day" | "hour") {
+  if (pillarType === "year") return "명식에서 이 칸은 보통 어린 시절·가족·타고난 환경기운으로 많이 읽어요.";
+  if (pillarType === "month") return "밖에서의 역할, 사회·커리어 리듬과 잘 맞물리는 자리예요.";
+  if (pillarType === "day") return "사주에서 ‘나’를 가장 직접 보는, 본인 기둥이에요.";
+  return "앞으로의 흐름·마무리·방향성과도 잘 연결되는 자리예요.";
+}
+
+function dayStemTrait(dayGan: string) {
+  return dayGan === "갑"
+    ? "강한 의지와 리더십이 특징이에요."
+    : dayGan === "을"
+      ? "유연함과 공감 능력이 돋보여요."
+      : dayGan === "병"
+        ? "밝고 추진력 있는 성향이 강해요."
+        : dayGan === "정"
+          ? "섬세함과 집중력이 강해요."
+          : dayGan === "무"
+            ? "중심을 잡고 책임지는 힘이 있어요."
+            : dayGan === "기"
+              ? "배려하고 조율하는 힘이 좋아요."
+              : dayGan === "경"
+                ? "결단력과 실행력이 강해요."
+                : dayGan === "신"
+                  ? "정확함과 완성도를 중시해요."
+                  : dayGan === "임"
+                    ? "유연한 사고와 큰 흐름을 보는 힘이 있어요."
+                    : dayGan === "계"
+                      ? "직관과 섬세한 감각이 좋아요."
+                      : "그 일간만의 특성이 있어요.";
+}
+
+function ohangHanja(oh: string) {
+  if (oh === "목") return "木";
+  if (oh === "화") return "火";
+  if (oh === "토") return "土";
+  if (oh === "금") return "金";
+  if (oh === "수") return "水";
+  return "";
+}
+
+/** 명식에서 연·월·일·시 칸 클릭 시: 해당 유저의 그 기둥(간지) 중심 설명(엔진 십성 포함). */
+export function explainMansePillar(
+  pillarType: "year" | "month" | "day" | "hour",
+  p: MansePillar,
+  userName?: string,
+) {
+  const display = (userName ?? "").trim();
+  const who = display ? `${display}님` : "회원님";
+  const slot = pillarSlotLabel(pillarType);
+  const stem = stemMetaphor(p.gan);
+  const branch = branchMetaphor(p.ji);
+  const ganji = `${p.gan}${p.ji}(${toHanjaGan(p.gan)}${toHanjaJi(p.ji)})`;
+
+  const core = `${who} 명식의 ${slot}는 ${ganji}예요. 천간 ${stem.label}은 ${stem.desc} 지지 ${branch.label}은 ${branch.desc}`;
+
+  if (pillarType === "day") {
+    const tail = `같은 기둥이 곧 본인이라 ${dayStemTrait(p.gan)} 지지는 일간과 「${p.jiSibsung}」 관계로도 봐요. ${pillarReadingHint(pillarType)}`;
+    return `${core} ${tail}`.replace(/\s+/g, " ").trim();
+  }
+
+  const tail = `일간을 기준으로 천간은 「${p.sibsung}」, 지지는 「${p.jiSibsung}」에 해당해요. ${pillarReadingHint(pillarType)}`;
+  return `${core} ${tail}`.replace(/\s+/g, " ").trim();
+}
+
 /** 60갑자 순번(0=甲子 … 59=癸亥) */
 export function gapjaIndexFromGanJi(ganHangul: string, jiHangul: string): number {
   for (let n = 0; n < 60; n++) {

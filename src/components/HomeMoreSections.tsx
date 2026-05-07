@@ -393,6 +393,7 @@ export function HomeContentGrid({
   hanDisplayChar?: string;
 }) {
   const suffix = extraSearchParams.startsWith("&") ? extraSearchParams : extraSearchParams ? `&${extraSearchParams}` : "";
+  const fortuneSearch = suffix ? `?${suffix.replace(/^&/, "")}` : "";
   return (
     <div className="y-content-grid" aria-label="추천 풀이">
       {items.map((p) => {
@@ -403,7 +404,7 @@ export function HomeContentGrid({
         const inlineSvg = (p.thumbnail_svg?.trim() || fallbackSvgBySlug[p.slug]?.trim() || "").trim();
         const han = hanDisplayChar?.trim() ? hanDisplayChar : m.han;
         return (
-          <SheetLink key={p.slug} href={`/content/${p.slug}?sheet=1${suffix}`} className={`y-content-card ${variant}`}>
+          <SheetLink key={p.slug} href={`/fortune/${p.slug}${fortuneSearch}`} className={`y-content-card ${variant}`}>
             <div className="y-content-visual">
               {p.badge ? <span className={`y-content-badge ${badgeClass}`}>{p.badge}</span> : null}
               <div className="y-content-han" aria-hidden="true">
@@ -423,10 +424,6 @@ export function HomeContentGrid({
               <p className="y-content-quote">{p.quote}</p>
               <div className="y-content-tags-row">
                 <div className="y-content-tags">{tagLine || "#재회 #인연 #흐름"}</div>
-                <div className="y-content-price">
-                  {p.price_krw.toLocaleString("ko-KR")}
-                  <span className="small">원</span>
-                </div>
               </div>
             </div>
           </SheetLink>

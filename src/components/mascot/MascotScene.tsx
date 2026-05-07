@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { usePathname } from "next/navigation";
 import { MascotBubble } from "./MascotBubble";
 import { MascotCanvas } from "./MascotCanvas";
 import { YEON, UN } from "./mascotAssets";
@@ -90,8 +91,10 @@ function MascotSceneInner() {
 
 export default function MascotScene() {
   const [ok] = useState(() => supportsWebGL());
+  const pathname = usePathname();
 
-  if (!ok) return null;
+  // 홈/점사/마이: 전역 마스코트 비표시(홈은 별도 프리로드 유지)
+  if (!ok || pathname === "/" || pathname.startsWith("/fortune") || pathname.startsWith("/my")) return null;
 
   return (
     <MascotStateProvider>

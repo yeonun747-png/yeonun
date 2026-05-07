@@ -90,6 +90,18 @@ export function PrimaryTabScrollClient() {
 
     const scrollKey = scrollSavedStorageKey(tab);
 
+    // 홈은 항상 최상단에서 시작 (자동 스크롤 복원 방지)
+    if (tab === "home") {
+      try {
+        sessionStorage.removeItem(scrollKey);
+        sessionStorage.removeItem(SCROLL_RESET_KEY);
+      } catch {
+        /* ignore */
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      return;
+    }
+
     if (resetKey === tab) {
       try {
         sessionStorage.removeItem(SCROLL_RESET_KEY);

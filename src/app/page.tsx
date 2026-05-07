@@ -3,10 +3,12 @@ import { CharacterCarousel } from "@/components/CharacterCarousel";
 import { HomeHero } from "@/components/HomeHero";
 import { HomeMoreSections } from "@/components/HomeMoreSections";
 import { TopNav } from "@/components/TopNav";
+import { MascotPreloadClient } from "@/components/mascot/MascotPreloadClient";
 
 export default function Home() {
   return (
     <div className="yeonunPage">
+      <MascotPreloadClient />
       <TopNav />
       <main>
         <HomeHero />
