@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { FortuneExitScrollRestore } from "@/components/fortune/FortuneExitScrollRestore";
 import { TopNav } from "@/components/TopNav";
 import { YeonunRoutedBottomSheetPortal } from "@/components/YeonunRoutedBottomSheetPortal";
 import { HomeContentGrid } from "@/components/HomeMoreSections";
@@ -64,6 +65,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
 
   const Body = (
     <main style={{ paddingBottom: 180 }}>
+      <FortuneExitScrollRestore />
       <section className={`y-chd-hero ${c.key}`} aria-label="인연 안내자">
         <div className="y-chd-status-pulse">
           <span className="pulse" aria-hidden="true" />

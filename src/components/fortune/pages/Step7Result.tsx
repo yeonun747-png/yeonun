@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { FortuneStreamSectionMedia } from "@/components/modals/FortuneStreamSectionMedia";
 import { buildFortuneMainGroups } from "@/lib/fortune-main-groups";
@@ -117,15 +117,10 @@ export function Step7Result({
   product,
   result,
   exitHref,
-  onPartChange,
-  onPartAdvance,
 }: {
   product: Product;
   result: FortuneResultState;
   exitHref: string;
-  onPartChange?: (info: { page: number; isLastPart: boolean }) => void;
-  /** 다음 파트로 넘길 때 마스코트 걷기 틱 */
-  onPartAdvance?: () => void;
 }) {
   const [page, setPage] = useState(0);
   const toc = useMemo(() => enrichTocWithMenuMedia(result.toc, product), [result.toc, product]);
@@ -142,10 +137,6 @@ export function Step7Result({
   const isLastPart = groups.length === 0 ? true : page >= groups.length - 1;
   const nextTitle = nextReady && next ? next.mainTitle : "다음 풀이 준비 중";
 
-  useEffect(() => {
-    onPartChange?.({ page, isLastPart });
-  }, [page, isLastPart, onPartChange]);
-
   const scrollStageTop = () => {
     const root = document.querySelector<HTMLElement>('.y-fortune-v2-root[data-step="7"]');
     const stage = root?.querySelector<HTMLElement>(".y-fortune-v2-stage") ?? null;
@@ -156,57 +147,51 @@ export function Step7Result({
   const goNextPart = () => {
     if (!next || !nextReady) return;
     setPage((p) => p + 1);
-    onPartAdvance?.();
     scrollStageTop();
     requestAnimationFrame(() => scrollStageTop());
     window.setTimeout(scrollStageTop, 80);
   };
 
-  const dockClass = isLastPart ? "y-fortune-v2-result-dock-fixed is-last-part" : "y-fortune-v2-result-dock-fixed";
-
   return (
-    <>
-      <section
-        className={`y-fortune-v2-result-page ${isLastPart ? "y-fortune-v2-result-page--exit-only" : "y-fortune-v2-result-page--with-dock"}`}
-      >
-        <div className="y-fortune-v2-result-head">
-          <span>PART {page + 1}</span>
-          <h1>{title}</h1>
-        </div>
-        <article className="y-fortune-v2-result-html">
-          {result.claudeMode ? (
-            <div
-              // eslint-disable-next-line react/no-danger
-              dangerouslySetInnerHTML={{ __html: stripEmpty(result.claudeHtml) }}
-            />
-          ) : (
-            <ResultSectionsHtml toc={toc} sectionIndices={active.sectionIndices} sectionHtml={result.sectionHtml} />
-          )}
-        </article>
-      </section>
+    <section className="y-fortune-v2-result-page">
+      <div className="y-fortune-v2-result-head">
+        <span>PART {page + 1}</span>
+        <h1>{title}</h1>
+      </div>
+      <article className="y-fortune-v2-result-html">
+        {result.claudeMode ? (
+          <div
+            // eslint-disable-next-line react/no-danger
+            dangerouslySetInnerHTML={{ __html: stripEmpty(result.claudeHtml) }}
+          />
+        ) : (
+          <ResultSectionsHtml toc={toc} sectionIndices={active.sectionIndices} sectionHtml={result.sectionHtml} />
+        )}
+      </article>
 
-      <div className={dockClass} aria-label="풀이 이동">
+      <div className="y-fortune-v2-result-dock-inline" aria-label="풀이 이동">
         {!isLastPart ? (
           <button
             type="button"
-            className="y-fortune-v2-next-interpret"
+            className="y-fortune-v2-result-next-card"
             disabled={!next || !nextReady}
             onClick={goNextPart}
           >
-            <div className="y-fortune-v2-next-interpret__main">
-              <span className="y-fortune-v2-next-interpret__label">다음 풀이</span>
-              <span className="y-fortune-v2-next-interpret__title">{nextTitle}</span>
+            <div className="y-fortune-v2-result-next-card__main">
+              <span className="y-fortune-v2-result-next-card__lbl">다음 풀이</span>
+              <span className="y-fortune-v2-result-next-card__title">{nextTitle}</span>
             </div>
-            <span className="y-fortune-v2-next-interpret__go" aria-hidden>
+            <span className="y-fortune-v2-result-next-card__arr" aria-hidden>
+              →
               <span className="y-fortune-v2-step7-next-anchor" />
             </span>
           </button>
         ) : (
-          <Link href={exitHref} className="y-fortune-v2-exit-pill">
+          <Link href={exitHref} className="y-fortune-v2-result-exit-btn">
             나가기 (점사 정보는 저장되요)
           </Link>
         )}
       </div>
-    </>
+    </section>
   );
 }

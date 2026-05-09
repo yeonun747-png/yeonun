@@ -62,6 +62,60 @@ function requireProxySecret(req, res, next) {
   return next();
 }
 
+/** @param {unknown} raw */
+function coerceAnthropicSystem(raw) {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    return s.length ? s : null;
+  }
+  if (Array.isArray(raw)) {
+    return raw.length ? raw : null;
+  }
+  const s = String(raw).trim();
+  return s.length ? s : null;
+}
+
+/** 데스크톱 server.js와 동일: 프롬프트 캐시 + output 300k. 400 시 `ANTHROPIC_BETA=prompt-caching-2024-07-31` 만 설정 */
+function anthropicBetaHeader() {
+  const env = String(process.env.ANTHROPIC_BETA ?? "").trim();
+  if (env) return env;
+  const parts = ["prompt-caching-2024-07-31", "output-300k-2026-03-24"];
+  return parts.join(",");
+}
+
+function systemCharsForLog(system) {
+  if (typeof system === "string") return system.length;
+  if (!Array.isArray(system)) return 0;
+  return system.reduce((n, b) => {
+    if (b && typeof b === "object" && typeof b.text === "string") return n + b.text.length;
+    return n;
+  }, 0);
+}
+
+/** @param {Record<string, unknown>} evt */
+function tryLogPromptCacheUsage(evt, opts) {
+  const { onceRef } = opts || {};
+  if (!evt || typeof evt !== "object") return;
+  const u =
+    "usage" in evt && evt.usage && typeof evt.usage === "object"
+      ? evt.usage
+      : "message" in evt && evt.message && typeof evt.message === "object" && "usage" in evt.message
+        ? evt.message.usage
+        : null;
+  if (!u || typeof u !== "object") return;
+  const cr = u.cache_read_input_tokens;
+  if (typeof cr !== "number" || cr <= 0) return;
+  if (onceRef && onceRef.logged) return;
+  if (onceRef) onceRef.logged = true;
+  const cc = u.cache_creation_input_tokens;
+  console.log(
+    `[fortune-claude-cache] cache_read_input_tokens=${cr}` +
+      (typeof cc === "number" ? ` cache_creation_input_tokens=${cc}` : "") +
+      (typeof u.input_tokens === "number" ? ` input_tokens=${u.input_tokens}` : ""),
+  );
+}
+
 function resolveClaudeParams(reqBody) {
   const model =
     String(reqBody?.model || process.env.FORTUNE_CLOUDWAYS_MODEL || "claude-sonnet-4-6").trim() ||
@@ -78,12 +132,6 @@ function resolveClaudeParams(reqBody) {
   return { model, maxTokens, temperature };
 }
 
-function systemPayloadChars(system) {
-  if (typeof system === "string") return system.length;
-  if (Array.isArray(system)) return JSON.stringify(system).length;
-  return 0;
-}
-
 async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, ttftCtx) {
   const { model, maxTokens, temperature } = resolveClaudeParams(reqBody);
   const claudeBody = {
@@ -98,7 +146,7 @@ async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, tt
   const { ttftDebug, reqId, ms } = ttftCtx || {};
   if (ttftDebug && reqId) {
     console.log(
-      `[fortune-ttft ${reqId}] [0] request_start ms=${ms()} model=${model} max_tokens=${maxTokens} temp=${temperature} system_chars=${systemPayloadChars(system)} user_chars=${user.length}`,
+      `[fortune-ttft ${reqId}] [0] request_start ms=${ms()} model=${model} max_tokens=${maxTokens} temp=${temperature} system_chars=${systemCharsForLog(system)} user_chars=${user.length}`,
     );
   }
 
@@ -111,9 +159,7 @@ async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, tt
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        // 기본은 프롬프트 캐시만. output-300k 등 복수 베타는 일부 키/환경에서 400을 유발할 수 있음 → ANTHROPIC_BETA로만 추가.
-        "anthropic-beta":
-          String(process.env.ANTHROPIC_BETA ?? "").trim() || "prompt-caching-2024-07-31",
+        "anthropic-beta": anthropicBetaHeader(),
       },
       body: JSON.stringify(claudeBody),
     });
@@ -134,7 +180,7 @@ async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, tt
   return claudeRes;
 }
 
-async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx }) {
+async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx, cacheLogOnceRef }) {
   const decoder = new TextDecoder();
   let buffer = "";
   let accumulatedText = "";
@@ -167,6 +213,7 @@ async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx }) {
         } catch {
           continue;
         }
+        tryLogPromptCacheUsage(evt, { onceRef: cacheLogOnceRef });
         if (evt && typeof evt === "object" && evt.usage && typeof evt.usage === "object") {
           lastUsage = evt.usage;
         }
@@ -299,18 +346,16 @@ app.post("/chat", requireProxySecret, async (req, res) => {
 
         const streamOneMenuSection = async (systemPayload) => {
           const claudeRes = await anthropicMessagesStreamResponse(apiKey, req.body, systemPayload, user, null);
+          const cacheLogOnceRef = { logged: false };
           return readClaudeSseToHtml(claudeRes.body.getReader(), {
             onTextDelta: (delta) => writeSse({ type: "chunk", index: i, html: delta }),
             ttftCtx: null,
+            cacheLogOnceRef,
           });
         };
 
         try {
-          let { html, streamError, usage } = await streamOneMenuSection(system);
-          const cr = usage?.cache_read_input_tokens;
-          if (typeof cr === "number" && cr > 0) {
-            console.log(`[fortune-claude-cache] section_index=${i} cache_read_input_tokens=${cr}`);
-          }
+          let { html, streamError } = await streamOneMenuSection(system);
 
           const thin = !html || html.trim().length < 40;
           const errHeavy = Boolean(streamError) && html.trim().length < 120;
@@ -324,7 +369,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
                 if (second.html.trim().length >= html.trim().length) {
                   html = second.html;
                   streamError = second.streamError;
-                  usage = second.usage;
                 }
               } catch (retryErr) {
                 console.warn(
@@ -347,11 +391,7 @@ app.post("/chat", requireProxySecret, async (req, res) => {
           if (usesCachedArray && plainFallback.length > 0) {
             try {
               console.warn(`[fortune-menu-fallback-plain] section_index=${i} err=${msg.slice(0, 240)}`);
-              const { html: h2, streamError: se2, usage: u2 } = await streamOneMenuSection(plainFallback);
-              const cr2 = u2?.cache_read_input_tokens;
-              if (typeof cr2 === "number" && cr2 > 0) {
-                console.log(`[fortune-claude-cache] section_index=${i} fallback cache_read_input_tokens=${cr2}`);
-              }
+              const { html: h2, streamError: se2 } = await streamOneMenuSection(plainFallback);
               if (se2) writeSse({ type: "error", message: se2 });
               const safe2 =
                 h2.trim() ||
@@ -390,7 +430,7 @@ app.post("/chat", requireProxySecret, async (req, res) => {
     return;
   }
 
-  const system = String(req.body?.system ?? "").trim();
+  const system = coerceAnthropicSystem(req.body?.system);
   const user = String(req.body?.user ?? "").trim();
   if (!system || !user) {
     return res.status(400).json({ error: "Invalid request", message: "system and user are required." });
@@ -425,15 +465,17 @@ app.post("/chat", requireProxySecret, async (req, res) => {
   }
 
   let accLen = 0;
+  const cacheLogOnceRef = { logged: false };
   const { html: cleanHtml, streamError, usage: singleUsage } = await readClaudeSseToHtml(claudeRes.body.getReader(), {
     onTextDelta: (t) => {
       accLen += t.length;
       writeSse({ type: "chunk", text: t, accumulatedLength: accLen });
     },
     ttftCtx: { ttftDebug, reqId, ms, writeSse },
+    cacheLogOnceRef,
   });
   const singleCr = singleUsage?.cache_read_input_tokens;
-  if (typeof singleCr === "number" && singleCr > 0) {
+  if (typeof singleCr === "number" && singleCr > 0 && !cacheLogOnceRef.logged) {
     console.log(`[fortune-claude-cache] single_chat cache_read_input_tokens=${singleCr}`);
   }
 

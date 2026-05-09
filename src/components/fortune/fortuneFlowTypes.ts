@@ -19,8 +19,6 @@ export type FortuneGuideState = {
   text: string;
   name: string;
   clip?: string;
-  /** `go()`·스텝7 파트 이동 시 증가 — 같은 `pos`여도 걷기 이동 재생 */
-  walkTick?: number;
 };
 
 export type FortuneResultState = {

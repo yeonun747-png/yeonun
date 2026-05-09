@@ -4898,18 +4898,6 @@ button.y-dw-listen:disabled {
   margin-top: 16px;
   position: relative;
 }
-.y-season-block::before {
-  content: "丙午";
-  position: absolute;
-  right: 24px;
-  top: 24px;
-  font-family: "Noto Serif KR", serif;
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--y-rose);
-  letter-spacing: 0.05em;
-  opacity: 0.5;
-}
 .y-content-card.yeon .y-content-visual {
   background: linear-gradient(165deg, #fbe5ea 0%, #f5dae0 50%, #ecc5d0 100%);
 }
@@ -11014,42 +11002,19 @@ a.y-vip-card--link {
   min-height: calc(100svh - 56px);
   margin: 0 auto;
   padding: 0 16px 48px;
-  animation: yFortuneV2In 0.35s ease both;
 }
 
-/*
- * go() 시 stageReady=false → is-walking. 스텝 본문만 숨김.
- * 마스코트(.y-fortune-v2-guide)까지 숨기면 전환 중 걷기가 안 보이거나, 보여도 정지 포즈만 이동하는 것처럼 보임.
- */
-.y-fortune-v2-stage.is-walking > *:not(.y-fortune-v2-guide) {
-  opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
-}
-
-.y-fortune-v2-stage.is-ready > *:not(.y-fortune-v2-guide) {
+/* 스텝 전환 시 날아오기·페이드 없이 즉시 표시(is-walking / is-ready 클래스는 JS 호환용으로 유지) */
+.y-fortune-v2-stage > *:not(.y-fortune-v2-guide) {
   opacity: 1;
-  transform: translateY(0);
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transform: none;
+  transition: none;
+  pointer-events: auto;
 }
 
-.y-fortune-v2-stage.is-ready > .y-fortune-v2-guide {
+.y-fortune-v2-stage > .y-fortune-v2-guide {
   opacity: 1;
   pointer-events: none;
-}
-
-.y-fortune-v2-stage--back {
-  animation-name: yFortuneV2BackIn;
-}
-
-@keyframes yFortuneV2In {
-  from { opacity: 0; transform: translateX(24px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes yFortuneV2BackIn {
-  from { opacity: 0; transform: translateX(-24px); }
-  to { opacity: 1; transform: translateX(0); }
 }
 
 .y-fortune-v2-page {
@@ -11542,7 +11507,7 @@ a.y-vip-card--link {
 }
 
 .y-fortune-v2-preview-page {
-  padding-top: 70px;
+  padding-top: 12px;
 }
 
 .y-fortune-v2-toc-card {
@@ -11984,7 +11949,19 @@ a.y-vip-card--link {
 .y-fortune-v2-result-page {
   max-width: 430px;
   margin: 0 auto;
-  padding: 118px 16px 60px;
+  padding: 118px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* 스텝7: 마스코트 없음 — 헤더(56px) 직후부터 본문 (기존 큰 상단 공백 제거) */
+.y-fortune-v2-root[data-step="7"] .y-fortune-v2-result-page {
+  padding-top: calc(56px + 10px);
+}
+
+.y-fortune-v2-root[data-step="7"] .y-fortune-v2-result-loading {
+  padding-top: calc(56px + 24px);
+  min-height: calc(100svh - 56px - 40px);
 }
 
 .y-fortune-v2-result-head {
@@ -12125,92 +12102,86 @@ a.y-vip-card--link {
   opacity: 0.54;
 }
 
-.y-fortune-v2-result-dock-fixed {
-  position: fixed;
-  z-index: 480;
-  left: 50%;
-  bottom: 0;
-  transform: translateX(-50%);
+/* 목업 yeonun_fortune_v5 `.next-card` — 본문 아래 인라인(스크롤 고정 아님), 폭은 섹션 안에서만 */
+.y-fortune-v2-result-dock-inline {
+  margin-top: 16px;
   width: 100%;
-  max-width: 430px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  max-width: 100%;
   box-sizing: border-box;
-  pointer-events: auto;
 }
 
-.y-fortune-v2-result-page--with-dock {
-  padding-bottom: 118px;
-}
-
-.y-fortune-v2-result-page--exit-only {
-  padding-bottom: 92px;
-}
-
-.y-fortune-v2-next-interpret {
+.y-fortune-v2-result-next-card {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  background: #fff;
+  border: 1.5px solid rgba(24, 20, 15, 0.1);
+  border-radius: 16px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
   gap: 12px;
-  padding: 14px 18px;
-  border: none;
-  border-radius: 26px;
-  background: #fff;
-  box-shadow: 0 12px 32px rgba(24, 20, 15, 0.1);
-  text-align: left;
   cursor: pointer;
-  font: inherit;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+  box-shadow: 0 2px 16px rgba(24, 20, 15, 0.08);
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: inherit;
+  text-align: left;
 }
 
-.y-fortune-v2-next-interpret:disabled {
+.y-fortune-v2-result-next-card:active:not(:disabled) {
+  background: var(--rL);
+  border-color: var(--rose);
+}
+
+.y-fortune-v2-result-next-card:disabled {
   opacity: 0.48;
   cursor: default;
 }
 
-.y-fortune-v2-next-interpret__main {
+.y-fortune-v2-result-next-card__main {
   flex: 1;
   min-width: 0;
 }
 
-.y-fortune-v2-next-interpret__label {
+.y-fortune-v2-result-next-card__lbl {
   display: block;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink3);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  margin-bottom: 2px;
 }
 
-.y-fortune-v2-next-interpret__title {
+.y-fortune-v2-result-next-card__title {
   display: block;
-  margin-top: 5px;
-  font-size: 15px;
-  font-weight: 800;
+  font-family: "Noto Serif KR", serif;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--ink);
-  letter-spacing: -0.03em;
   line-height: 1.35;
 }
 
-.y-fortune-v2-next-interpret__go {
+.y-fortune-v2-result-next-card__arr {
   position: relative;
   flex-shrink: 0;
-  width: 46px;
-  height: 46px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: #d14d72;
-}
-
-.y-fortune-v2-next-interpret__go::after {
-  content: "→";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -54%);
+  background: var(--rose);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
 }
 
-.y-fortune-v2-step7-next-anchor {
+.y-fortune-v2-result-next-card .y-fortune-v2-step7-next-anchor {
   position: absolute;
   left: 50%;
   top: 50%;
@@ -12221,18 +12192,30 @@ a.y-vip-card--link {
   opacity: 0;
 }
 
-.y-fortune-v2-exit-pill {
+/* 목업 `.btn` `.btn-main` — 마지막 파트 나가기 */
+.y-fortune-v2-result-exit-btn {
   display: block;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
-  text-align: center;
-  padding: 14px 20px;
-  border-radius: 999px;
-  background: #18140f;
+  padding: 14px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, var(--rose), #e8607a);
   color: #fff;
-  font-size: 14px;
+  font-family: "Noto Sans KR", sans-serif;
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: -0.2px;
+  text-align: center;
   text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(201, 64, 96, 0.28);
+  transition: transform 0.18s ease;
+}
+
+.y-fortune-v2-result-exit-btn:active {
+  transform: scale(0.98);
 }
 
 /** 스텝 2·4·5: 좌우 패딩(16px)의 1.5배만큼 스크린 하단에서 띄워 주요 UI 정렬 */
@@ -12342,15 +12325,61 @@ a.y-vip-card--link {
   padding-top: 24px;
 }
 
+/* 풀이완성: 스테이지 내부 스크롤 — 마스코트는 absolute로 본문과 함께 이동 */
+.y-fortune-v2-root[data-step="6"] .y-fortune-v2-stage {
+  position: relative;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(100svh - 56px);
+}
+
+.y-fortune-v2-root[data-step="6"] .y-fortune-v2-guide {
+  position: absolute;
+}
+
+.y-fortune-v2-root[data-step="6"] .y-fortune-v2-guide-mascot-row {
+  gap: 4px;
+}
+
+/* 풀이완성: 말풍선을 마스코트에 더 붙이고(--bubble-adjust 와 합산) 더 위로 */
+.y-fortune-v2-root[data-step="6"] .y-fortune-v2-bubble.y-fortune-v2-bubble--beside-mascot {
+  transform: translate(var(--bubble-adjust-x, 0px), calc(var(--bubble-adjust-y, 0px) - 22px));
+}
+
 .y-fortune-v2-guide {
   position: fixed;
   z-index: 500;
   width: 85px;
+  min-width: 85px;
   height: 120px;
-  transition:
-    left 4.25s ease-in-out,
-    top 4.25s ease-in-out;
+  /* left/top 전환은 MascotGuide 인라인 transition 으로만 제어 (거리별 duration) */
   pointer-events: none;
+}
+
+.y-fortune-v2-guide--bubble-left {
+  width: auto;
+  min-width: 85px;
+}
+
+.y-fortune-v2-guide-mascot-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 10px;
+  height: 120px;
+  width: max-content;
+}
+
+.y-fortune-v2-guide-mascot-stack {
+  position: relative;
+  width: 85px;
+  height: 120px;
+}
+
+.y-fortune-v2-bubble-spacer {
+  flex-shrink: 0;
+  width: 200px;
+  height: 1px;
 }
 
 .y-fortune-v2-guide--center { left: min(calc(50vw - 42px), 173px); top: 62px; }
@@ -12361,31 +12390,124 @@ a.y-vip-card--link {
 .y-fortune-v2-guide--br { left: min(calc((100vw - 430px) / 2 + 330px), calc(100vw - 100px)); top: calc(100svh - 160px); }
 
 .y-fortune-v2-mascot-canvas {
+  position: relative;
+  z-index: 0;
   width: 85px;
   height: 120px;
 }
 
+/* 공통: 반투명(배경 약 80% 불투명 = 20% 투명), 모서리 전부 둥글게, 페이드아웃 — 항상 마스코트 캔버스 위 */
 .y-fortune-v2-bubble {
+  position: relative;
+  z-index: 1;
+  padding: 10px 14px;
+  border: 1.5px solid rgba(201, 64, 96, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(24, 20, 15, 0.12);
+  opacity: 1;
+  transition: opacity 1s ease;
+}
+
+.y-fortune-v2-bubble.is-bubble-fading {
+  opacity: 0;
+}
+
+.y-fortune-v2-bubble.is-bubble-gone {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 풀이완성(스텝6): 마스코트 왼쪽 가로 배치 */
+.y-fortune-v2-bubble.y-fortune-v2-bubble--beside-mascot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  align-self: flex-end;
+  width: min(200px, calc(100vw - 110px));
+  max-width: min(200px, calc(100vw - 110px));
+  transform: translate(var(--bubble-adjust-x, 0px), var(--bubble-adjust-y, 0px));
+}
+
+/* 페이드 후에도 행 폭 유지 — 마스코트 위치가 옆으로 밀리지 않게 */
+.y-fortune-v2-bubble.y-fortune-v2-bubble--beside-mascot.is-bubble-gone {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.y-fortune-v2-bubble-fixed-wrap {
+  /*
+   * 포털이 body 직하라 .y-fortune-v2-root 의 커스텀 속성을 물려받지 못함 —
+   * 말풍선 제목(연이/운이)·본문색이 깨지지 않도록 동일 값 제공 (.y-fortune-v2-root 와 맞춤)
+   */
+  --rose: #c94060;
+  --purple: #6b4fa0;
+  --ink2: #3d3630;
+}
+
+/* 좁은 고정 말풍선(오행 등). --wide 는 아래 블록 + MascotGuide 인라인 기하 */
+.y-fortune-v2-bubble-fixed-wrap:not(.y-fortune-v2-bubble-fixed-wrap--wide) {
+  position: fixed;
+  z-index: 510;
+  box-sizing: border-box;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  top: calc(56px + 10px + env(safe-area-inset-top, 0px));
+  width: min(200px, calc(50vw - 20px));
+  max-width: calc(100vw - 112px);
+  pointer-events: none;
+}
+
+.y-fortune-v2-bubble-fixed-wrap.y-fortune-v2-bubble-fixed-wrap--wide {
+  position: fixed;
+  z-index: 510;
+  top: calc(56px + 10px + env(safe-area-inset-top, 0px));
+  pointer-events: none;
+  box-sizing: border-box;
+  background: transparent;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  /* left · width · max-width: MascotGuide — clientWidth / visualViewport.width (스크롤바 제외) */
+}
+
+/* 명식 넓은 말풍선만: backdrop-filter 직사각 헤일로 제거, 같은 요소 overflow 로 그림자까지 직각 자르지 않음 */
+.y-fortune-v2-bubble-fixed-wrap--wide .y-fortune-v2-bubble.y-fortune-v2-bubble--fixed-dock {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.94);
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+.y-fortune-v2-bubble.y-fortune-v2-bubble--fixed-dock {
+  position: relative;
+  z-index: 1;
+  left: auto;
+  bottom: auto;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  transform: none;
+  overflow-wrap: break-word;
+}
+
+/* 그 외 스텝: 말풍선 위(원래 레이아웃) */
+.y-fortune-v2-bubble.y-fortune-v2-bubble--stacked {
   position: absolute;
+  z-index: 1;
   left: 50%;
   bottom: 106px;
   width: min(200px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
-  padding: 10px 14px;
-  border: 1.5px solid rgba(201, 64, 96, 0.2);
-  border-radius: 16px;
-  background: #fff;
-  box-shadow: 0 18px 42px rgba(24, 20, 15, 0.12);
-  opacity: 0;
-  transform: translateX(calc(-50% + var(--bubble-adjust-x, 0px))) translateY(calc(6px + var(--bubble-adjust-y, 0px)));
-  animation: yFortuneV2Bubble 0.22s ease forwards;
+  transform: translateX(calc(-50% + var(--bubble-adjust-x, 0px))) translateY(var(--bubble-adjust-y, 0px));
 }
 
-@keyframes yFortuneV2Bubble {
-  to {
-    opacity: 1;
-    transform: translateX(calc(-50% + var(--bubble-adjust-x, 0px))) translateY(var(--bubble-adjust-y, 0px));
-  }
+.y-fortune-v2-bubble.y-fortune-v2-bubble--stacked.is-bubble-gone {
+  display: none;
 }
 
 .y-fortune-v2-bubble-name {

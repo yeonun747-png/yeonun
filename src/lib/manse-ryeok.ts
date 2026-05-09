@@ -507,9 +507,11 @@ export function explainMansePillar(
   const slot = pillarSlotLabel(pillarType);
   const stem = stemMetaphor(p.gan);
   const branch = branchMetaphor(p.ji);
-  const ganji = `${p.gan}${p.ji}(${toHanjaGan(p.gan)}${toHanjaJi(p.ji)})`;
+  /** 말풍선 등 UI용: 한자(한문) 없이 한글 간지·오행만 표기 */
+  const ganHangulLabel = OHENG[p.gan] ? `${p.gan}${OHENG[p.gan]}` : p.gan;
+  const jiHangulLabel = OHENG[p.ji] ? `${p.ji}${OHENG[p.ji]}` : p.ji;
 
-  const core = `${who} 명식의 ${slot}는 ${ganji}예요. 천간 ${stem.label}은 ${stem.desc} 지지 ${branch.label}은 ${branch.desc}`;
+  const core = `${who} 명식의 ${slot}는 ${p.gan}${p.ji}예요. 천간 ${ganHangulLabel}은 ${stem.desc} 지지 ${jiHangulLabel}은 ${branch.desc}`;
 
   if (pillarType === "day") {
     const tail = `같은 기둥이 곧 본인이라 ${dayStemTrait(p.gan)} 지지는 일간과 「${p.jiSibsung}」 관계로도 봐요. ${pillarReadingHint(pillarType)}`;

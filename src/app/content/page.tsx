@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BottomNav } from "@/components/BottomNav";
+import { FortuneExitScrollRestore } from "@/components/fortune/FortuneExitScrollRestore";
 import { TopNav } from "@/components/TopNav";
 import { HomeContentGrid } from "@/components/HomeMoreSections";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
@@ -108,6 +109,7 @@ export default async function ContentPage({
 
   return (
     <div className="yeonunPage">
+      <FortuneExitScrollRestore />
       <RoutePrefetcher routes={prefetchRoutes} />
       <TopNav />
       <main>

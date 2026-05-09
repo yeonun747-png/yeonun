@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   readAuthStubLoggedIn,
@@ -39,12 +39,10 @@ function previewText(prefetch: FortunePrefetchV1 | null, fallback: string) {
 export function Step6Preview({
   product,
   prefetch,
-  waiting,
   onPaid,
 }: {
   product: Product;
   prefetch: FortunePrefetchV1 | null;
-  waiting: boolean;
   onPaid: (orderNo: string | null) => void;
 }) {
   const [method, setMethod] = useState<"card" | "phone" | "credit">("card");
@@ -54,10 +52,6 @@ export function Step6Preview({
   const [agreeAll, setAgreeAll] = useState(true);
   const [agreePayTerms, setAgreePayTerms] = useState(true);
   const [agreeCommerceTerms, setAgreeCommerceTerms] = useState(true);
-  const tocRef = useRef<HTMLDivElement>(null);
-  const prevRef = useRef<HTMLDivElement>(null);
-  const [debugBox, setDebugBox] = useState<{ tocH: number; prevH: number; tocItems: number; previewLen: number } | null>(null);
-
   useEffect(() => {
     const refresh = () => setCreditBal(spendableTotalCredits());
     refresh();
@@ -72,14 +66,6 @@ export function Step6Preview({
 
   const canCredit = creditBal >= product.price_krw;
   const preview = previewText(prefetch, toc[0]?.title || product.title);
-  useLayoutEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
-    const tocEl = tocRef.current;
-    const prevEl = prevRef.current;
-    const tocH = tocEl?.getBoundingClientRect().height ?? 0;
-    const prevH = prevEl?.getBoundingClientRect().height ?? 0;
-    setDebugBox({ tocH, prevH, tocItems: toc.length, previewLen: preview.length });
-  }, [preview.length, toc.length]);
 
   const checkout = async (payMethod: "card" | "phone" | "credit") => {
     if (status === "loading") return;
@@ -148,7 +134,7 @@ export function Step6Preview({
       </div>
       <div className="y-fortune-v2-toc-card">
         <div className="y-fortune-v2-toc-head">전체 풀이 목차</div>
-        <div ref={tocRef}>
+        <div>
           {toc.map((main, i) => (
             <div className="y-fortune-v2-toc-item" key={main.id}>
               <div className={`y-fortune-v2-toc-n ${i === 0 ? "open" : ""}`}>{i + 1}</div>
@@ -161,7 +147,7 @@ export function Step6Preview({
         </div>
       </div>
 
-      <div className="y-fortune-v2-preview-card" ref={prevRef}>
+      <div className="y-fortune-v2-preview-card">
         <div className="y-fortune-v2-prev-hd">미리보기 · {toc[0]?.title || product.title}</div>
         <div className="y-fortune-v2-prev-body">
           <div className="y-fortune-v2-prev-fade">{preview}</div>
@@ -173,17 +159,6 @@ export function Step6Preview({
           </div>
         </div>
       </div>
-      {process.env.NODE_ENV === "development" && debugBox ? (
-        <div style={{ marginTop: 6, fontSize: 11, color: "rgba(61,54,48,0.7)" }}>
-          debug(step6): tocItems={debugBox.tocItems}, tocH={debugBox.tocH.toFixed(1)}px, prevH={debugBox.prevH.toFixed(1)}px, previewLen={debugBox.previewLen}
-        </div>
-      ) : null}
-      {waiting ? (
-        <div className="y-fortune-v2-waiting">
-          <span />
-          풀이 본문을 만드는 중이에요. 잠시만 기다려 주세요.
-        </div>
-      ) : null}
       <div className="y-fortune-v2-pay-card">
         {/* 결제 바텀시트(`PaymentModal`) UI를 동일 클래스/구조로 재사용 */}
         <h3 className="y-pay-section-title">결제 수단</h3>

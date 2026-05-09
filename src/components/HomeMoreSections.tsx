@@ -410,7 +410,12 @@ export function HomeContentGrid({
         const inlineSvg = (p.thumbnail_svg?.trim() || fallbackSvgBySlug[p.slug]?.trim() || "").trim();
         const han = hanDisplayChar?.trim() ? hanDisplayChar : m.han;
         return (
-          <SheetLink key={p.slug} href={`/fortune/${p.slug}${fortuneSearch}`} className={`y-content-card ${variant}`}>
+          <SheetLink
+            key={p.slug}
+            href={`/fortune/${p.slug}${fortuneSearch}`}
+            className={`y-content-card ${variant}`}
+            data-fortune-card={p.slug}
+          >
             <div className="y-content-visual">
               {p.badge ? <span className={`y-content-badge ${badgeClass}`}>{p.badge}</span> : null}
               <div className="y-content-han" aria-hidden="true">
