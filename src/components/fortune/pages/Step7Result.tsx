@@ -188,7 +188,7 @@ export function Step7Result({
           </button>
         ) : (
           <Link href={exitHref} className="y-fortune-v2-result-exit-btn">
-            나가기 (점사 정보는 저장되요)
+            나가기 (점사는 자동 저장되요)
           </Link>
         )}
       </div>

@@ -126,6 +126,8 @@ export function FortunePage({
   const [mascot, setMascot] = useState<"yeon" | "un">("yeon");
   const lastHappyClipRef = useRef<string | null>(null);
   const [answerReactClip, setAnswerReactClip] = useState<string | null>(null);
+  /** 스텝0 「새로 입력할게요」→ 스텝1: 마스코트가 우상(tr)으로 걸어감. 그 외 스텝1 진입은 좌상(tl). */
+  const [step1MascotCorner, setStep1MascotCorner] = useState<"tl" | "tr">("tl");
   const onAnswerReactDone = useCallback(() => setAnswerReactClip(null), []);
   const resultStream = useFortuneResultStream({
     enabled: resultStreamEnabled,
@@ -172,6 +174,10 @@ export function FortunePage({
     return () => window.clearInterval(t);
   }, [pendingOrderNo, product.slug, profile, result?.complete, step]);
 
+  useEffect(() => {
+    if (step !== 1) setStep1MascotCorner("tl");
+  }, [step]);
+
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, []);
@@ -195,6 +201,17 @@ export function FortunePage({
   useLayoutEffect(() => {
     if (step !== 0) return;
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [step]);
+
+  /** 점사 결과(7): 새로고침·탭 닫기 시 경고(모바일은 브라우저별 제한). 당김 새로고침 완화는 CSS overscroll-behavior */
+  useEffect(() => {
+    if (step !== 7) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [step]);
 
   const syncGuideTop = useCallback(() => {
@@ -376,11 +393,15 @@ export function FortunePage({
     const base = guideForStep(step, mascot, characterName, form.name, manse);
     let text = base.text;
     if (guideTextOverride) text = guideTextOverride;
-    return { ...base, text };
-  }, [characterName, form.name, guideTextOverride, manse, mascot, menuCardEntry, step]);
+    const pos = step === 1 && step1MascotCorner === "tr" ? "tr" : base.pos;
+    return { ...base, text, pos };
+  }, [characterName, form.name, guideTextOverride, manse, mascot, menuCardEntry, step, step1MascotCorner]);
 
   /** 점사 결과(스텝7)에서는 마스코트 미표시 */
   const showFortuneMascot = menuCardEntry && step < 7;
+
+  /** 스텝7: 스트림이 끝난 뒤에만 헤더 뒤로 = 하단 「나가기」와 동일 목적지 */
+  const showFortuneResultHeaderExit = step === 7 && Boolean(result?.complete);
 
   const headerBackHref = useMemo(() => {
     const appendFc = (href: string) => {
@@ -420,11 +441,23 @@ export function FortunePage({
     >
       {menuCardEntry ? <MascotPreloadClient /> : null}
       <header className="y-fortune-v2-header">
-        <button className="y-fortune-v2-back" type="button" onClick={onBack} aria-label="뒤로">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M15 18 L9 12 L15 6" />
-          </svg>
-        </button>
+        {step === 7 ? (
+          showFortuneResultHeaderExit ? (
+            <Link href={headerBackHref} className="y-fortune-v2-back" aria-label="나가기" prefetch={false}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 18 L9 12 L15 6" />
+              </svg>
+            </Link>
+          ) : (
+            <div className="y-fortune-v2-header-lead-spacer" aria-hidden="true" />
+          )
+        ) : (
+          <button className="y-fortune-v2-back" type="button" onClick={onBack} aria-label="뒤로">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 18 L9 12 L15 6" />
+            </svg>
+          </button>
+        )}
         <div className="y-fortune-v2-header-title">
           <h1>{product.title}</h1>
           <p>{STEP_SUBTITLE[step]}</p>
@@ -446,7 +479,16 @@ export function FortunePage({
             layoutTopCenter={false}
           />
         ) : null}
-        {step === 0 ? <Step0Welcome stored={stored} onUseStored={onUseStored} onNew={() => go(1)} /> : null}
+        {step === 0 ? (
+          <Step0Welcome
+            stored={stored}
+            onUseStored={onUseStored}
+            onNew={() => {
+              setStep1MascotCorner("tr");
+              go(1);
+            }}
+          />
+        ) : null}
         {step === 1 ? <Step1Input form={form} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} onSubmit={onInputSubmit} /> : null}
         {step === 2 ? (
           <Step2CharIntro

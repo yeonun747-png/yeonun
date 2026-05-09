@@ -10965,6 +10965,30 @@ a.y-vip-card--link {
   place-items: center;
 }
 
+a.y-fortune-v2-back {
+  text-decoration: none;
+  color: inherit;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.y-fortune-v2-header-lead-spacer {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/** 점사 결과: 당김 새로고침·상위 스크롤 전파 완화(iOS/Android Chrome 등 — 브라우저마다 차이 있음) */
+.y-fortune-v2-root[data-step="7"],
+.y-fortune-v2-root[data-step="7"] .y-fortune-v2-stage {
+  overscroll-behavior-y: none;
+}
+
+html:has(.y-fortune-v2-root[data-step="7"]) {
+  overscroll-behavior-y: none;
+}
+
 .y-fortune-v2-back svg {
   width: 22px;
   height: 22px;

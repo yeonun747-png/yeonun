@@ -39,9 +39,6 @@ export function Step2CharIntro({
       <button className="y-fortune-v2-primary" type="button" onClick={onNextEpisode}>
         {episode >= talks.length - 1 ? "명식 카드 보기 →" : "다음 이야기"}
       </button>
-      <button className="y-fortune-v2-link" type="button" onClick={onNextEpisode}>
-        명식 카드 보기
-      </button>
     </section>
   );
 }

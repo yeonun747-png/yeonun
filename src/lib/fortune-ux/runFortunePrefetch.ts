@@ -26,7 +26,7 @@ export type RunFortunePrefetchArgs = {
   onPatch?: (payload: FortunePrefetchV1) => void;
 };
 
-/** 생년 제출 직후 백그라운드 Claude 스트림 — STEP6 미리보기/결제 후 캐시용 */
+/** 생년 제출 직후 백그라운드 Claude 스트림 — STEP6 미리보기/결제 후 캐시용(품질·출력 상한은 일반 스트림과 동일) */
 export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<void> {
   const { productSlug, title, characterKey, profile, orderNo, signal, onPatch } = args;
 
@@ -44,6 +44,8 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     user_info,
     partner_info,
   };
+
+  const streamHeaders = { "Content-Type": "application/json", Accept: "text/event-stream" as const };
 
   let toc: FortuneTocItem[] = [];
   let toc_groups: FortuneTocMainGroup[] | null = null;
@@ -167,7 +169,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
 
   let res = await fetch("/api/fortune/chat-stream-menus", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    headers: streamHeaders,
     body: JSON.stringify(streamBody),
     signal,
   });
@@ -187,7 +189,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
    */
   res = await fetch("/api/fortune/chat-stream", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    headers: streamHeaders,
     body: JSON.stringify(streamBody),
     signal,
   });
