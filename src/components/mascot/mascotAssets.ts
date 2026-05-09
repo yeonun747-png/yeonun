@@ -1,68 +1,66 @@
-/** GLB public paths (UTF-8 파일명) */
-export const YEON_GLB = "/mascot/연이_all.glb";
-export const UN_GLB = "/mascot/운이_all.glb";
+/** 분할 GLB 폴더 (ASCII). 파일명: `{클립명}_withSkin.glb` — Three.js 클립 논리명은 `_withSkin` 제거 후 Idle_9, Walking 등 */
+export const YEON_SPLIT_DIR = "/mascot/y";
+export const UN_SPLIT_DIR = "/mascot/u";
+
+export const YEON_GLB = `${YEON_SPLIT_DIR}/Idle_9_withSkin.glb`;
+export const UN_GLB = `${UN_SPLIT_DIR}/Idle_3_withSkin.glb`;
 
 /**
- * 연이 GLB 애니 클립 (에디터 ID 0→… 순). 스크린샷 테이블 기준.
- * 21번째 클립명이 있으면 `YEON_CLIP_SEQUENCE` 맨 뒤에 문자열로 추가하면 됩니다.
+ * 연이 클립 전체 (파일 stem 과 동일, Animation_Running 등).
  */
 export const YEON_CLIP_SEQUENCE = [
-  "Arm_Circle_Shuffle",
-  "Backflip_Jump",
-  "Cardio_Dance",
-  "Cheer_with_Both_Hands",
-  "Excited_Walk_F",
-  "Gangnam_Groove",
-  "Groovy_Walk",
-  "Happy_jump_f",
-  "Hip_Hop_Dance_4",
   "Idle_9",
-  "Motivational_Cheer",
-  "Not_Your_Mom",
-  "Red_Carpet_Walk",
-  "Running",
+  "Walking",
+  "Excited_Walk_F",
+  "Groovy_Walk",
+  "Animation_Running",
+  "Gangnam_Groove",
+  "Cardio_Dance",
   "Shake_It_Off_Dance",
   "Superlove_Pop_Dance",
-  "Walking",
+  "Hip_Hop_Dance_4",
+  "You_Groove",
+  "Circle_Shuffle",
+  "Red_Carpet_Walk",
+  "Motivational_Cheer",
+  "Cheer_with_Both_Hands",
+  "Happy_jump_f",
   "Wave_One_Hand",
   "Wave_for_Help_3",
-  "You_Groove",
+  "Not_Your_Mom",
 ] as const;
 
 /**
- * 운이 GLB 애니 클립 (에디터 ID 0→… 순). 스크린샷 테이블 기준.
+ * 운이 클립 전체.
  */
 export const UN_CLIP_SEQUENCE = [
-  "Backflip_Jump",
-  "Big_Wave_Hello",
+  "Idle_3",
+  "Walking",
+  "Running",
+  "Skip_Forward",
+  "ymca_dance",
   "Cardio_Dance",
-  "Cheer_with_Both_Hands_1",
+  "Shake_It_Off_Dance",
+  "Superlove_Pop_Dance",
+  "Hip_Hop_Dance_1",
   "Cherish_Pop_Dance",
-  "Counterstrike",
   "FunnyDancing_01",
   "FunnyDancing_03",
+  "Cheer_with_Both_Hands_1",
   "Happy_jump_f",
-  "Hip_Hop_Dance_1",
-  "Idle_3",
-  "Indoor_Swing",
-  "Motivational_Cheer",
-  "Running",
-  "Shake_It_Off_Dance",
-  "Skip_Forward",
-  "Superlove_Pop_Dance",
-  "Walking",
+  "Big_Wave_Hello",
   "Wave_for_Help_4",
-  "ymca_dance",
+  "Motivational_Cheer",
+  "Counterstrike",
+  "Indoor_Swing",
 ] as const;
 
-/** 이벤트·클릭 등에서 쓰는 논리 이름 → 실제 클립명 (위 시퀀스에 포함된 것만 사용) */
 export const YEON = {
   idle: "Idle_9",
   happy: "Cheer_with_Both_Hands",
-  /** 풀이 중·크레딧 등 (구 Confused_Scratch 대체: 목록 내 클립) */
   thinking: "Wave_for_Help_3",
   walk: "Walking",
-  run: "Running",
+  run: "Animation_Running",
   dance: "Gangnam_Groove",
   dance2: "Superlove_Pop_Dance",
   dance3: "You_Groove",

@@ -393,7 +393,13 @@ export function HomeContentGrid({
   hanDisplayChar?: string;
 }) {
   const suffix = extraSearchParams.startsWith("&") ? extraSearchParams : extraSearchParams ? `&${extraSearchParams}` : "";
-  const fortuneSearch = suffix ? `?${suffix.replace(/^&/, "")}` : "";
+  /** 점사 플로우 마스코트는 메뉴 카드 진입(`mc=1`)에서만 표시 */
+  const fortuneSearch = (() => {
+    const inner = suffix.replace(/^\?/, "").replace(/^&/, "").trim();
+    if (!inner) return "?mc=1";
+    const join = inner.includes("=") ? `${inner}&mc=1` : `mc=1&${inner}`;
+    return `?${join}`;
+  })();
   return (
     <div className="y-content-grid" aria-label="추천 풀이">
       {items.map((p) => {

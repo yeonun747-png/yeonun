@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
 import { FortuneStreamSectionMedia } from "@/components/modals/FortuneStreamSectionMedia";
 import { buildFortuneMainGroups } from "@/lib/fortune-main-groups";
@@ -63,7 +64,6 @@ function ResultSectionsHtml({
 
         return (
           <div key={`${item.id}-${i}`} className="y-fortune-v2-result-chunk">
-            {/* 대메뉴 제목은 상단 헤더에서 이미 노출되므로 중복 키커는 제거 */}
             {showMainThumb ? (
               <div className="y-fs-body-thumb-wrap">
                 <FortuneStreamSectionMedia
@@ -116,13 +116,16 @@ function ResultSectionsHtml({
 export function Step7Result({
   product,
   result,
-  onGuide,
-  onAllDone,
+  exitHref,
+  onPartChange,
+  onPartAdvance,
 }: {
   product: Product;
   result: FortuneResultState;
-  onGuide: (mainTitle: string) => void;
-  onAllDone: () => void;
+  exitHref: string;
+  onPartChange?: (info: { page: number; isLastPart: boolean }) => void;
+  /** 다음 파트로 넘길 때 마스코트 걷기 틱 */
+  onPartAdvance?: () => void;
 }) {
   const [page, setPage] = useState(0);
   const toc = useMemo(() => enrichTocWithMenuMedia(result.toc, product), [result.toc, product]);
@@ -136,55 +139,74 @@ export function Step7Result({
     result.claudeMode ||
     next.sectionIndices.some((i) => (result.sectionHtml[i] ?? "").trim().length > 0);
 
+  const isLastPart = groups.length === 0 ? true : page >= groups.length - 1;
+  const nextTitle = nextReady && next ? next.mainTitle : "다음 풀이 준비 중";
+
+  useEffect(() => {
+    onPartChange?.({ page, isLastPart });
+  }, [page, isLastPart, onPartChange]);
+
   const scrollStageTop = () => {
     const root = document.querySelector<HTMLElement>('.y-fortune-v2-root[data-step="7"]');
     const stage = root?.querySelector<HTMLElement>(".y-fortune-v2-stage") ?? null;
-    // stage가 내부 스크롤이 아닐 수도 있으므로 window도 항상 0으로 올린다.
     if (stage) stage.scrollTo({ top: 0, behavior: "auto" });
     window.scrollTo({ top: 0, behavior: "auto" });
   };
 
+  const goNextPart = () => {
+    if (!next || !nextReady) return;
+    setPage((p) => p + 1);
+    onPartAdvance?.();
+    scrollStageTop();
+    requestAnimationFrame(() => scrollStageTop());
+    window.setTimeout(scrollStageTop, 80);
+  };
+
+  const dockClass = isLastPart ? "y-fortune-v2-result-dock-fixed is-last-part" : "y-fortune-v2-result-dock-fixed";
+
   return (
-    <section className="y-fortune-v2-result-page">
-      <div className="y-fortune-v2-result-head">
-        <span>PART {page + 1}</span>
-        <h1>{title}</h1>
-      </div>
-      <article className="y-fortune-v2-result-html">
-        {result.claudeMode ? (
-          <div
-            // eslint-disable-next-line react/no-danger
-            dangerouslySetInnerHTML={{ __html: stripEmpty(result.claudeHtml) }}
-          />
-        ) : (
-          <ResultSectionsHtml toc={toc} sectionIndices={active.sectionIndices} sectionHtml={result.sectionHtml} />
-        )}
-      </article>
-      <div className="y-fortune-v2-result-actions">
-        {page < groups.length - 1 ? (
+    <>
+      <section
+        className={`y-fortune-v2-result-page ${isLastPart ? "y-fortune-v2-result-page--exit-only" : "y-fortune-v2-result-page--with-dock"}`}
+      >
+        <div className="y-fortune-v2-result-head">
+          <span>PART {page + 1}</span>
+          <h1>{title}</h1>
+        </div>
+        <article className="y-fortune-v2-result-html">
+          {result.claudeMode ? (
+            <div
+              // eslint-disable-next-line react/no-danger
+              dangerouslySetInnerHTML={{ __html: stripEmpty(result.claudeHtml) }}
+            />
+          ) : (
+            <ResultSectionsHtml toc={toc} sectionIndices={active.sectionIndices} sectionHtml={result.sectionHtml} />
+          )}
+        </article>
+      </section>
+
+      <div className={dockClass} aria-label="풀이 이동">
+        {!isLastPart ? (
           <button
             type="button"
-            className="y-fortune-v2-next-card"
-            disabled={!nextReady}
-            onClick={() => {
-              if (next) onGuide(next.mainTitle);
-              setPage((p) => p + 1);
-              // DOM 갱신 타이밍을 고려해 2번 리셋
-              scrollStageTop();
-              requestAnimationFrame(() => scrollStageTop());
-              window.setTimeout(scrollStageTop, 80);
-            }}
+            className="y-fortune-v2-next-interpret"
+            disabled={!next || !nextReady}
+            onClick={goNextPart}
           >
-            <span>다음 풀이 보기</span>
-            <b>{nextReady ? next?.mainTitle : "다음 풀이 준비 중"}</b>
+            <div className="y-fortune-v2-next-interpret__main">
+              <span className="y-fortune-v2-next-interpret__label">다음 풀이</span>
+              <span className="y-fortune-v2-next-interpret__title">{nextTitle}</span>
+            </div>
+            <span className="y-fortune-v2-next-interpret__go" aria-hidden>
+              <span className="y-fortune-v2-step7-next-anchor" />
+            </span>
           </button>
         ) : (
-          <button type="button" className="y-fortune-v2-next-card" onClick={onAllDone}>
-            <span>풀이 완료</span>
-            <b>오늘의 풀이를 모두 확인했어요</b>
-          </button>
+          <Link href={exitHref} className="y-fortune-v2-exit-pill">
+            나가기 (점사 정보는 저장되요)
+          </Link>
         )}
       </div>
-    </section>
+    </>
   );
 }

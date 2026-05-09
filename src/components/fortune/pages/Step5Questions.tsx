@@ -34,7 +34,7 @@ export function Step5Questions({
   };
 
   return (
-    <section className="y-fortune-v2-page">
+    <section className="y-fortune-v2-page y-fortune-v2-page--screen-bottom">
       <div className="y-fortune-v2-question-card">
         <div className="y-fortune-v2-question-label">• {characterName}님이 여쭤봐요</div>
         <h1>{q.prompt}</h1>

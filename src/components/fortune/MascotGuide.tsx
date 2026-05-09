@@ -15,15 +15,19 @@ import {
   findWalkingAnimationClip,
 } from "@/components/mascot/mascotAnimation";
 import { UN, UN_GLB, YEON, YEON_GLB } from "@/components/mascot/mascotAssets";
+import { getClipPlaybackMode, pickFromPool, walkPoolFor } from "@/components/mascot/mascotClipPools";
+import { getFortuneMascotGlbUrl } from "@/components/mascot/mascotSplitGlbs";
 import type { FortuneGuideState, MascotKind, MascotPosKey } from "@/components/fortune/fortuneFlowTypes";
-
-useGLTF.preload(YEON_GLB);
-useGLTF.preload(UN_GLB);
 
 function pickClip(kind: MascotKind, clip?: string) {
   if (clip) return clip;
   return kind === "yeon" ? YEON.idle : UN.idle;
 }
+
+/** 고정 가이드 박스 left/top 전환 시간. `finishFacingFront` 폴백과 함께 조정 */
+const MASCOT_LAYOUT_MOVE_SEC = 4.25;
+/** ease-out만 쓰면 초반에 거리 대부분을 이동해 체감 속도가 거의 안 줄어듦 → 고르게 ease-in-out */
+const MASCOT_LAYOUT_MOVE_EASING = "ease-in-out";
 
 /** 클론 스켈레톤에 이전 애니 포즈가 남으면 다음 클립이 일부 본만 덮어 ‘wave처럼’ 보일 수 있음 */
 function resetSkinnedBindPose(root: THREE.Object3D) {
@@ -33,12 +37,28 @@ function resetSkinnedBindPose(root: THREE.Object3D) {
   });
 }
 
-function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: string; yaw: number; onReady: () => void }) {
-  const path = kind === "yeon" ? YEON_GLB : UN_GLB;
-  const fallback = kind === "yeon" ? YEON.idle : UN.idle;
-  /** `Idle_9` 등에 `walk` 부분문자열이 섞이면 안 되므로 걷기는 `Walking` 논리명만 인정 */
-  const isWalkClip = clip === YEON.walk || clip === UN.walk;
-  const { scene, animations } = useGLTF(path) as unknown as {
+function GuideModel({
+  kind,
+  clipLogical,
+  yaw,
+  onReady,
+  onOnceFinished,
+  onWalkMotionReady,
+}: {
+  kind: MascotKind;
+  clipLogical: string;
+  yaw: number;
+  onReady: () => void;
+  onOnceFinished?: () => void;
+  /** 분할 GLB 워크 클립이 믹서에서 재생된 직후 — 그 전에 CSS left/top 이동을 시작하면 정지 포즈가 미끄러짐 */
+  onWalkMotionReady?: () => void;
+}) {
+  const fallbackGlb = kind === "yeon" ? YEON_GLB : UN_GLB;
+  const glbUrl = getFortuneMascotGlbUrl(kind === "yeon" ? "yeon" : "un", clipLogical, fallbackGlb);
+  const mode = getClipPlaybackMode(kind, clipLogical);
+  const nightSlow = typeof window !== "undefined" && new Date().getHours() >= 22;
+
+  const { scene, animations } = useGLTF(glbUrl) as unknown as {
     scene: THREE.Object3D;
     animations: THREE.AnimationClip[];
   };
@@ -47,9 +67,12 @@ function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: str
   const { mixer } = useAnimations(animations, groupRef);
   const { invalidate } = useThree();
   const currentActionRef = useRef<THREE.AnimationAction | null>(null);
-  /** useFrame에서 키 문자열 불일치로 잘못된 액션만 stop 하는 것 방지 */
+  /** useFrame 분기 — 매 렌더와 클립 모드 일치(워크 GLB 첫 마운트 시 idle로 잘못 두면 미끄러짐처럼 보임) */
   const playbackModeRef = useRef<"walk" | "idle">("idle");
+  playbackModeRef.current = mode === "walk" ? "walk" : "idle";
   const walkEnsureRef = useRef<{ lastBadAt: number; lastRestartAt: number }>({ lastBadAt: 0, lastRestartAt: 0 });
+  const walkReadyRef = useRef(onWalkMotionReady);
+  walkReadyRef.current = onWalkMotionReady;
 
   /** Walking ↔ Idle 전환 시에만 사용 (제미나이 예시의 fadeOut/fadeIn — actions 전체 순회는 하지 않음) */
   const CLIP_CROSSFADE_SEC = 0.2;
@@ -58,18 +81,15 @@ function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: str
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
     const lines = animations.map((c, i) => `  [${i}] ${c.name}`).join("\n");
-    console.info(`[MascotGuide GLB] ${kind} ← ${path}\n${lines}`);
-  }, [animations, kind, path]);
+    console.info(`[MascotGuide GLB] ${kind} ← ${glbUrl}\n${lines}`);
+  }, [animations, kind, glbUrl]);
 
   useLayoutEffect(() => {
     configureMascotPbrMaterials(model);
     onReady();
   }, [model, onReady]);
 
-  useEffect(() => {
-    const requestedName = pickClip(kind, clip);
-    playbackModeRef.current = isWalkClip ? "walk" : "idle";
-
+  useLayoutEffect(() => {
     /**
      * Three.js: mixer.clipAction(clip)은 같은 clip·root면 동일 AnimationAction을 반환.
      * drei's actions[name] getter는 클립마다 clipAction을 지연 생성함 → keys/actions 전체 순회는
@@ -77,19 +97,23 @@ function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: str
      * 따라서 AnimationClip 배열에서만 고르고 clip 객체 하나로만 clipAction을 연다.
      */
     let clipObj: THREE.AnimationClip | undefined;
-    if (isWalkClip) {
+
+    if (mode === "once") {
       clipObj =
-        findAnimationClipByLogicalName(animations, requestedName) ??
+        findAnimationClipByLogicalName(animations, clipLogical) ?? (animations.length === 1 ? animations[0] : undefined);
+    } else if (mode === "walk") {
+      /** 워크 모드에서 idle 클립으로 폴백하면 다리는 멈춘 채 CSS만 이동 → 미끄러짐. 분할 GLB는 보통 애니 1개 → 그 클립 사용 */
+      clipObj =
+        findAnimationClipByLogicalName(animations, clipLogical) ??
         findWalkingAnimationClip(animations) ??
         findRunningAnimationClip(animations) ??
-        findAnimationClipByLogicalName(animations, fallback);
+        animations[0];
     } else {
-      /** Idle_9 / Idle_3 만 사용. 느슨한 폴백 시 댄스 등 다른 클립이 잡혀 ‘idle 이 아닌 것’처럼 보임 */
+      /** Idle_9 / Idle_3 · 분할 idle GLB */
       clipObj = findMascotIdleAnimationClip(kind, animations);
     }
 
     if (!clipObj) {
-      /** idle 클립 탐색 실패 시에도 이전 액션 정지 — 안 하면 걷기/댄스 클립이 그대로 루프됨 */
       mixer.stopAllAction();
       currentActionRef.current = null;
       onReady();
@@ -100,25 +124,48 @@ function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: str
     /**
      * drei `useAnimations(clips, groupRef)`는 믹서 `_root`를 바깥 `<group ref={groupRef}>`로 둠.
      * `clipAction(clip, model)`처럼 다른 루트를 넘기면 GLB 트랙 경로와 불일치해 Idle이 본에 안 걸리고
-     * 이전 클립 포즈(Superlove 등)가 남은 것처럼 보일 수 있음 → 두 번째 인자 없이 `_root`와 동일하게 바인딩.
+     * 이전 클립 포즈가 남은 것처럼 보일 수 있음 → 두 번째 인자 없이 `_root`와 동일하게 바인딩.
      */
-    const applyLoopAndScale = (a: THREE.AnimationAction) => {
+    const applyIdleLoopAndScale = (a: THREE.AnimationAction) => {
       a.setLoop(THREE.LoopRepeat, Infinity);
       a.clampWhenFinished = false;
-      a.setEffectiveTimeScale(isWalkClip ? 1.35 : 1);
+      a.setEffectiveTimeScale(nightSlow ? 0.6 : 1);
       a.paused = false;
       a.enabled = true;
     };
 
-    /**
-     * 정지(idle): 먼저 전부 정지·포즈 리셋 후 clipAction — clipAction을 먼저 만들면 잠깐 이중 바인딩이 생길 수 있음.
-     */
-    if (!isWalkClip) {
+    if (mode === "once") {
       mixer.stopAllAction();
       resetSkinnedBindPose(model);
       const nextAction = mixer.clipAction(clipObj);
       nextAction.reset();
-      applyLoopAndScale(nextAction);
+      nextAction.setLoop(THREE.LoopOnce, 1);
+      nextAction.clampWhenFinished = true;
+      nextAction.setEffectiveTimeScale(1);
+      nextAction.setEffectiveWeight(1);
+      nextAction.time = 0;
+      nextAction.play();
+      currentActionRef.current = nextAction;
+
+      const onFin = (e: { action: THREE.AnimationAction }) => {
+        if (e.action !== nextAction) return;
+        mixer.removeEventListener("finished", onFin);
+        onOnceFinished?.();
+      };
+      mixer.addEventListener("finished", onFin);
+      onReady();
+      invalidate();
+      return () => {
+        mixer.removeEventListener("finished", onFin);
+      };
+    }
+
+    if (mode !== "walk") {
+      mixer.stopAllAction();
+      resetSkinnedBindPose(model);
+      const nextAction = mixer.clipAction(clipObj);
+      nextAction.reset();
+      applyIdleLoopAndScale(nextAction);
       nextAction.setEffectiveWeight(1);
       nextAction.time = 0;
       nextAction.play();
@@ -132,57 +179,71 @@ function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: str
       return;
     }
 
+    const applyWalkLoopAndScale = (a: THREE.AnimationAction) => {
+      a.setLoop(THREE.LoopRepeat, Infinity);
+      a.clampWhenFinished = false;
+      a.setEffectiveTimeScale(0.82);
+      a.paused = false;
+      a.enabled = true;
+    };
+
     const prevAction = currentActionRef.current;
     const nextAction = mixer.clipAction(clipObj);
 
-    // 이하 걷기만
+    /** drei's useFrame은 rAF에서 mixer.update — queueMicrotask로 CSS 이동을 켜면 첫 페인트 전에 클립이 한 번도 적용 안 된 것처럼 보임 */
+    const advanceWalkMixerThenScheduleCss = () => {
+      const dt = 1 / 45;
+      for (let i = 0; i < 10; i++) mixer.update(dt);
+      invalidate();
+      requestAnimationFrame(() => {
+        walkReadyRef.current?.();
+      });
+    };
+
     if (prevAction === nextAction && nextAction.isRunning()) {
       nextAction.paused = false;
       nextAction.enabled = true;
       nextAction.setLoop(THREE.LoopRepeat, Infinity);
       nextAction.clampWhenFinished = false;
-      nextAction.setEffectiveTimeScale(1.35);
+      nextAction.setEffectiveTimeScale(0.82);
       invalidate();
+      advanceWalkMixerThenScheduleCss();
       return;
     }
 
     if (prevAction && prevAction !== nextAction) {
       prevAction.fadeOut(CLIP_CROSSFADE_SEC);
       nextAction.reset();
-      applyLoopAndScale(nextAction);
+      applyWalkLoopAndScale(nextAction);
       nextAction.fadeIn(CLIP_CROSSFADE_SEC).play();
     } else {
       mixer.stopAllAction();
       nextAction.reset();
-      applyLoopAndScale(nextAction);
+      applyWalkLoopAndScale(nextAction);
       nextAction.setEffectiveWeight(1);
       nextAction.time = 0;
       nextAction.play();
     }
 
     currentActionRef.current = nextAction;
-    if (isWalkClip) {
-      walkEnsureRef.current = { lastBadAt: 0, lastRestartAt: performance.now() };
-    }
+    walkEnsureRef.current = { lastBadAt: 0, lastRestartAt: performance.now() };
     onReady();
     invalidate();
+    advanceWalkMixerThenScheduleCss();
     return undefined;
-  }, [animations, mixer, clip, fallback, isWalkClip, kind, onReady]);
+  }, [animations, clipLogical, invalidate, kind, mixer, mode, nightSlow, onOnceFinished, onReady]);
 
   useFrame((state, _delta) => {
     const g = groupRef.current;
     if (!g) return;
-    // mixer.update는 drei useAnimations가 담당. 여기서는 다른 액션을 매 프레임 스캔하지 않음.
     const faceY = -yaw;
     if (playbackModeRef.current === "walk") {
       g.rotation.y = faceY;
-      // Walking이 끊기는 드문 케이스만 '지연 복구' (매 프레임 reset 하면 오히려 초반 프레임만 반복됨)
       const a = currentActionRef.current;
       if (a) {
         const now = performance.now();
         if (a.paused || !a.enabled || !a.isRunning()) {
           if (walkEnsureRef.current.lastBadAt === 0) walkEnsureRef.current.lastBadAt = now;
-          // 300ms 이상 '비정상'이 지속될 때만 재시작
           if (now - walkEnsureRef.current.lastBadAt > 300 && now - walkEnsureRef.current.lastRestartAt > 500) {
             a.paused = false;
             a.enabled = true;
@@ -208,8 +269,24 @@ function GuideModel({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: str
   );
 }
 
-function GuideCanvas({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: string; yaw: number; onReady: () => void }) {
-  // 카메라는 고정, 회전은 모델에서 처리
+function GuideCanvas({
+  kind,
+  clipLogical,
+  yaw,
+  onReady,
+  onOnceFinished,
+  onWalkMotionReady,
+}: {
+  kind: MascotKind;
+  clipLogical: string;
+  yaw: number;
+  onReady: () => void;
+  onOnceFinished?: () => void;
+  onWalkMotionReady?: () => void;
+}) {
+  const fallback = kind === "yeon" ? YEON_GLB : UN_GLB;
+  const glbUrl = getFortuneMascotGlbUrl(kind === "yeon" ? "yeon" : "un", clipLogical, fallback);
+
   return (
     <Canvas
       frameloop="always"
@@ -226,7 +303,15 @@ function GuideCanvas({ kind, clip, yaw, onReady }: { kind: MascotKind; clip?: st
       <ambientLight intensity={0.75} />
       <directionalLight position={[4, 6, 5]} intensity={1.65} />
       <Suspense fallback={null}>
-        <GuideModel kind={kind} clip={clip} yaw={yaw} onReady={onReady} />
+        <GuideModel
+          key={glbUrl}
+          kind={kind}
+          clipLogical={clipLogical}
+          yaw={yaw}
+          onReady={onReady}
+          onOnceFinished={onOnceFinished}
+          onWalkMotionReady={onWalkMotionReady}
+        />
       </Suspense>
     </Canvas>
   );
@@ -288,25 +373,23 @@ function yawForMove(from: MascotPosKey, to: MascotPosKey, prevYaw: number): numb
   return Math.atan2(-dx, dy);
 }
 
-function walkingClip(kind: MascotKind) {
-  return kind === "yeon" ? YEON.walk : UN.walk;
-}
-
-function idleClip(kind: MascotKind) {
-  return kind === "yeon" ? YEON.idle : UN.idle;
-}
-
 function MascotGuideInner({
   guide,
   onArrive,
   layoutTopCenter,
+  reactClip,
+  onReactClipDone,
 }: {
   guide: FortuneGuideState;
   onArrive?: () => void;
   /** Step0–6: 말풍선 상단 정중앙 + 마스코트 가운데 정렬 */
   layoutTopCenter?: boolean;
+  /** 답변 반응 등 1회 재생 후 idle 로 돌아가야 할 논리 클립명 */
+  reactClip?: string | null;
+  onReactClipDone?: () => void;
 }) {
   const guideBoxRef = useRef<HTMLDivElement>(null);
+  const bubbleOuterRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState(guide);
   const [bubble, setBubble] = useState({ text: guide.text, name: guide.name });
   const [yaw, setYaw] = useState(0);
@@ -327,30 +410,49 @@ function MascotGuideInner({
   const moveTokenRef = useRef(0);
   const posRef = useRef<MascotPosKey>(guide.pos);
   const readyNotifiedRef = useRef(false);
+  const lastWalkClipRef = useRef<string | null>(null);
+  const prevWalkTickRef = useRef<number | null>(null);
+  const [walkClipLogical, setWalkClipLogical] = useState<string>(() => YEON.walk);
 
   const markModelReady = useCallback(() => {
     setModelReady(true);
   }, []);
+
+  const clearReactClip = useCallback(() => {
+    onReactClipDone?.();
+  }, [onReactClipDone]);
 
   const computePosPx = useCallback((key: MascotPosKey) => {
     const stage = document.querySelector<HTMLElement>(".y-fortune-v2-stage");
     const r = stage?.getBoundingClientRect();
     const stageW = r?.width ?? Math.min(430, window.innerWidth);
     const stageH = r?.height ?? Math.max(1, window.innerHeight - 56);
+    const stageLeft = r?.left ?? 0;
+    const stageTop = r?.top ?? 0;
     const pad = 16;
-    const mascotW = 128;
-    // y-fortune-v2-guide 는 stage 내부(position: relative)에서 absolute 이므로,
-    // 좌표는 '뷰포트'가 아니라 'stage 내부' 기준(px)으로 계산해야 transition이 안정적으로 동작한다.
+    const mascotW = 85;
     const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
     const maxLeft = Math.max(0, stageW - mascotW);
-    const leftL = clamp(pad, 0, maxLeft);
-    const leftC = clamp((stageW - mascotW) / 2, 0, maxLeft);
-    const leftR = clamp(stageW - pad - mascotW, 0, maxLeft);
-    const top110 = 110;
-    const top30 = 30;
-    const top58 = stageH * 0.58;
-    const topMr = Math.max(190, stageH * 0.36);
-    const topWelcome = Math.min(stageH * 0.22, 168);
+    const leftL = stageLeft + clamp(pad, 0, maxLeft);
+    const leftC = stageLeft + clamp((stageW - mascotW) / 2, 0, maxLeft);
+    const leftR = stageLeft + clamp(stageW - pad - mascotW, 0, maxLeft);
+    const top110 = stageTop + 110;
+    const top30 = stageTop + 30;
+    const top58 = stageTop + stageH * 0.58;
+    const topMr = stageTop + Math.max(190, stageH * 0.36);
+    const topWelcome = stageTop + Math.min(stageH * 0.22, 168);
+
+    const root7 = document.querySelector(".y-fortune-v2-root[data-step=\"7\"]");
+    const anchor = root7?.querySelector<HTMLElement>(".y-fortune-v2-step7-next-anchor");
+    if (anchor && (key === "rt" || key === "tr")) {
+      const ar = anchor.getBoundingClientRect();
+      const boxH = 120;
+      let left = ar.right + 8 - mascotW;
+      let top = ar.top + ar.height / 2 - boxH / 2;
+      left = clamp(left, 8, window.innerWidth - mascotW - 8);
+      top = clamp(top, 8, window.innerHeight - boxH - 8);
+      return { left, top };
+    }
 
     switch (key) {
       case "tl":
@@ -373,16 +475,37 @@ function MascotGuideInner({
     }
   }, []);
 
-  const applyPos = useCallback((key: MascotPosKey) => {
+  const applyPosCoords = useCallback((p: { left: number; top: number }) => {
     const el = guideBoxRef.current;
     if (!el) return;
-    const p = computePosPx(key);
-    // 어떤 CSS가 덮어써도 left/top 이동은 항상 transition 되게 강제
-    el.style.transition =
-      "left 1.4s cubic-bezier(0.4, 0, 0.2, 1), top 1.4s cubic-bezier(0.4, 0, 0.2, 1)";
+    const dur = `${MASCOT_LAYOUT_MOVE_SEC}s`;
+    el.style.transition = `left ${dur} ${MASCOT_LAYOUT_MOVE_EASING}, top ${dur} ${MASCOT_LAYOUT_MOVE_EASING}`;
     el.style.left = `${p.left}px`;
     el.style.top = `${p.top}px`;
-  }, [computePosPx]);
+  }, []);
+
+  const applyPos = useCallback(
+    (key: MascotPosKey) => {
+      applyPosCoords(computePosPx(key));
+    },
+    [applyPosCoords, computePosPx],
+  );
+
+  /** 워크 분할 GLB 로드·믹서 재생 전에 CSS 이동을 시작하면 미끄러짐 — 목표 좌표를 두고 `onWalkMotionReady`에서만 적용 */
+  const pendingWalkLayoutRef = useRef<{ toPx: { left: number; top: number }; target: MascotPosKey } | null>(null);
+  const walkLayoutFallbackTimerRef = useRef<number | null>(null);
+
+  const flushPendingWalkLayout = useCallback(() => {
+    const p = pendingWalkLayoutRef.current;
+    if (!p) return;
+    pendingWalkLayoutRef.current = null;
+    if (walkLayoutFallbackTimerRef.current != null) {
+      window.clearTimeout(walkLayoutFallbackTimerRef.current);
+      walkLayoutFallbackTimerRef.current = null;
+    }
+    applyPosCoords(p.toPx);
+    setView((prev) => ({ ...prev, pos: p.target }));
+  }, [applyPosCoords]);
 
   useLayoutEffect(() => {
     applyPos(posRef.current);
@@ -391,48 +514,103 @@ function MascotGuideInner({
     return () => window.removeEventListener("resize", onResize);
   }, [applyPos]);
 
-  const walkTo = useCallback((target: MascotPosKey, callback: () => void) => {
-    if (fallbackTimerRef.current != null) window.clearTimeout(fallbackTimerRef.current);
-    const from = posRef.current;
-    const nextYaw = yawForMove(from, target, yawRef.current);
-    yawRef.current = nextYaw;
-    setYaw(nextYaw);
-    setIsMoving(true);
-    posRef.current = target;
-    pendingArriveRef.current = callback;
-    const token = (moveTokenRef.current += 1);
-    /**
-     * 같은 프레임에 class가 바뀌면 브라우저가 이전 좌표를 페인트하기 전에 목표 좌표로 바뀌어
-     * transition이 스킵(순간이동처럼 보임)될 수 있어 1프레임 늦춰 이동을 확실히 건다.
-     */
-    // React state 배치로 중간 좌표가 페인트되지 않아 transition이 스킵될 수 있어,
-    // 좌표는 DOM style을 직접(from → reflow → rAF → to) 적용해 100% transition을 보장한다.
-    const fromPx = computePosPx(from);
-    const toPx = computePosPx(target);
-    pendingMoveRef.current = {
-      token,
-      expectLeft: fromPx.left !== toPx.left,
-      expectTop: fromPx.top !== toPx.top,
-      doneLeft: false,
-      doneTop: false,
-    };
-    applyPos(from);
-    // 강제 reflow로 "from" 좌표를 확정
-    guideBoxRef.current?.getBoundingClientRect();
-    window.requestAnimationFrame(() => {
-      applyPos(target);
-      setView((prev) => ({ ...prev, pos: target }));
-    });
-    // transitionend가 누락되는(리플로우/탭 전환 등) 케이스 대비 폴백 타이머
-    fallbackTimerRef.current = window.setTimeout(() => {
-      if (!pendingArriveRef.current) return;
-      const cb = pendingArriveRef.current;
-      pendingArriveRef.current = null;
-      pendingMoveRef.current = null;
+  /** 이동 방향으로 먼저 회전(idle) 후, 워킹 클립 루프로 실제 이동 */
+  const TURN_BEFORE_WALK_MS = 220;
+
+  const walkTo = useCallback(
+    (target: MascotPosKey, callback: () => void, opts?: { fromPixels?: { left: number; top: number } }) => {
+      if (fallbackTimerRef.current != null) window.clearTimeout(fallbackTimerRef.current);
+      pendingWalkLayoutRef.current = null;
+      if (walkLayoutFallbackTimerRef.current != null) {
+        window.clearTimeout(walkLayoutFallbackTimerRef.current);
+        walkLayoutFallbackTimerRef.current = null;
+      }
+
+      const mk = view.mascot;
+      const picked = pickFromPool(walkPoolFor(mk), lastWalkClipRef.current, mk);
+      lastWalkClipRef.current = picked;
+      const walkGlbUrl = getFortuneMascotGlbUrl(mk === "yeon" ? "yeon" : "un", picked, mk === "yeon" ? YEON_GLB : UN_GLB);
+      void useGLTF.preload(walkGlbUrl);
+
+      const from = posRef.current;
+      const nextYaw = yawForMove(from, target, yawRef.current);
+      yawRef.current = nextYaw;
+      setYaw(nextYaw);
+
+      // 회전 구간: 정면 idle 아님 — 바라보는 각도만 목표 방향으로(idle 클립)
       setIsMoving(false);
-      cb();
-    }, 2200);
-  }, [applyPos, computePosPx, manualMode]);
+
+      posRef.current = target;
+      pendingArriveRef.current = callback;
+      const token = (moveTokenRef.current += 1);
+      const fromPx = opts?.fromPixels ?? computePosPx(from);
+      const toPx = computePosPx(target);
+      const noTranslate = fromPx.left === toPx.left && fromPx.top === toPx.top;
+
+      pendingMoveRef.current = {
+        token,
+        expectLeft: !noTranslate && fromPx.left !== toPx.left,
+        expectTop: !noTranslate && fromPx.top !== toPx.top,
+        doneLeft: false,
+        doneTop: false,
+      };
+
+      applyPosCoords(fromPx);
+      guideBoxRef.current?.getBoundingClientRect();
+
+      const finishFacingFront = () => {
+        flushPendingWalkLayout();
+        if (walkLayoutFallbackTimerRef.current != null) {
+          window.clearTimeout(walkLayoutFallbackTimerRef.current);
+          walkLayoutFallbackTimerRef.current = null;
+        }
+        if (!pendingArriveRef.current) return;
+        const cb = pendingArriveRef.current;
+        pendingArriveRef.current = null;
+        pendingMoveRef.current = null;
+        if (fallbackTimerRef.current != null) {
+          window.clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        yawRef.current = 0;
+        setYaw(0);
+        setIsMoving(false);
+        cb();
+      };
+
+      if (noTranslate) {
+        window.requestAnimationFrame(() => {
+          window.setTimeout(finishFacingFront, TURN_BEFORE_WALK_MS);
+        });
+        fallbackTimerRef.current = window.setTimeout(finishFacingFront, TURN_BEFORE_WALK_MS + 600);
+        return;
+      }
+
+      const startWalkTranslate = () => {
+        pendingWalkLayoutRef.current = { toPx, target };
+        if (walkLayoutFallbackTimerRef.current != null) {
+          window.clearTimeout(walkLayoutFallbackTimerRef.current);
+        }
+        walkLayoutFallbackTimerRef.current = window.setTimeout(() => {
+          flushPendingWalkLayout();
+          walkLayoutFallbackTimerRef.current = null;
+        }, TURN_BEFORE_WALK_MS + 1200);
+
+        setWalkClipLogical(picked);
+        setIsMoving(true);
+      };
+
+      window.requestAnimationFrame(() => {
+        window.setTimeout(startWalkTranslate, TURN_BEFORE_WALK_MS);
+      });
+
+      fallbackTimerRef.current = window.setTimeout(
+        finishFacingFront,
+        TURN_BEFORE_WALK_MS + Math.ceil(MASCOT_LAYOUT_MOVE_SEC * 1000) + 650,
+      );
+    },
+    [applyPosCoords, computePosPx, flushPendingWalkLayout, view.mascot],
+  );
 
   useEffect(() => {
     const el = guideBoxRef.current;
@@ -452,7 +630,16 @@ function MascotGuideInner({
       const cb = pendingArriveRef.current;
       pendingArriveRef.current = null;
       pendingMoveRef.current = null;
-      if (fallbackTimerRef.current != null) window.clearTimeout(fallbackTimerRef.current);
+      if (fallbackTimerRef.current != null) {
+        window.clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
+      if (walkLayoutFallbackTimerRef.current != null) {
+        window.clearTimeout(walkLayoutFallbackTimerRef.current);
+        walkLayoutFallbackTimerRef.current = null;
+      }
+      yawRef.current = 0;
+      setYaw(0);
       setIsMoving(false);
       cb();
     };
@@ -536,15 +723,49 @@ function MascotGuideInner({
   useEffect(() => {
     readyNotifiedRef.current = false;
     setHasArrived(false);
-    // 같은 위치(특히 최초 진입)에서는 지연 없이 즉시 도착 처리
+    const tick = guide.walkTick ?? 0;
+    // 같은 슬롯에서 파트만 바뀐 경우(스텝7): 화면 오른쪽 밖에서 도크 앵커까지 걷기
     if (guide.pos === posRef.current) {
+      if (manualMode) {
+        setIsMoving(false);
+        yawRef.current = 0;
+        setYaw(0);
+        setView(guide);
+        setBubble({ text: guide.text, name: guide.name });
+        setHasArrived(true);
+        prevWalkTickRef.current = tick;
+        return undefined;
+      }
+      const replayWalk =
+        prevWalkTickRef.current !== null &&
+        tick > prevWalkTickRef.current &&
+        Boolean(document.querySelector('.y-fortune-v2-root[data-step="7"] .y-fortune-v2-step7-next-anchor'));
+      if (replayWalk) {
+        prevWalkTickRef.current = tick;
+        const toPx = computePosPx(guide.pos);
+        walkTo(
+          guide.pos,
+          () => {
+            setView(guide);
+            setBubble({ text: guide.text, name: guide.name });
+            setHasArrived(true);
+          },
+          { fromPixels: { left: window.innerWidth + 120, top: toPx.top } },
+        );
+        return () => {
+          if (fallbackTimerRef.current != null) window.clearTimeout(fallbackTimerRef.current);
+        };
+      }
+      prevWalkTickRef.current = tick;
       setIsMoving(false);
+      yawRef.current = 0;
+      setYaw(0);
       setView(guide);
       setBubble({ text: guide.text, name: guide.name });
       setHasArrived(true);
       return undefined;
     }
-    // 수동 모드에서는 자동 가이드 이동을 잠시 멈춘다.
+    prevWalkTickRef.current = tick;
     if (manualMode) return undefined;
     walkTo(guide.pos, () => {
       setView(guide);
@@ -554,13 +775,56 @@ function MascotGuideInner({
     return () => {
       if (fallbackTimerRef.current != null) window.clearTimeout(fallbackTimerRef.current);
     };
-  }, [guide, walkTo]);
+  }, [computePosPx, guide, manualMode, walkTo]);
 
   useEffect(() => {
     if (!modelReady || !hasArrived || readyNotifiedRef.current) return;
     readyNotifiedRef.current = true;
     onArrive?.();
   }, [hasArrived, modelReady, onArrive]);
+
+  useLayoutEffect(() => {
+    const bubbleEl = bubbleOuterRef.current;
+    const guideEl = guideBoxRef.current;
+    if (!bubbleEl || !guideEl || !modelReady || !hasArrived) return;
+    const pad = 8;
+    const maxD = 200;
+    let ax = 0;
+    let ay = 0;
+    for (let iter = 0; iter < 6; iter++) {
+      bubbleEl.style.setProperty("--bubble-adjust-x", `${ax}px`);
+      bubbleEl.style.setProperty("--bubble-adjust-y", `${ay}px`);
+      const br = bubbleEl.getBoundingClientRect();
+      const gr = guideEl.getBoundingClientRect();
+      const mcx = gr.left + gr.width / 2;
+      const mcy = gr.top + gr.height / 2;
+      const bcx = br.left + br.width / 2;
+      const bcy = br.top + br.height / 2;
+      let dx = bcx - mcx;
+      let dy = bcy - mcy;
+      const dist = Math.hypot(dx, dy);
+      let ox = 0;
+      let oy = 0;
+      if (dist > maxD && dist > 0) {
+        const s = maxD / dist;
+        ox += mcx + dx * s - bcx;
+        oy += mcy + dy * s - bcy;
+      }
+      if (br.left + ox < pad) ox += pad - (br.left + ox);
+      if (br.right + ox > window.innerWidth - pad) ox -= br.right + ox - (window.innerWidth - pad);
+      if (br.top + oy < pad) oy += pad - (br.top + oy);
+      if (br.bottom + oy > window.innerHeight - pad) oy -= br.bottom + oy - (window.innerHeight - pad);
+      ax += ox;
+      ay += oy;
+      if (Math.abs(ox) < 0.25 && Math.abs(oy) < 0.25) break;
+    }
+    bubbleEl.style.setProperty("--bubble-adjust-x", `${Math.round(ax)}px`);
+    bubbleEl.style.setProperty("--bubble-adjust-y", `${Math.round(ay)}px`);
+  }, [bubble.text, guide.text, hasArrived, modelReady, view.pos]);
+
+  const clipLogical =
+    reactClip ??
+    (isMoving ? walkClipLogical : pickClip(view.mascot, view.clip));
 
   return (
     <div
@@ -571,6 +835,7 @@ function MascotGuideInner({
     >
       {modelReady ? (
         <div
+          ref={bubbleOuterRef}
           className={`y-fortune-v2-bubble y-fortune-v2-bubble--${view.mascot} y-fortune-v2-bubble--anchor-${view.pos}`}
           key={`${bubble.text}-${view.pos}`}
         >
@@ -583,15 +848,17 @@ function MascotGuideInner({
         // 어떤 CSS/OS 설정이 있어도 이동 중 '걷기 리듬'이 반드시 보이게 인라인으로 강제
         style={
           isMoving
-            ? { animation: "yFortuneV2MascotStep 0.38s ease-in-out infinite" }
+            ? { animation: "yFortuneV2MascotStep 0.56s ease-in-out infinite" }
             : { animation: "yFortuneV2MascotIdle 2.4s ease-in-out infinite" }
         }
       >
         <GuideCanvas
           kind={view.mascot}
-          clip={isMoving ? walkingClip(view.mascot) : idleClip(view.mascot)}
+          clipLogical={clipLogical}
           yaw={yaw}
           onReady={markModelReady}
+          onOnceFinished={reactClip ? clearReactClip : undefined}
+          onWalkMotionReady={flushPendingWalkLayout}
         />
       </div>
     </div>

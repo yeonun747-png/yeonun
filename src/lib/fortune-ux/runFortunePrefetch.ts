@@ -181,8 +181,10 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     return;
   }
 
-  if (!menuStreamOk && res.status !== 404 && res.status !== 501) return;
-
+  /**
+   * `chat-stream-menus` 실패(502·업스트림 오류·구버전 Cloudways 등) 시에도 단일 스트림으로 백그라운드 점사를 이어감.
+   * (프롬프트 캐싱용 `fortune_menu_cached_system`은 새 server.js 전제 — 실패 시 레거시 `/chat` 본문으로 폴백)
+   */
   res = await fetch("/api/fortune/chat-stream", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },

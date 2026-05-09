@@ -7,7 +7,8 @@ import { getProductBySlugCached } from "@/lib/data/content";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ ck?: string; back?: string }>;
+  /** `mc=1`: 추천 풀이 메뉴 카드에서 진입 — 마스코트 표시 */
+  searchParams?: Promise<{ ck?: string; back?: string; mc?: string }>;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -43,6 +44,7 @@ export default async function FortuneProductPage({ params, searchParams }: Props
       character={charRow ?? null}
       themeKey={typeof sp.ck === "string" ? sp.ck : ""}
       backRaw={typeof sp.back === "string" ? sp.back : undefined}
+      menuCardEntry={sp.mc === "1"}
     />
   );
 }

@@ -11017,16 +11017,25 @@ a.y-vip-card--link {
   animation: yFortuneV2In 0.35s ease both;
 }
 
-.y-fortune-v2-stage.is-walking > * {
+/*
+ * go() 시 stageReady=false → is-walking. 스텝 본문만 숨김.
+ * 마스코트(.y-fortune-v2-guide)까지 숨기면 전환 중 걷기가 안 보이거나, 보여도 정지 포즈만 이동하는 것처럼 보임.
+ */
+.y-fortune-v2-stage.is-walking > *:not(.y-fortune-v2-guide) {
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
 }
 
-.y-fortune-v2-stage.is-ready > * {
+.y-fortune-v2-stage.is-ready > *:not(.y-fortune-v2-guide) {
   opacity: 1;
   transform: translateY(0);
   transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.y-fortune-v2-stage.is-ready > .y-fortune-v2-guide {
+  opacity: 1;
+  pointer-events: none;
 }
 
 .y-fortune-v2-stage--back {
@@ -11044,7 +11053,7 @@ a.y-vip-card--link {
 }
 
 .y-fortune-v2-page {
-  padding-top: 92px;
+  padding-top: 33vh;
 }
 
 .y-fortune-v2-mascot-spacer {
@@ -12116,14 +12125,231 @@ a.y-vip-card--link {
   opacity: 0.54;
 }
 
+.y-fortune-v2-result-dock-fixed {
+  position: fixed;
+  z-index: 480;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.y-fortune-v2-result-page--with-dock {
+  padding-bottom: 118px;
+}
+
+.y-fortune-v2-result-page--exit-only {
+  padding-bottom: 92px;
+}
+
+.y-fortune-v2-next-interpret {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  padding: 14px 18px;
+  border: none;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(24, 20, 15, 0.1);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.y-fortune-v2-next-interpret:disabled {
+  opacity: 0.48;
+  cursor: default;
+}
+
+.y-fortune-v2-next-interpret__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.y-fortune-v2-next-interpret__label {
+  display: block;
+  font-size: 11px;
+  color: var(--ink3);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.y-fortune-v2-next-interpret__title {
+  display: block;
+  margin-top: 5px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+}
+
+.y-fortune-v2-next-interpret__go {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #d14d72;
+}
+
+.y-fortune-v2-next-interpret__go::after {
+  content: "→";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -54%);
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.y-fortune-v2-step7-next-anchor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.y-fortune-v2-exit-pill {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  padding: 14px 20px;
+  border-radius: 999px;
+  background: #18140f;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/** 스텝 2·4·5: 좌우 패딩(16px)의 1.5배만큼 스크린 하단에서 띄워 주요 UI 정렬 */
+.y-fortune-v2-stage--bottom-screen-ui {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: calc(16px * 1.5 + env(safe-area-inset-bottom, 0px));
+}
+
+/** 스텝 4·5: 스테이지 높이 고정 · 스크롤 없음 */
+.y-fortune-v2-stage--locked-viewport {
+  overflow: hidden;
+  height: calc(100svh - 56px);
+  max-height: calc(100svh - 56px);
+  box-sizing: border-box;
+}
+
+.y-fortune-v2-page--screen-bottom {
+  padding-top: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  box-sizing: border-box;
+}
+
+.y-fortune-v2-char-page.y-fortune-v2-page--screen-bottom {
+  padding-top: 0;
+}
+
+.y-fortune-v2-root[data-step="2"] .y-fortune-v2-page--screen-bottom {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-section-head {
+  margin-bottom: 6px;
+  flex-shrink: 0;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-section-head h1 {
+  font-size: 20px;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-ohaeng-card {
+  padding: 12px 14px;
+  flex-shrink: 0;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-gods {
+  margin: 6px 0;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-gods div {
+  min-height: 76px;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-gods b {
+  font-size: 22px;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-spectrum {
+  padding: 10px 12px;
+  margin-top: 4px;
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-spectrum .scale {
+  margin: 6px 0;
+  font-size: 9px;
+}
+
+.y-fortune-v2-root[data-step="4"] .y-fortune-v2-primary {
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.y-fortune-v2-root[data-step="5"] .y-fortune-v2-question-card {
+  padding: 14px 16px;
+  margin-top: 0;
+  flex-shrink: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.y-fortune-v2-root[data-step="5"] .y-fortune-v2-question-card h1 {
+  font-size: 17px;
+}
+
+.y-fortune-v2-root[data-step="5"] .y-fortune-v2-answer-list {
+  gap: 8px;
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+.y-fortune-v2-root[data-step="5"] .y-fortune-v2-answer-list button {
+  min-height: 44px;
+  font-size: 13px;
+}
+
+.y-fortune-v2-stage--anchor-top {
+  padding-top: 24px;
+}
+
 .y-fortune-v2-guide {
   position: fixed;
   z-index: 500;
   width: 85px;
   height: 120px;
   transition:
-    left 0.8s cubic-bezier(0.4, 0, 0.2, 1),
-    top 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    left 4.25s ease-in-out,
+    top 4.25s ease-in-out;
   pointer-events: none;
 }
 
@@ -12143,19 +12369,23 @@ a.y-vip-card--link {
   position: absolute;
   left: 50%;
   bottom: 106px;
-  width: 200px;
+  width: min(200px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   padding: 10px 14px;
   border: 1.5px solid rgba(201, 64, 96, 0.2);
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 18px 42px rgba(24, 20, 15, 0.12);
   opacity: 0;
-  transform: translateX(-50%) translateY(6px);
+  transform: translateX(calc(-50% + var(--bubble-adjust-x, 0px))) translateY(calc(6px + var(--bubble-adjust-y, 0px)));
   animation: yFortuneV2Bubble 0.22s ease forwards;
 }
 
 @keyframes yFortuneV2Bubble {
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to {
+    opacity: 1;
+    transform: translateX(calc(-50% + var(--bubble-adjust-x, 0px))) translateY(var(--bubble-adjust-y, 0px));
+  }
 }
 
 .y-fortune-v2-bubble-name {

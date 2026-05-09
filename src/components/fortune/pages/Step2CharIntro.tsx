@@ -1,5 +1,6 @@
 "use client";
 
+import { CHARACTER_STORIES } from "@/constants/characterStories";
 import type { Character } from "@/lib/data/characters";
 import type { Product } from "@/lib/data/content";
 
@@ -16,13 +17,10 @@ export function Step2CharIntro({
 }) {
   const name = character?.name?.trim() || product.character_key;
   const tags = (product.tags?.length ? product.tags : ["재회", "궁합", "인연", "연애운"]).slice(0, 5);
-  const talks = [
-    `${name}선생님은 흐름을 읽는 감각이 섬세한 분이에요.`,
-    "놓친 마음과 아직 남아 있는 연결고리를 차분히 짚어줍니다.",
-    "이제 명식 카드로 오늘 풀이의 바탕을 먼저 확인해볼게요.",
-  ];
+  const characterId = (character?.key ?? product.character_key ?? "").trim().toLowerCase();
+  const talks = CHARACTER_STORIES[characterId] ?? CHARACTER_STORIES.yeonhwa;
   return (
-    <section className="y-fortune-v2-page y-fortune-v2-char-page">
+    <section className="y-fortune-v2-page y-fortune-v2-char-page y-fortune-v2-page--screen-bottom">
       <div className="y-fortune-v2-char-card">
         <h1>{name}</h1>
         <p className="y-fortune-v2-char-spec">{character?.spec || "인연 · 연애 · 재회 전문 분석가"}</p>

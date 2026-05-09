@@ -7,6 +7,11 @@ function lastClipSegment(clipKey: string) {
   return afterPipe.split("/").pop() ?? afterPipe;
 }
 
+/** GLB/에디터에서 `Walking_withSkin` 처럼 붙는 접미사 제거 → 논리 클립명 `Walking` 과 매칭 */
+export function clipSegmentWithoutWithSkin(clipKey: string): string {
+  return lastClipSegment(clipKey).replace(/_withSkin$/i, "");
+}
+
 /** `mixamo.com|Idle_9` · `Idle_9` · 경로에 Idle 포함 등 모든 구분자로 쪼개서 토큰 일치 검사 */
 function clipNameHasSegment(name: string, token: string): boolean {
   const t = token.toLowerCase();
@@ -34,6 +39,7 @@ export function getClipAction(
     keys.find((k) => k === logicalName) ??
     keys.find((k) => k.toLowerCase() === lower) ??
     keys.find((k) => lastClipSegment(k) === logicalName) ??
+    keys.find((k) => clipSegmentWithoutWithSkin(k) === logicalName) ??
     keys.find((k) => lastClipSegment(k).toLowerCase() === lower) ??
     keys.find((k) => lastClipSegment(k).toLowerCase().replace(/[\s_-]+/g, "") === normalizedLogical);
 
@@ -41,12 +47,12 @@ export function getClipAction(
     const num = logicalName.match(/(\d+)/)?.[1];
     if (num) {
       const re = new RegExp(`^Idle_${num}$`, "i");
-      pick = keys.find((k) => re.test(lastClipSegment(k)));
+      pick = keys.find((k) => re.test(clipSegmentWithoutWithSkin(k)));
     }
     if (!pick) {
       pick =
-        keys.find((k) => /^Idle_\d+$/i.test(lastClipSegment(k))) ??
-        keys.find((k) => /idle/i.test(lastClipSegment(k))) ??
+        keys.find((k) => /^Idle_\d+$/i.test(clipSegmentWithoutWithSkin(k))) ??
+        keys.find((k) => /idle/i.test(clipSegmentWithoutWithSkin(k))) ??
         undefined;
     }
   }
@@ -70,6 +76,7 @@ export function findAnimationClipByLogicalName(clips: AnimationClip[], logicalNa
     clips.find((c) => c.name === logicalName) ??
     clips.find((c) => c.name.toLowerCase() === lower) ??
     clips.find((c) => lastClipSegment(c.name) === logicalName) ??
+    clips.find((c) => clipSegmentWithoutWithSkin(c.name) === logicalName) ??
     clips.find((c) => lastClipSegment(c.name).toLowerCase() === lower) ??
     clips.find(
       (c) => lastClipSegment(c.name).toLowerCase().replace(/[\s_-]+/g, "") === normalizedLogical,
@@ -80,12 +87,12 @@ export function findAnimationClipByLogicalName(clips: AnimationClip[], logicalNa
     const num = logicalName.match(/(\d+)/)?.[1];
     if (num) {
       const re = new RegExp(`^Idle_${num}$`, "i");
-      pick = clips.find((c) => re.test(lastClipSegment(c.name)));
+      pick = clips.find((c) => re.test(clipSegmentWithoutWithSkin(c.name)));
     }
     if (!pick) {
       pick =
-        clips.find((c) => /^Idle_\d+$/i.test(lastClipSegment(c.name))) ??
-        clips.find((c) => /idle/i.test(lastClipSegment(c.name)));
+        clips.find((c) => /^Idle_\d+$/i.test(clipSegmentWithoutWithSkin(c.name))) ??
+        clips.find((c) => /idle/i.test(clipSegmentWithoutWithSkin(c.name)));
     }
   }
 
@@ -96,9 +103,10 @@ export function findAnimationClipByLogicalName(clips: AnimationClip[], logicalNa
  * GLB `animations[]` 순서 = 에디터 테이블 ID 순(사용자 확인). idle 슬롯은 고정 인덱스.
  * 이름-only 매칭·lookbehind 정규식보다 이 경로가 가장 안전(Superlove 등 엉뚱한 클립 방지).
  */
+/** 분할 GLB는 보통 애니가 1개뿐이라 인덱스 고정은 보조용 */
 const MASCOT_IDLE_CLIP_INDEX: Record<"yeon" | "un", number> = {
-  yeon: 9, // Idle_9
-  un: 10, // Idle_3
+  yeon: 0,
+  un: 0,
 };
 
 /** 점사 마스코트: 연이 = Idle_9, 운이 = Idle_3 */
@@ -107,14 +115,14 @@ export function findMascotIdleAnimationClip(kind: "yeon" | "un", clips: Animatio
   const preferIdx = MASCOT_IDLE_CLIP_INDEX[kind];
 
   if (clips[preferIdx]) {
-    const seg = lastClipSegment(clips[preferIdx].name).trim();
+    const seg = clipSegmentWithoutWithSkin(clips[preferIdx].name).trim();
     if (seg === token || seg.toLowerCase() === token.toLowerCase()) {
       return clips[preferIdx];
     }
   }
 
   const byLastSeg = clips.find((c) => {
-    const seg = lastClipSegment(c.name).trim();
+    const seg = clipSegmentWithoutWithSkin(c.name).trim();
     return seg === token || seg.toLowerCase() === token.toLowerCase();
   });
   if (byLastSeg) return byLastSeg;
@@ -133,13 +141,18 @@ export function findMascotIdleAnimationClip(kind: "yeon" | "un", clips: Animatio
 
 /** 걷기: 표준 클립명 `Walking` 우선(Excited_Walk_F 등 제외) */
 export function findWalkingAnimationClip(clips: AnimationClip[]): AnimationClip | undefined {
-  const bySeg = clips.find((c) => /^Walking$/i.test(lastClipSegment(c.name)));
+  const bySeg = clips.find((c) => /^Walking$/i.test(clipSegmentWithoutWithSkin(c.name)));
   if (bySeg) return bySeg;
-  return clips.find((c) => /walk/i.test(lastClipSegment(c.name)));
+  return clips.find((c) => /walk/i.test(clipSegmentWithoutWithSkin(c.name)));
 }
 
 export function findRunningAnimationClip(clips: AnimationClip[]): AnimationClip | undefined {
-  return clips.find((c) => /run/i.test(lastClipSegment(c.name)));
+  const seg = (c: AnimationClip) => clipSegmentWithoutWithSkin(c.name);
+  return (
+    clips.find((c) => /^Running$/i.test(seg(c))) ??
+    clips.find((c) => /^Animation_Running$/i.test(seg(c))) ??
+    clips.find((c) => /run/i.test(seg(c)))
+  );
 }
 
 /** 카메라/조명 전용 클립 등은 제외하고 캐릭터 애니 우선 */

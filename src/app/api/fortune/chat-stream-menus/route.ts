@@ -4,7 +4,13 @@ import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
 import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
 import { getProductBySlug } from "@/lib/data/content";
 import {
-  buildClaudeFortunePromptPiecesSingleSubtitle,
+  approxInputTokensKoreanHeavy,
+  fortuneCachedSystemBlocks,
+  padCacheableSystemTextToMinTokens,
+} from "@/lib/fortune-claude-anthropic-cache";
+import {
+  buildFortuneMenuCachedSystemPlainText,
+  buildFortuneMenuSectionUserMessage,
   type ClaudeFortuneUserInfo,
 } from "@/lib/fortune-claude-payload";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
@@ -135,19 +141,27 @@ export async function POST(request: Request) {
     ...(s.video_thumb_url ? { video_thumb_url: s.video_thumb_url } : {}),
   }));
 
-  const fortune_menu_sections = flat.map((sec) => {
-    const { system, user } = buildClaudeFortunePromptPiecesSingleSubtitle({
-      role_prompt,
-      restrictions,
+  const cachedPlain = buildFortuneMenuCachedSystemPlainText({ role_prompt, restrictions });
+  const paddedCacheText = padCacheableSystemTextToMinTokens(cachedPlain);
+  const fortune_menu_cached_system = fortuneCachedSystemBlocks(paddedCacheText);
+
+  if (String(process.env.FORTUNE_CLAUDE_CACHE_LOG ?? "").trim() === "1") {
+    console.log(
+      `[fortune-claude-cache] sections=${flat.length} approx_tokens_plain=${approxInputTokensKoreanHeavy(cachedPlain)} approx_tokens_padded=${approxInputTokensKoreanHeavy(paddedCacheText)}`,
+    );
+  }
+
+  const fortune_menu_sections = flat.map((sec) => ({
+    user: buildFortuneMenuSectionUserMessage({
       manse_ryeok_text,
       user_info,
       partner_info,
       profile,
       subtitle_title: sec.subtitle_title,
       interpretation_prompt: sec.interpretation_prompt,
-    });
-    return { system, user, subtitle_title: sec.subtitle_title };
-  });
+    }),
+    subtitle_title: sec.subtitle_title,
+  }));
 
   const upstream = await fetch(`${cloudwaysUrl}/chat`, {
     method: "POST",
@@ -171,6 +185,7 @@ export async function POST(request: Request) {
         sections: tocSections,
         toc_groups: tocGroups,
       },
+      fortune_menu_cached_system,
       fortune_menu_sections,
       model: claudeModel,
     }),

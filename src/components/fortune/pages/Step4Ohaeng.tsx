@@ -99,7 +99,7 @@ export function Step4Ohaeng({ manse, onNext }: { manse: ManseRyeokData; onNext: 
   const stored = readStoredSaju();
   const displayName = stored?.name?.trim() || "회원";
   return (
-    <section className="y-fortune-v2-page">
+    <section className="y-fortune-v2-page y-fortune-v2-page--screen-bottom">
       <div className="y-fortune-v2-section-head">
         <h1>오행 분석</h1>
         <p>{displayName}님 사주의 에너지 분포</p>

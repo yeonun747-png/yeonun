@@ -143,32 +143,12 @@ export function buildClaudeFortunePromptPieces(input: {
   return { system, user };
 }
 
-/** DB 소메뉴 1개에 대응하는 단일 `subtitle-section` Claude 프롬프트 */
-export function buildClaudeFortunePromptPiecesSingleSubtitle(input: {
-  role_prompt: string;
-  restrictions: string;
-  manse_ryeok_text: string;
-  user_info: ClaudeFortuneUserInfo;
-  partner_info?: ClaudeFortuneUserInfo | null;
-  profile: DemoProfile;
-  subtitle_title: string;
-  interpretation_prompt: string;
-}): { system: string; user: string } {
-  const tool = [
-    `이번 응답에서는 소제목「${input.subtitle_title}」만 해석합니다.`,
-    input.interpretation_prompt.trim().length
-      ? `운영자가 지정한 해석 지침:\n${input.interpretation_prompt.trim()}`
-      : "",
-    "반드시 한국어 HTML만 출력하세요. 마크다운 코드 펜스(```)는 사용하지 마세요.",
-    "반드시 다음 구조 한 덩어리만 출력합니다(앞뒤에 다른 소제목·서론을 붙이지 마세요):",
-    `<div class="subtitle-section"><h3 class="subtitle-title">${input.subtitle_title}</h3><div class="subtitle-content">…본문…</div></div>`,
-    "문단은 <p> 또는 <br> 로 구분합니다.",
-    "분량은 약 600~1200자 내외로 작성합니다.",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
-  const system = [
+/**
+ * 소메뉴 루프에서 요청마다 동일한 블록 — Claude `system`(prompt caching 대상)에만 넣습니다.
+ * (role_prompt = DB 캐릭터·공통 지침 + `chat-stream-menus`에서 조립한 맥락)
+ */
+export function buildFortuneMenuCachedSystemPlainText(input: { role_prompt: string; restrictions: string }): string {
+  return [
     "당신은 연운(緣運) 텍스트 점사를 맡은 한 역할입니다. 아래 role_prompt(캐릭터·공통)를 따릅니다.",
     "",
     input.role_prompt.trim(),
@@ -179,17 +159,71 @@ export function buildClaudeFortunePromptPiecesSingleSubtitle(input: {
     "[필수 주의]",
     input.restrictions.trim(),
     "",
-    tool,
-    "",
-    "이번 응답에는 위에서 요청한 subtitle-section 한 블록만 출력합니다. h3 제목 텍스트를 바꾸지 마세요.",
+    "출력은 한국어 HTML만 사용합니다. 마크다운 코드 펜스(```)로 감싸지 마세요.",
+    "각 응답마다 사용자 메시지에 적힌 소제목·해석 지침에 맞춰 subtitle-section 한 블록만 출력합니다.",
+    "구조: <div class=\"subtitle-section\"><h3 class=\"subtitle-title\">…</h3><div class=\"subtitle-content\">…</div></div>",
+    "문단은 <p> 또는 <br> 로 구분합니다.",
+    "사용자 메시지의 해석 지침·만세력 데이터만 근거로 삼고, 없는 사실을 지어내지 마세요.",
+    "사용자 메시지에 명시된 h3 제목 텍스트를 바꾸지 마세요.",
   ].join("\n");
+}
 
-  const user = buildClaudeFortuneUserBlock({
+/** 소메뉴별 해석 지침 + 명식 데이터 — Claude `messages` user content */
+export function buildFortuneMenuSectionUserMessage(input: {
+  manse_ryeok_text: string;
+  user_info: ClaudeFortuneUserInfo;
+  partner_info?: ClaudeFortuneUserInfo | null;
+  profile: DemoProfile;
+  subtitle_title: string;
+  interpretation_prompt: string;
+}): string {
+  const tool = [
+    `이번 응답에서는 소제목「${input.subtitle_title}」만 해석합니다.`,
+    input.interpretation_prompt.trim().length
+      ? `운영자가 지정한 해석 지침:\n${input.interpretation_prompt.trim()}`
+      : "",
+    "반드시 한국어 HTML만 출력하세요. 마크다운 코드 펜스(```)는 사용하지 마세요.",
+    "반드시 다음 구조 한 덩어리만 출력합니다(앞뒤에 다른 소제목·서론을 붙이지 마세요):",
+    `<div class="subtitle-section"><h3 class="subtitle-title">${input.subtitle_title}</h3><div class="subtitle-content">…본문…</div></div>`,
+    "문단은 <p> 또는 <br> 로 구분합니다.",
+    "분량은 약 600~1200자 내외로 작성합니다.",
+    "이번 응답에는 위에서 요청한 subtitle-section 한 블록만 출력합니다. h3 제목 텍스트를 바꾸지 마세요.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const dataBlock = buildClaudeFortuneUserBlock({
     manse_ryeok_text: input.manse_ryeok_text,
     user_info: input.user_info,
     partner_info: input.partner_info,
     profile: input.profile,
   });
 
-  return { system, user };
+  return ["# 이번 소제목 해석 요청", "", tool, "", "---", "", dataBlock].join("\n");
+}
+
+/** DB 소메뉴 1개에 대응하는 단일 `subtitle-section` Claude 프롬프트 (레거시·미리보기용 단일 문자열) */
+export function buildClaudeFortunePromptPiecesSingleSubtitle(input: {
+  role_prompt: string;
+  restrictions: string;
+  manse_ryeok_text: string;
+  user_info: ClaudeFortuneUserInfo;
+  partner_info?: ClaudeFortuneUserInfo | null;
+  profile: DemoProfile;
+  subtitle_title: string;
+  interpretation_prompt: string;
+}): { system: string; user: string } {
+  const cachedSystemPlain = buildFortuneMenuCachedSystemPlainText({
+    role_prompt: input.role_prompt,
+    restrictions: input.restrictions,
+  });
+  const user = buildFortuneMenuSectionUserMessage({
+    manse_ryeok_text: input.manse_ryeok_text,
+    user_info: input.user_info,
+    partner_info: input.partner_info,
+    profile: input.profile,
+    subtitle_title: input.subtitle_title,
+    interpretation_prompt: input.interpretation_prompt,
+  });
+  return { system: cachedSystemPlain, user };
 }

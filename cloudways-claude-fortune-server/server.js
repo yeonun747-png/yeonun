@@ -78,6 +78,12 @@ function resolveClaudeParams(reqBody) {
   return { model, maxTokens, temperature };
 }
 
+function systemPayloadChars(system) {
+  if (typeof system === "string") return system.length;
+  if (Array.isArray(system)) return JSON.stringify(system).length;
+  return 0;
+}
+
 async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, ttftCtx) {
   const { model, maxTokens, temperature } = resolveClaudeParams(reqBody);
   const claudeBody = {
@@ -92,7 +98,7 @@ async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, tt
   const { ttftDebug, reqId, ms } = ttftCtx || {};
   if (ttftDebug && reqId) {
     console.log(
-      `[fortune-ttft ${reqId}] [0] request_start ms=${ms()} model=${model} max_tokens=${maxTokens} temp=${temperature} system_chars=${system.length} user_chars=${user.length}`,
+      `[fortune-ttft ${reqId}] [0] request_start ms=${ms()} model=${model} max_tokens=${maxTokens} temp=${temperature} system_chars=${systemPayloadChars(system)} user_chars=${user.length}`,
     );
   }
 
@@ -105,7 +111,9 @@ async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, tt
         "Content-Type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "output-300k-2026-03-24",
+        // 기본은 프롬프트 캐시만. output-300k 등 복수 베타는 일부 키/환경에서 400을 유발할 수 있음 → ANTHROPIC_BETA로만 추가.
+        "anthropic-beta":
+          String(process.env.ANTHROPIC_BETA ?? "").trim() || "prompt-caching-2024-07-31",
       },
       body: JSON.stringify(claudeBody),
     });
@@ -133,6 +141,8 @@ async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx }) {
   let streamError = null;
   let firstUpstreamDataLineLogged = false;
   let firstProxyChunkLogged = false;
+  /** 스트림 종료 직전 `message_delta` 등에 포함되는 usage (prompt caching 포함) */
+  let lastUsage = null;
   const { ttftDebug, reqId, ms, writeSse } = ttftCtx || {};
 
   try {
@@ -157,6 +167,9 @@ async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx }) {
         } catch {
           continue;
         }
+        if (evt && typeof evt === "object" && evt.usage && typeof evt.usage === "object") {
+          lastUsage = evt.usage;
+        }
         if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta" && evt.delta.text) {
           const t = evt.delta.text;
           accumulatedText += t;
@@ -177,7 +190,7 @@ async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx }) {
   }
 
   const cleanHtml = normalizeHtmlBasics(stripCodeFences(accumulatedText));
-  return { html: cleanHtml, streamError };
+  return { html: cleanHtml, streamError, usage: lastUsage };
 }
 
 function countHangulChars(html) {
@@ -186,6 +199,24 @@ function countHangulChars(html) {
     .replace(/\s+/g, " ")
     .trim();
   return text.length;
+}
+
+/** 프롬프트 캐시(system 블록 배열) 실패 시 평문 system으로 재시도 */
+function plainSystemFromMenuCached(menuCachedSystem, sec) {
+  if (Array.isArray(menuCachedSystem) && menuCachedSystem.length > 0) {
+    return menuCachedSystem
+      .map((b) => String(b?.text ?? "").trim())
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  const s = sec?.system;
+  if (typeof s === "string") return s.trim();
+  if (Array.isArray(s))
+    return s
+      .map((b) => String(b?.text ?? "").trim())
+      .filter(Boolean)
+      .join("\n\n");
+  return "";
 }
 
 app.get("/health", (req, res) => {
@@ -234,22 +265,75 @@ app.post("/chat", requireProxySecret, async (req, res) => {
       res.flush?.();
     };
 
+    const menuCachedSystem = req.body?.fortune_menu_cached_system;
+
     try {
       writeSse(menuMeta);
       writeSse(menuToc);
       let totalChars = 0;
       for (let i = 0; i < menuSections.length; i++) {
         const sec = menuSections[i];
-        const system = String(sec?.system ?? "").trim();
+        const system =
+          Array.isArray(menuCachedSystem) && menuCachedSystem.length > 0
+            ? menuCachedSystem
+            : sec?.system;
         const user = String(sec?.user ?? "").trim();
         const subtitleTitle = String(sec?.subtitle_title ?? "").trim() || `섹션 ${i + 1}`;
+        const systemOk =
+          (typeof system === "string" && system.trim().length > 0) ||
+          (Array.isArray(system) && system.length > 0);
+        if (!systemOk || !user) {
+          writeSse({
+            type: "error",
+            message: "Invalid menu section: system and user are required.",
+          });
+          const errHtml = `<div class="subtitle-section"><h3 class="subtitle-title">${subtitleTitle}</h3><div class="subtitle-content"><p>이 구간 요청 형식이 올바르지 않습니다.</p></div></div>`;
+          writeSse({ type: "section_replace", index: i, html: errHtml });
+          totalChars += 40;
+          writeSse({ type: "section_end", index: i });
+          continue;
+        }
         writeSse({ type: "section_start", index: i });
-        try {
-          const claudeRes = await anthropicMessagesStreamResponse(apiKey, req.body, system, user, null);
-          const { html, streamError } = await readClaudeSseToHtml(claudeRes.body.getReader(), {
+        const plainFallback = plainSystemFromMenuCached(menuCachedSystem, sec);
+        const usesCachedArray = Array.isArray(menuCachedSystem) && menuCachedSystem.length > 0;
+
+        const streamOneMenuSection = async (systemPayload) => {
+          const claudeRes = await anthropicMessagesStreamResponse(apiKey, req.body, systemPayload, user, null);
+          return readClaudeSseToHtml(claudeRes.body.getReader(), {
             onTextDelta: (delta) => writeSse({ type: "chunk", index: i, html: delta }),
             ttftCtx: null,
           });
+        };
+
+        try {
+          let { html, streamError, usage } = await streamOneMenuSection(system);
+          const cr = usage?.cache_read_input_tokens;
+          if (typeof cr === "number" && cr > 0) {
+            console.log(`[fortune-claude-cache] section_index=${i} cache_read_input_tokens=${cr}`);
+          }
+
+          const thin = !html || html.trim().length < 40;
+          const errHeavy = Boolean(streamError) && html.trim().length < 120;
+          if (thin || errHeavy) {
+            if (usesCachedArray && plainFallback.length > 0 && Array.isArray(system)) {
+              console.warn(
+                `[fortune-menu-retry] section_index=${i} thin=${thin ? "1" : "0"} stream_err=${streamError ? String(streamError).slice(0, 200) : ""}`,
+              );
+              try {
+                const second = await streamOneMenuSection(plainFallback);
+                if (second.html.trim().length >= html.trim().length) {
+                  html = second.html;
+                  streamError = second.streamError;
+                  usage = second.usage;
+                }
+              } catch (retryErr) {
+                console.warn(
+                  `[fortune-menu-retry-fail] section_index=${i} ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`,
+                );
+              }
+            }
+          }
+
           if (streamError) {
             writeSse({ type: "error", message: streamError });
           }
@@ -259,13 +343,39 @@ app.post("/chat", requireProxySecret, async (req, res) => {
           writeSse({ type: "section_replace", index: i, html: safe });
           totalChars += Math.max(countHangulChars(safe), 1);
         } catch (e) {
-          writeSse({
-            type: "error",
-            message: e instanceof Error ? e.message : String(e),
-          });
-          const errHtml = `<div class="subtitle-section"><h3 class="subtitle-title">${subtitleTitle}</h3><div class="subtitle-content"><p>이 구간 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.</p></div></div>`;
-          writeSse({ type: "section_replace", index: i, html: errHtml });
-          totalChars += 40;
+          const msg = e instanceof Error ? e.message : String(e);
+          if (usesCachedArray && plainFallback.length > 0) {
+            try {
+              console.warn(`[fortune-menu-fallback-plain] section_index=${i} err=${msg.slice(0, 240)}`);
+              const { html: h2, streamError: se2, usage: u2 } = await streamOneMenuSection(plainFallback);
+              const cr2 = u2?.cache_read_input_tokens;
+              if (typeof cr2 === "number" && cr2 > 0) {
+                console.log(`[fortune-claude-cache] section_index=${i} fallback cache_read_input_tokens=${cr2}`);
+              }
+              if (se2) writeSse({ type: "error", message: se2 });
+              const safe2 =
+                h2.trim() ||
+                '<div class="subtitle-section"><h3 class="subtitle-title"></h3><div class="subtitle-content"><p>응답이 비었습니다.</p></div></div>';
+              writeSse({ type: "section_replace", index: i, html: safe2 });
+              totalChars += Math.max(countHangulChars(safe2), 1);
+            } catch (e2) {
+              writeSse({
+                type: "error",
+                message: e2 instanceof Error ? e2.message : String(e2),
+              });
+              const errHtml = `<div class="subtitle-section"><h3 class="subtitle-title">${subtitleTitle}</h3><div class="subtitle-content"><p>이 구간 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.</p></div></div>`;
+              writeSse({ type: "section_replace", index: i, html: errHtml });
+              totalChars += 40;
+            }
+          } else {
+            writeSse({
+              type: "error",
+              message: msg,
+            });
+            const errHtml = `<div class="subtitle-section"><h3 class="subtitle-title">${subtitleTitle}</h3><div class="subtitle-content"><p>이 구간 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.</p></div></div>`;
+            writeSse({ type: "section_replace", index: i, html: errHtml });
+            totalChars += 40;
+          }
         }
         writeSse({ type: "section_end", index: i });
       }
@@ -315,13 +425,17 @@ app.post("/chat", requireProxySecret, async (req, res) => {
   }
 
   let accLen = 0;
-  const { html: cleanHtml, streamError } = await readClaudeSseToHtml(claudeRes.body.getReader(), {
+  const { html: cleanHtml, streamError, usage: singleUsage } = await readClaudeSseToHtml(claudeRes.body.getReader(), {
     onTextDelta: (t) => {
       accLen += t.length;
       writeSse({ type: "chunk", text: t, accumulatedLength: accLen });
     },
     ttftCtx: { ttftDebug, reqId, ms, writeSse },
   });
+  const singleCr = singleUsage?.cache_read_input_tokens;
+  if (typeof singleCr === "number" && singleCr > 0) {
+    console.log(`[fortune-claude-cache] single_chat cache_read_input_tokens=${singleCr}`);
+  }
 
   const donePayload = {
     type: "done",

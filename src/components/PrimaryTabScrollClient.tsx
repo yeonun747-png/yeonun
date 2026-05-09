@@ -18,6 +18,8 @@ export function tabKeyFromPathname(pathname: string): PrimaryTabKey | null {
   return null;
 }
 
+const HOME_SCROLL_SESSION_READY = "yeonun:home-scroll-session-ready";
+
 /** 스크롤을 “탭 루트”로만 기억 (목록 등). 상세 URL에서는 덮어쓰지 않음 */
 export function isTabScrollAnchorPath(pathname: string): boolean {
   return (
@@ -90,15 +92,45 @@ export function PrimaryTabScrollClient() {
 
     const scrollKey = scrollSavedStorageKey(tab);
 
-    // 홈은 항상 최상단에서 시작 (자동 스크롤 복원 방지)
+    /** 홈: 세션에서 첫 홈 진입만 최상단, 이후에는 저장된 스크롤 복원 (유저 조작 중 강제 스크롤 없음) */
     if (tab === "home") {
+      let sessionStarted = false;
       try {
-        sessionStorage.removeItem(scrollKey);
-        sessionStorage.removeItem(SCROLL_RESET_KEY);
+        sessionStarted = sessionStorage.getItem(HOME_SCROLL_SESSION_READY) === "1";
       } catch {
-        /* ignore */
+        sessionStarted = false;
       }
-      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      if (!sessionStarted) {
+        try {
+          sessionStorage.setItem(HOME_SCROLL_SESSION_READY, "1");
+          sessionStorage.removeItem(scrollKey);
+          sessionStorage.removeItem(SCROLL_RESET_KEY);
+        } catch {
+          /* ignore */
+        }
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        return;
+      }
+      if (resetKey === tab) {
+        try {
+          sessionStorage.removeItem(SCROLL_RESET_KEY);
+          sessionStorage.removeItem(scrollKey);
+        } catch {
+          /* ignore */
+        }
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        return;
+      }
+      let raw: string | null = null;
+      try {
+        raw = sessionStorage.getItem(scrollKey);
+      } catch {
+        raw = null;
+      }
+      const y = raw != null ? Number(raw) : NaN;
+      if (Number.isFinite(y) && y > 0) {
+        window.scrollTo({ top: y, left: 0, behavior: "auto" });
+      }
       return;
     }
 
