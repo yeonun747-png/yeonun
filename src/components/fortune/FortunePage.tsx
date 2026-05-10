@@ -29,17 +29,6 @@ import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import { YEON, UN } from "@/components/mascot/mascotAssets";
 import { happyPoolFor, pickFromPool } from "@/components/mascot/mascotClipPools";
 
-const STEP_SUBTITLE: Record<FortuneStep, string> = {
-  0: "별하선생님의 인연풀이",
-  1: "생년월일 입력",
-  2: "별하선생님 소개",
-  3: "사주 명식",
-  4: "오행 분석",
-  5: "별하선생님 질문",
-  6: "풀이 완성",
-  7: "풀이 결과",
-};
-
 function defaultForm(): FortuneFlowForm {
   return {
     name: "",
@@ -102,6 +91,19 @@ export function FortunePage({
   const router = useRouter();
   const profile = (product.saju_input_profile === "pair" ? "pair" : "single") as DemoProfile;
   const characterName = character?.name?.trim() || product.character_key;
+  const stepSubtitle = useMemo((): Record<FortuneStep, string> => {
+    const label = characterName.trim() ? `${characterName.trim()}선생님` : "선생님";
+    return {
+      0: `${label}의 점사`,
+      1: "생년월일 입력",
+      2: `${label} 소개`,
+      3: "사주 명식",
+      4: "오행 분석",
+      5: `${label} 질문`,
+      6: "풀이 완성",
+      7: "풀이 결과",
+    };
+  }, [characterName]);
   const rawFortuneQuestions = (product as unknown as { fortune_questions?: unknown }).fortune_questions;
   const questions = useMemo(
     () => parseProductFortuneQuestions(rawFortuneQuestions || DEFAULT_FORTUNE_QUESTIONS),
@@ -460,7 +462,7 @@ export function FortunePage({
         )}
         <div className="y-fortune-v2-header-title">
           <h1>{product.title}</h1>
-          <p>{STEP_SUBTITLE[step]}</p>
+          <p>{stepSubtitle[step]}</p>
         </div>
         <Link className="y-fortune-v2-header-link" href={headerBackHref} aria-label="상품으로 이동" />
       </header>

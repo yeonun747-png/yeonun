@@ -1,3 +1,21 @@
+/** DB·상품 `character_key`(짧은 키)와 스토리 블록 키 정렬 — 짧은 키만 오면 연화(yeonhwa)로 잘못 폴백되던 문제 방지 */
+export type FortuneEpisodeStoryBucket = "yeonhwa" | "byeolha" | "yeoyeon" | "unseo";
+
+export function fortuneEpisodeStoryBucket(characterKey: string): FortuneEpisodeStoryBucket {
+  const k = characterKey.trim().toLowerCase();
+  if (k === "yeon" || k === "yeonhwa") return "yeonhwa";
+  if (k === "byeol" || k === "byeolha") return "byeolha";
+  if (k === "yeo" || k === "yeoyeon") return "yeoyeon";
+  if (k === "un" || k === "unseo") return "unseo";
+  return "yeonhwa";
+}
+
+/** 스텝2 등 3화 에피소드 본문 — `character.key` 또는 `product.character_key`에 사용 */
+export function fortuneEpisodeTalks(characterKey: string): string[] {
+  const bucket = fortuneEpisodeStoryBucket(characterKey);
+  return CHARACTER_STORIES[bucket] ?? CHARACTER_STORIES.yeonhwa;
+}
+
 export const CHARACTER_STORIES: Record<string, string[]> = {
   // ── 연화 (緣花) ── 인연 · 연애 · 재회 · 궁합
   yeonhwa: [
@@ -28,5 +46,4 @@ export const CHARACTER_STORIES: Record<string, string[]> = {
   ],
 };
 
-// 캐릭터 ID 매핑 (어드민 DB 메뉴-캐릭터 매핑과 일치시킬 것)
-// 연화: yeonhwa / 별하: byeolha / 여연: yeoyeon / 운서: unseo
+// DB character_key: yeon·byeol·yeo·un ↔ 스토리 블록: yeonhwa·byeolha·yeoyeon·unseo (`fortuneEpisodeStoryBucket`)

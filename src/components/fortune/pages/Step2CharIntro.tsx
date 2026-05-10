@@ -1,6 +1,6 @@
 "use client";
 
-import { CHARACTER_STORIES } from "@/constants/characterStories";
+import { fortuneEpisodeTalks } from "@/constants/characterStories";
 import type { Character } from "@/lib/data/characters";
 import type { Product } from "@/lib/data/content";
 
@@ -17,8 +17,8 @@ export function Step2CharIntro({
 }) {
   const name = character?.name?.trim() || product.character_key;
   const tags = (product.tags?.length ? product.tags : ["재회", "궁합", "인연", "연애운"]).slice(0, 5);
-  const characterId = (character?.key ?? product.character_key ?? "").trim().toLowerCase();
-  const talks = CHARACTER_STORIES[characterId] ?? CHARACTER_STORIES.yeonhwa;
+  const characterKey = (character?.key ?? product.character_key ?? "").trim();
+  const talks = fortuneEpisodeTalks(characterKey);
   return (
     <section className="y-fortune-v2-page y-fortune-v2-char-page y-fortune-v2-page--screen-bottom">
       <div className="y-fortune-v2-char-card">
