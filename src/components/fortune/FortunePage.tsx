@@ -172,7 +172,7 @@ export function FortunePage({
   const [mascot, setMascot] = useState<"yeon" | "un">("yeon");
   const lastHappyClipRef = useRef<string | null>(null);
   const [answerReactClip, setAnswerReactClip] = useState<string | null>(null);
-  /** 스텝0 「새로 입력할게요」→ 스텝1: 마스코트가 우상(tr)으로 걸어감. 그 외 스텝1 진입은 좌상(tl). */
+  /** 스텝0「새로 입력할게요」·메뉴 카드(mc)·저장 없음으로 스텝1만: 우상(tr). 그 외 스텝1 기본은 좌상(tl). */
   const [step1MascotCorner, setStep1MascotCorner] = useState<"tl" | "tr">("tl");
   const onAnswerReactDone = useCallback(() => setAnswerReactClip(null), []);
   const resultStream = useFortuneResultStream({
@@ -196,9 +196,11 @@ export function FortunePage({
     setPrefetch(readFortunePrefetch(product.slug));
     if (!prev) {
       setStep(1);
+      /** 메뉴 카드·저장 없음 → 입력만: 마스코트 기본 슬롯 우상(tr) — 스텝0 없이 tl로 두면 왼쪽 끝에 붙음 */
+      if (menuCardEntry) setStep1MascotCorner("tr");
     }
     return () => abortRef.current?.abort();
-  }, [product.slug]);
+  }, [menuCardEntry, product.slug]);
 
   useEffect(() => {
     if (step !== layout.stepPreview || prefetch?.complete) return undefined;
@@ -438,38 +440,6 @@ export function FortunePage({
     go(layout.stepResult);
   };
 
-  const onBack = () => {
-    if (step === 0) {
-      router.back();
-      return;
-    }
-    const prev = Math.max(0, step - 1) as FortuneStep;
-    go(prev, "back");
-  };
-
-  const guide = useMemo(() => {
-    const base = buildFortuneGuide(step, layout, product.slug, step1MascotCorner, mascot, characterName, form.name, manse);
-    let text = base.text;
-    if (guideTextOverride) text = guideTextOverride;
-    const pos = step === 1 && step1MascotCorner === "tr" ? "tr" : base.pos;
-    return { ...base, text, pos };
-  }, [characterName, form.name, guideTextOverride, layout, manse, mascot, product.slug, step, step1MascotCorner]);
-
-  const stageBottomScreenUi =
-    (layout.hasProductExtras && step === 2) ||
-    step === layout.stepCharIntro ||
-    step === layout.stepOhaeng ||
-    step === layout.stepQuestions ||
-    (menuCardEntry && step === 1);
-  const stageLockedViewport = step === layout.stepOhaeng || step === layout.stepQuestions;
-  const stageAnchorTop = step >= layout.stepPreview && step <= layout.stepResult;
-
-  /** 점사 결과 스텝에서는 마스코트 미표시 */
-  const showFortuneMascot = menuCardEntry && step < layout.stepResult;
-
-  /** 결과: 스트림이 끝난 뒤에만 헤더 뒤로 = 하단 「나가기」와 동일 목적지 */
-  const showFortuneResultHeaderExit = step === layout.stepResult && Boolean(result?.complete);
-
   const headerBackHref = useMemo(() => {
     const appendFc = (href: string) => {
       const t = href.trim();
@@ -498,6 +468,43 @@ export function FortunePage({
     }
     return `/?fc=${encodeURIComponent(product.slug)}`;
   }, [backRaw, menuCardEntry, product.slug, themeKey]);
+
+  const onBack = useCallback(() => {
+    if (step === 0) {
+      router.back();
+      return;
+    }
+    /** 저장 없이 입력만 있는 메뉴 카드: 스텝0은 빈 화면 → 뒤로는 이전(메뉴) 화면으로 */
+    if (menuCardEntry && step === 1 && !stored) {
+      router.push(headerBackHref);
+      return;
+    }
+    const prev = Math.max(0, step - 1) as FortuneStep;
+    go(prev, "back");
+  }, [go, headerBackHref, menuCardEntry, router, step, stored]);
+
+  const guide = useMemo(() => {
+    const base = buildFortuneGuide(step, layout, product.slug, step1MascotCorner, mascot, characterName, form.name, manse);
+    let text = base.text;
+    if (guideTextOverride) text = guideTextOverride;
+    const pos = step === 1 && step1MascotCorner === "tr" ? "tr" : base.pos;
+    return { ...base, text, pos };
+  }, [characterName, form.name, guideTextOverride, layout, manse, mascot, product.slug, step, step1MascotCorner]);
+
+  const stageBottomScreenUi =
+    (layout.hasProductExtras && step === 2) ||
+    step === layout.stepCharIntro ||
+    step === layout.stepOhaeng ||
+    step === layout.stepQuestions ||
+    (menuCardEntry && step === 1);
+  const stageLockedViewport = step === layout.stepOhaeng || step === layout.stepQuestions;
+  const stageAnchorTop = step >= layout.stepPreview && step <= layout.stepResult;
+
+  /** 점사 결과 스텝에서는 마스코트 미표시 */
+  const showFortuneMascot = menuCardEntry && step < layout.stepResult;
+
+  /** 결과: 스트림이 끝난 뒤에만 헤더 뒤로 = 하단 「나가기」와 동일 목적지 */
+  const showFortuneResultHeaderExit = step === layout.stepResult && Boolean(result?.complete);
 
   return (
     <div
