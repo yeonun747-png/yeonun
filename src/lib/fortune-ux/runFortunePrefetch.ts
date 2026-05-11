@@ -179,7 +179,12 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
 
   if (menuStreamOk && res.body) {
     await pumpSseBody(res.body.getReader(), "sections");
-    if (!sectionsDoneEvent && !signal.aborted) flush(doneIdx.size > 0);
+    /**
+     * 스트림이 끊겼을 때 `done` 이벤트 없이 종료되면 complete 로 두면 안 됨.
+     * (이전: flush(doneIdx.size > 0) → section_end 가 하나라도 있으면 완료 처리 → 마지막 소메뉴 전에도 나가기 활성화)
+     * 모달 FortuneStreamModal 은 동일 상황에서 interrupted + 오류 문구로 처리한다.
+     */
+    if (!sectionsDoneEvent && !signal.aborted) flush(false);
     return;
   }
 
@@ -214,5 +219,5 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
 
   if (!res.ok || !res.body) return;
   await pumpSseBody(res.body.getReader(), "claude_html_stream");
-  if (!claudeDoneEvent && !signal.aborted) flush(Boolean(claudeStreamHtml.trim()));
+  if (!claudeDoneEvent && !signal.aborted) flush(false);
 }

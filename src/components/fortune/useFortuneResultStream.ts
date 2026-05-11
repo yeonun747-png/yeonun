@@ -56,7 +56,7 @@ export function useFortuneResultStream(args: {
 
     const cached = readFortunePrefetch(productSlug);
     const cachedResult = fortuneResultFromPrefetch(cached, profile, orderNo, true);
-    if (cachedResult) {
+    if (cachedResult?.complete) {
       setResult(cachedResult);
       setPhase("done");
       return;
