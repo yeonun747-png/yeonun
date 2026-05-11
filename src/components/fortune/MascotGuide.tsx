@@ -359,7 +359,7 @@ function GuideCanvas({
       <directionalLight position={[4, 6, 5]} intensity={1.65} />
       <Suspense fallback={null}>
         <GuideModel
-          key={glbUrl}
+          key={kind}
           kind={kind}
           clipLogical={clipLogical}
           yaw={yaw}

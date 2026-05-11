@@ -169,7 +169,10 @@ export function FortunePage({
   const abortRef = useRef<AbortController | null>(null);
   const savedResultRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [mascot, setMascot] = useState<"yeon" | "un">("yeon");
+  const [mascot, setMascot] = useState<"yeon" | "un">(() =>
+    typeof window === "undefined" ? "yeon" : Math.random() < 0.5 ? "yeon" : "un",
+  );
+  const prevFortuneSlugForMascotRef = useRef<string | null>(null);
   const lastHappyClipRef = useRef<string | null>(null);
   const [answerReactClip, setAnswerReactClip] = useState<string | null>(null);
   /** 저장 없이 스텝1: 우상(tr). 스텝0「새로 입력할게요」도 onNew에서 tr. 스텝1→이후로 갔다가 돌아올 때는 이탈 시 tl 리셋 후 tl. */
@@ -185,8 +188,12 @@ export function FortunePage({
     onPatch: setPrefetch,
   });
 
-  /** 상품(점사) 진입할 때마다 연이/운이 중 하나 — 같은 세션에 재방문해도 다시 랜덤 (sessionStorage 고정 제거) */
+  /** `slug`가 바뀔 때만 랜덤 교체. 초기 마운트는 useState 초깃값 유지 — yeon 고정 후 이펙트에서 바뀌며 걷기·정면에서 캐릭터가 바뀌어 보이던 현상 방지 */
   useLayoutEffect(() => {
+    const prev = prevFortuneSlugForMascotRef.current;
+    prevFortuneSlugForMascotRef.current = product.slug;
+    if (prev === null) return;
+    if (prev === product.slug) return;
     setMascot(Math.random() < 0.5 ? "yeon" : "un");
   }, [product.slug]);
 
