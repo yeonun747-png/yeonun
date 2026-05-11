@@ -6,7 +6,8 @@ import type { ManseRyeokData } from "@/lib/manse-ryeok";
 import type { FortuneTocItem } from "@/lib/fortune-stream-client";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 
-export type FortuneStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+/** 8 = 풀이 결과(상품별 추가 입력 스텝 삽입 시에만 사용) */
+export type FortuneStep = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 export type SlideDirection = "forward" | "back";
 export type MascotKind = "yeon" | "un";
 export type MascotPosKey = "welcome" | "center" | "tl" | "tr" | "bl" | "br" | "mr" | "rt";

@@ -248,7 +248,7 @@ function GuideModel({
     /** drei's useFrame은 rAF에서 mixer.update — queueMicrotask로 CSS 이동을 켜면 첫 페인트 전에 클립이 한 번도 적용 안 된 것처럼 보임 */
     const advanceWalkMixerThenScheduleCss = () => {
       const dt = 1 / 45;
-      for (let i = 0; i < 10; i++) mixer.update(dt);
+      for (let i = 0; i < 20; i++) mixer.update(dt);
       invalidate();
       requestAnimationFrame(() => {
         walkReadyRef.current?.();
@@ -372,65 +372,35 @@ function GuideCanvas({
   );
 }
 
-const POS_ORDER: Record<MascotPosKey, number> = {
-  welcome: 1,
-  tl: 0,
-  bl: 0,
-  center: 1,
-  tr: 2,
-  br: 2,
-  mr: 2,
-  rt: 2,
-};
+/**
+ * 실제 이동 픽셀 벡터로 회전. 화면에서 `top`이 작아질수록 위쪽 = **dy < 0**.
+ * Y가 큰 쪽 → 작은 쪽으로 이동할 때는 워킹 중 **뒷모습(등)**이 보이도록 회전을 **π에 고정**.
+ */
+function yawForWalkPixels(
+  fromPx: { left: number; top: number },
+  toPx: { left: number; top: number },
+  _prevYaw: number,
+  _logicalTarget: MascotPosKey,
+): number {
+  const dx = toPx.left - fromPx.left;
+  const dy = toPx.top - fromPx.top;
+  const eps = 1.5;
+  if (Math.abs(dx) < eps && Math.abs(dy) < eps) return _prevYaw;
 
-/** 화면상의 좌/우 이동 방향 판단용(값이 클수록 오른쪽) */
-const POS_X: Record<MascotPosKey, number> = {
-  tl: -2,
-  bl: -2,
-  welcome: 0,
-  center: 0,
-  tr: 2,
-  br: 2,
-  mr: 2,
-  rt: 2,
-};
+  const base = Math.atan2(-dx, dy);
+  /** 목표 top이 더 작아짐 = 위로 이동 → 등 방향으로 강제 */
+  const y = dy < -eps ? Math.PI : base;
 
-/** 화면상의 상/하 이동 방향 판단용(값이 클수록 아래) */
-const POS_Y: Record<MascotPosKey, number> = {
-  tl: 0,
-  tr: 0,
-  rt: 0,
-  center: 1,
-  welcome: 1,
-  mr: 1,
-  bl: 2,
-  br: 2,
-};
-
-function yawForMove(from: MascotPosKey, to: MascotPosKey, prevYaw: number): number {
-  const fx = POS_X[from] ?? 0;
-  const fy = POS_Y[from] ?? 0;
-  const tx = POS_X[to] ?? 0;
-  const ty = POS_Y[to] ?? 0;
-  const dx = tx - fx;
-  const dy = ty - fy;
-  if (dx === 0 && dy === 0) return prevYaw;
-  /**
-   * 연속 회전: 이동 벡터 각도만큼 바라보기.
-   * 좌표계 정의:
-   * - dy > 0 : 아래로 이동 → 정면(0 rad)
-   * - dy < 0 : 위로 이동   → 뒤통수(π rad)
-   * - dx > 0 : 오른쪽 이동 → 오른쪽(-π/2 rad)
-   * - dx < 0 : 왼쪽 이동   → 왼쪽(π/2 rad)
-   *
-   * 따라서 yaw = atan2(-dx, dy)
-   */
-  return Math.atan2(-dx, dy);
+  let out = -y;
+  while (out > Math.PI) out -= 2 * Math.PI;
+  while (out < -Math.PI) out += 2 * Math.PI;
+  return out;
 }
 
 function MascotGuideInner({
   guide,
   fortuneStep,
+  milestoneSteps,
   bubbleDockFixedLeft,
   bubbleDockExtraWide,
   onArrive,
@@ -441,6 +411,8 @@ function MascotGuideInner({
   guide: FortuneGuideState;
   /** Fortune 스텝 번호(마스코트는 7 미만에서만 마운트) */
   fortuneStep: number;
+  /** 상품 추가 입력 스텝 삽입 시 명식·질문·미리보기 스텝 인덱스 보정 */
+  milestoneSteps?: { myungsik: number; questions: number; preview: number };
   /** 사주명식(탭 설명)·오행분석: 헤더 아래 왼쪽 슬롯에 말풍선 고정 */
   bubbleDockFixedLeft?: boolean;
   /** 명식 탭 설명만 말풍선 폭 대폭 확대(뷰포트와 겹쳐도 됨) */
@@ -452,6 +424,7 @@ function MascotGuideInner({
   reactClip?: string | null;
   onReactClipDone?: () => void;
 }) {
+  const ms = milestoneSteps ?? { myungsik: 3, questions: 5, preview: 6 };
   const guideBoxRef = useRef<HTMLDivElement>(null);
   const bubbleOuterRef = useRef<HTMLDivElement>(null);
   /** 명식 넓은 말풍선 래퍼: CSS vw/fixed 조합 대신 실제 레이아웃 폭(clientWidth·visualViewport)으로 기하 적용 */
@@ -493,7 +466,7 @@ function MascotGuideInner({
   /** 질문(5)→풀이완성(6): walkTo 시작점 — 가이드 박스 기준 뷰포트 TL(역산 후 저장) */
   const step6EntryViewportAnchorRef = useRef<{ left: number; top: number } | null>(null);
 
-  const bubbleLeftOfMascot = fortuneStep === 6;
+  const bubbleLeftOfMascot = fortuneStep === ms.preview;
   const useFixedBubbleDock = Boolean(bubbleDockFixedLeft);
   /** 도착 후·이동 중이 아닐 때만 말풍선 표시(이동 시작 시 즉시 숨김) */
   const showSpeechBubble = modelReady && hasArrived && !isMoving;
@@ -522,7 +495,7 @@ function MascotGuideInner({
       const mascotLeftL = stageLeft + clamp(pad, 0, maxLeft);
       const mascotLeftC = stageLeft + clamp((stageW - mascotW) / 2, 0, maxLeft);
       const mascotLeftR = stageLeft + clamp(stageW - pad - mascotW, 0, maxLeft);
-      const step6Lift = fortuneStep === 6;
+      const step6Lift = fortuneStep === ms.preview;
       /** 풀이완성: 헤더에 더 붙임 + 추가로 위로 올림은 pack에서 적용 */
       const topNearHeader = stageTop + (step6Lift ? 2 : 12);
       const topUpper = stageTop + (step6Lift ? 2 : 10);
@@ -534,7 +507,7 @@ function MascotGuideInner({
 
       const liftTop = (t: number) => (step6Lift ? Math.max(stageTop + 2, t - STEP6_EXTRA_LIFT_PX) : t);
 
-      const bubbleGapPx = fortuneStep === 6 ? STEP6_BUBBLE_MASCOT_GAP_PX : BUBBLE_MASCOT_GAP_PX;
+      const bubbleGapPx = fortuneStep === ms.preview ? STEP6_BUBBLE_MASCOT_GAP_PX : BUBBLE_MASCOT_GAP_PX;
 
       const pack = (mascotLeft: number, top: number) => ({
         left: bubbleLeftOfMascot ? outerLeftFromMascotLeftEdge(mascotLeft, vw, bubbleGapPx) : mascotLeft,
@@ -542,11 +515,11 @@ function MascotGuideInner({
       });
 
       const finalizePos = (px: { left: number; top: number }) =>
-        fortuneStep === 6 && stage ? viewportPxToStageLocal(stage, px.left, px.top) : px;
+        fortuneStep === ms.preview && stage ? viewportPxToStageLocal(stage, px.left, px.top) : px;
 
       const mascotBoxH = 120;
       /** 질문 카드 상단보다 20px 위에서 멈춤 */
-      if (fortuneStep === 5 && key === "center") {
+      if (fortuneStep === ms.questions && key === "center") {
         const card = document.querySelector<HTMLElement>(".y-fortune-v2-question-card");
         if (card) {
           const cr = card.getBoundingClientRect();
@@ -559,7 +532,7 @@ function MascotGuideInner({
       }
 
       /** 풀이완성: 목차 카드 위 — 스테이지 로컬 좌표로 두어 스크롤 시 본문과 동반 이동 */
-      if (fortuneStep === 6 && (key === "tr" || key === "rt")) {
+      if (fortuneStep === ms.preview && (key === "tr" || key === "rt")) {
         const toc = document.querySelector<HTMLElement>(".y-fortune-v2-toc-card");
         if (toc) {
           const tr = toc.getBoundingClientRect();
@@ -602,7 +575,7 @@ function MascotGuideInner({
           return finalizePos(pack(mascotLeftC, topNearHeader));
       }
     },
-    [bubbleLeftOfMascot, fortuneStep],
+    [bubbleLeftOfMascot, fortuneStep, ms],
   );
 
   const applyPosCoords = useCallback((p: { left: number; top: number }, durationSec?: number | null) => {
@@ -618,7 +591,7 @@ function MascotGuideInner({
       el.style.left = `${p.left}px`;
       el.style.top = `${p.top}px`;
     }
-    if (fortuneStep < 6) {
+    if (fortuneStep < ms.preview) {
       void el.offsetHeight;
       const mc = mascotCanvasOuterRef.current;
       if (mc) {
@@ -626,7 +599,7 @@ function MascotGuideInner({
         lastMascotViewportTLRef.current = { left: br.left, top: br.top };
       }
     }
-  }, [fortuneStep]);
+  }, [fortuneStep, ms.preview]);
 
   const applyPos = useCallback(
     (key: MascotPosKey) => {
@@ -663,24 +636,24 @@ function MascotGuideInner({
     const onResize = () => applyPos(posRef.current);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [applyPos, fortuneStep]);
+  }, [applyPos, fortuneStep, ms]);
 
   /** 질문 스텝: 매 레이아웃마다 마스코트 박스 뷰포트 스냅샷 */
   useLayoutEffect(() => {
-    if (fortuneStep !== 5 || !guideBoxRef.current) return;
+    if (fortuneStep !== ms.questions || !guideBoxRef.current) return;
     const mc = mascotCanvasOuterRef.current;
     if (!mc) return;
     void guideBoxRef.current.offsetHeight;
     const br = mc.getBoundingClientRect();
     lastMascotViewportTLRef.current = { left: br.left, top: br.top };
-  }, [fortuneStep, hasArrived, isMoving, view.pos]);
+  }, [fortuneStep, hasArrived, isMoving, view.pos, ms.questions]);
 
-  /** 5→6: fixed·세로 스택 → absolute·가로 행 — 마스코트 TL 보존 후 가이드 TL을 역산해 스테이지 로컬 적용 */
+  /** 질문→미리보기: fixed·세로 스택 → absolute·가로 행 — 마스코트 TL 보존 후 가이드 TL을 역산해 스테이지 로컬 적용 */
   useLayoutEffect(() => {
     const prev = prevFortuneStepForAnchorRef.current;
     prevFortuneStepForAnchorRef.current = fortuneStep;
 
-    if (fortuneStep !== 6) {
+    if (fortuneStep !== ms.preview) {
       step6EntryViewportAnchorRef.current = null;
       return;
     }
@@ -710,9 +683,9 @@ function MascotGuideInner({
   /** 질문·풀이완성: DOM이 한 박자 늦게 올라와도 목표 Y를 다시 맞춤 */
   useLayoutEffect(() => {
     if (manualMode || isMoving || !hasArrived) return;
-    if (fortuneStep !== 5 && fortuneStep !== 6) return;
-    /** 스텝6 첫 렌더: posRef가 아직 질문 스텝인데 computePosPx를 호출하면 잘못된 좌표로 덮어 걷기 시작점이 깨짐 */
-    if (fortuneStep === 6 && guide.pos !== posRef.current) return;
+    if (fortuneStep !== ms.questions && fortuneStep !== ms.preview) return;
+    /** 미리보기 스텝 첫 렌더: posRef가 아직 질문 스텝인데 computePosPx를 호출하면 잘못된 좌표로 덮어 걷기 시작점이 깨짐 */
+    if (fortuneStep === ms.preview && guide.pos !== posRef.current) return;
     const snap = () => applyPosCoords(computePosPx(posRef.current), 0);
     snap();
     const t1 = window.setTimeout(snap, 48);
@@ -728,7 +701,7 @@ function MascotGuideInner({
 
   const walkTo = useCallback(
     (target: MascotPosKey, callback: () => void, opts?: { fromPixels?: { left: number; top: number } }) => {
-      const turnMs = fortuneStep === 6 ? 0 : TURN_BEFORE_WALK_MS;
+      const turnMs = fortuneStep === ms.preview ? 0 : TURN_BEFORE_WALK_MS;
       if (fallbackTimerRef.current != null) window.clearTimeout(fallbackTimerRef.current);
       pendingWalkLayoutRef.current = null;
       if (walkLayoutFallbackTimerRef.current != null) {
@@ -743,14 +716,6 @@ function MascotGuideInner({
       void useGLTF.preload(walkGlbUrl);
 
       const from = posRef.current;
-      const nextYaw = yawForMove(from, target, yawRef.current);
-      yawRef.current = nextYaw;
-      setYaw(nextYaw);
-
-      // 회전 구간: 정면 idle 아님 — 바라보는 각도만 목표 방향으로(idle 클립)
-      setIsMoving(false);
-
-      posRef.current = target;
       pendingArriveRef.current = callback;
       const token = (moveTokenRef.current += 1);
       const box = guideBoxRef.current;
@@ -758,12 +723,12 @@ function MascotGuideInner({
       const step6Anchor = step6EntryViewportAnchorRef.current;
       const fromPx =
         opts?.fromPixels ??
-        (fortuneStep === 6 && step6Anchor && stageEl
+        (fortuneStep === ms.preview && step6Anchor && stageEl
           ? (() => {
               step6EntryViewportAnchorRef.current = null;
               return viewportPxToStageLocal(stageEl, step6Anchor.left, step6Anchor.top);
             })()
-          : box && stageEl && fortuneStep === 6
+          : box && stageEl && fortuneStep === ms.preview
             ? (() => {
                 const br = box.getBoundingClientRect();
                 return viewportPxToStageLocal(stageEl, br.left, br.top);
@@ -775,6 +740,14 @@ function MascotGuideInner({
                 })()
               : computePosPx(from));
       const toPx = computePosPx(target);
+      const nextYaw = yawForWalkPixels(fromPx, toPx, yawRef.current, target);
+      yawRef.current = nextYaw;
+      setYaw(nextYaw);
+
+      // 회전 구간: 정면 idle 아님 — 바라보는 각도만 목표 방향으로(idle 클립)
+      setIsMoving(false);
+
+      posRef.current = target;
       const moveDurSec = moveDurationSecForPixels(fromPx, toPx);
       const noTranslate = fromPx.left === toPx.left && fromPx.top === toPx.top;
 
@@ -1104,7 +1077,7 @@ function MascotGuideInner({
     }
 
     setBubbleFade("show");
-    const delayMs = fortuneStep === 3 ? 8000 : 5000;
+    const delayMs = fortuneStep === ms.myungsik ? 8000 : 5000;
     bubbleFadeTimersRef.current.t1 = window.setTimeout(() => {
       setBubbleFade("fading");
       bubbleFadeTimersRef.current.t2 = window.setTimeout(() => setBubbleFade("gone"), 1000);

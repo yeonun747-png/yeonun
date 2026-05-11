@@ -96,6 +96,7 @@ export function buildClaudeFortunePromptPieces(input: {
   user_info: ClaudeFortuneUserInfo;
   partner_info?: ClaudeFortuneUserInfo | null;
   profile: DemoProfile;
+  fortune_extra_context?: string;
 }): { system: string; user: string } {
   const sections = demoTocSections(input.profile);
   const menu_subtitles = sections.map((s) => ({
@@ -133,12 +134,17 @@ export function buildClaudeFortunePromptPieces(input: {
     "작성 직전 확인: 각 소제목 본문 문장이 role_prompt의 [어조]에 맞는지 다시 점검하세요.",
   ].join("\n");
 
-  const user = buildClaudeFortuneUserBlock({
+  const userBlock = buildClaudeFortuneUserBlock({
     manse_ryeok_text: input.manse_ryeok_text,
     user_info: input.user_info,
     partner_info: input.partner_info,
     profile: input.profile,
   });
+  const extra = String(input.fortune_extra_context ?? "").trim();
+  const user =
+    extra.length > 0
+      ? [userBlock, "", "# 상품별 추가 입력 (해석에 반영)", extra].join("\n")
+      : userBlock;
 
   return { system, user };
 }
@@ -176,6 +182,8 @@ export function buildFortuneMenuSectionUserMessage(input: {
   profile: DemoProfile;
   subtitle_title: string;
   interpretation_prompt: string;
+  /** 상품별 추가 입력(꿈·상대 생일 등) — 모든 소메뉴 user에 동일하게 포함 */
+  fortune_extra_context?: string;
 }): string {
   const hasInterp = Boolean(input.interpretation_prompt.trim());
   const tool = [
@@ -202,7 +210,13 @@ export function buildFortuneMenuSectionUserMessage(input: {
     profile: input.profile,
   });
 
-  return ["# 이번 소제목 해석 요청", "", tool, "", "---", "", dataBlock].join("\n");
+  const extra = String(input.fortune_extra_context ?? "").trim();
+  const extraBlock =
+    extra.length > 0
+      ? ["", "# 상품별 추가 입력 (해석에 반영)", extra].join("\n")
+      : "";
+
+  return ["# 이번 소제목 해석 요청", "", tool, "", "---", "", dataBlock, extraBlock].join("");
 }
 
 /** DB 소메뉴 1개에 대응하는 단일 `subtitle-section` Claude 프롬프트 (레거시·미리보기용 단일 문자열) */

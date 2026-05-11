@@ -138,7 +138,7 @@ export function Step7Result({
   const nextTitle = nextReady && next ? next.mainTitle : "다음 풀이 준비 중";
 
   const scrollStageTop = () => {
-    const root = document.querySelector<HTMLElement>('.y-fortune-v2-root[data-step="7"]');
+    const root = document.querySelector<HTMLElement>(".y-fortune-v2-root");
     const stage = root?.querySelector<HTMLElement>(".y-fortune-v2-stage") ?? null;
     if (stage) stage.scrollTo({ top: 0, behavior: "auto" });
     window.scrollTo({ top: 0, behavior: "auto" });

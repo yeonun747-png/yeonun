@@ -14,6 +14,7 @@ type ChatStreamBody = {
   character_key?: string;
   order_no?: string;
   title?: string;
+  fortune_extra_context?: string;
   manse_ryeok_text?: string;
   user_info?: {
     name?: string;
@@ -105,6 +106,8 @@ export async function POST(request: Request) {
       : String(process.env.FORTUNE_CLOUDWAYS_MODEL ?? process.env.VOICE_LLM_MODEL ?? "claude-sonnet-4-6").trim() ||
         "claude-sonnet-4-6";
 
+  const fortune_extra_context = String(body.fortune_extra_context ?? "").trim();
+
   const { system, user } = buildClaudeFortunePromptPieces({
     role_prompt,
     restrictions,
@@ -112,6 +115,7 @@ export async function POST(request: Request) {
     user_info,
     partner_info,
     profile,
+    ...(fortune_extra_context ? { fortune_extra_context } : {}),
   });
 
   const upstream = await fetch(`${cloudwaysUrl}/chat`, {

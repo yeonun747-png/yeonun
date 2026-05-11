@@ -6,7 +6,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 
 import { MascotGuide } from "@/components/fortune/MascotGuide";
 import { MascotPreloadClient } from "@/components/mascot/MascotPreloadClient";
-import type { FortuneFlowForm, FortuneGuideState, FortuneResultState, FortuneStep, SlideDirection } from "@/components/fortune/fortuneFlowTypes";
+import type {
+  FortuneFlowForm,
+  FortuneGuideState,
+  FortuneResultState,
+  FortuneStep,
+  MascotPosKey,
+  SlideDirection,
+} from "@/components/fortune/fortuneFlowTypes";
 import { Step0Welcome } from "@/components/fortune/pages/Step0Welcome";
 import { Step1Input } from "@/components/fortune/pages/Step1Input";
 import { Step2CharIntro } from "@/components/fortune/pages/Step2CharIntro";
@@ -15,6 +22,7 @@ import { Step4Ohaeng } from "@/components/fortune/pages/Step4Ohaeng";
 import { Step5Questions } from "@/components/fortune/pages/Step5Questions";
 import { Step6Preview } from "@/components/fortune/pages/Step6Preview";
 import { Step7Result } from "@/components/fortune/pages/Step7Result";
+import { StepProductExtraInputs } from "@/components/fortune/pages/StepProductExtraInputs";
 import { fortuneResultFromPrefetch, useFortuneResultStream } from "@/components/fortune/useFortuneResultStream";
 import type { Character } from "@/lib/data/characters";
 import type { Product } from "@/lib/data/content";
@@ -28,6 +36,8 @@ import { parseProductFortuneQuestions } from "@/lib/product-fortune-questions";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import { YEON, UN } from "@/components/mascot/mascotAssets";
 import { happyPoolFor, pickFromPool } from "@/components/mascot/mascotClipPools";
+import { fortuneProductHasExtraInputs, getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
+import { getFortuneStepLayout, type FortuneStepLayout } from "@/lib/fortune-step-layout";
 
 function defaultForm(): FortuneFlowForm {
   return {
@@ -53,25 +63,59 @@ function resultHtmlForSave(result: FortuneResultState) {
         .join("\n");
 }
 
-function guideForStep(step: FortuneStep, mascot: "yeon" | "un", characterName: string, userName: string, manse: ManseRyeokData | null): FortuneGuideState {
+function subtitleForFortuneStep(step: FortuneStep, layout: FortuneStepLayout, characterName: string): string {
+  const label = characterName.trim() ? `${characterName.trim()}선생님` : "선생님";
+  if (step === 0) return `${label}의 점사`;
+  if (step === 1) return "생년월일 입력";
+  if (layout.hasProductExtras && step === 2) return "추가 정보";
+  if (step === layout.stepCharIntro) return `${label} 소개`;
+  if (step === layout.stepMyungsik) return "사주 명식";
+  if (step === layout.stepOhaeng) return "오행 분석";
+  if (step === layout.stepQuestions) return `${label} 질문`;
+  if (step === layout.stepPreview) return "풀이 완성";
+  if (step === layout.stepResult) return "풀이 결과";
+  return "";
+}
+
+function buildFortuneGuide(
+  step: FortuneStep,
+  layout: FortuneStepLayout,
+  productSlug: string,
+  step1MascotCorner: "tl" | "tr",
+  mascot: "yeon" | "un",
+  characterName: string,
+  userName: string,
+  manse: ManseRyeokData | null,
+): FortuneGuideState {
   const name = mascot === "yeon" ? "연이" : "운이";
   const idle = mascot === "yeon" ? YEON.idle : UN.idle;
   const day = manse?.day;
   const displayName = userName || "회원";
-  const base: Record<FortuneStep, Omit<FortuneGuideState, "mascot" | "name">> = {
-    0: { pos: "welcome", text: "이전에 저장된 정보가 있어요! 🌸 이걸로 봐드릴까요?", clip: idle },
-    1: { pos: "tl", text: "생년월일을 알려주세요! 🌸 정확할수록 좋아요", clip: idle },
-    2: { pos: "mr", text: `${characterName}선생님을 소개할게요! 🌸 정말 특별한 분이에요`, clip: idle },
-    3: { pos: "tr", text: `${displayName}님의 명식은 아래와 같아요 🌙`, clip: idle },
-    4: { pos: "tr", text: "목(木) 기운이 가득해요! 🌸 흥미로운 명식이에요", clip: idle },
-    5: { pos: "center", text: `${characterName}선생님이 여쭤봐요 🌸 솔직하게 답해주세요!`, clip: idle },
-    6: { pos: "tr", text: `${characterName}선생님 풀이 완성! 🌸 나머지도 정말 인상적이에요`, clip: idle },
-    7: { pos: "rt", text: "첫 번째 풀이예요 🌙 천천히 읽어보세요", clip: idle },
-  };
-  if (step === 3 && day) {
-    base[3] = { ...base[3], text: `${day.gan}${day.ji} 일주... 강한 분이세요 🌙` };
+  const extraCfg = getFortuneProductExtraConfig(productSlug);
+
+  if (step === 0) return { mascot, name, pos: "welcome", text: "이전에 저장된 정보가 있어요! 🌸 이걸로 봐드릴까요?", clip: idle };
+  if (step === 1) return { mascot, name, pos: "tl", text: "생년월일을 알려주세요! 🌸 정확할수록 좋아요", clip: idle };
+  if (layout.hasProductExtras && step === 2 && extraCfg) {
+    const pos: MascotPosKey = step1MascotCorner === "tr" ? "tr" : "tl";
+    return { mascot, name, pos, text: extraCfg.mascotBubble, clip: idle };
   }
-  return { mascot, name, ...base[step] };
+  if (step === layout.stepCharIntro) {
+    return { mascot, name, pos: "mr", text: `${characterName}선생님을 소개할게요! 🌸 정말 특별한 분이에요`, clip: idle };
+  }
+  if (step === layout.stepMyungsik) {
+    const baseText = `${displayName}님의 명식은 아래와 같아요 🌙`;
+    const text = day ? `${day.gan}${day.ji} 일주... 강한 분이세요 🌙` : baseText;
+    return { mascot, name, pos: "tr", text, clip: idle };
+  }
+  if (step === layout.stepOhaeng) return { mascot, name, pos: "tr", text: "목(木) 기운이 가득해요! 🌸 흥미로운 명식이에요", clip: idle };
+  if (step === layout.stepQuestions) {
+    return { mascot, name, pos: "center", text: `${characterName}선생님이 여쭤봐요 🌸 솔직하게 답해주세요!`, clip: idle };
+  }
+  if (step === layout.stepPreview) {
+    return { mascot, name, pos: "tr", text: `${characterName}선생님 풀이 완성! 🌸 나머지도 정말 인상적이에요`, clip: idle };
+  }
+  if (step === layout.stepResult) return { mascot, name, pos: "rt", text: "첫 번째 풀이예요 🌙 천천히 읽어보세요", clip: idle };
+  return { mascot, name, pos: "tl", text: "", clip: idle };
 }
 
 export function FortunePage({
@@ -91,25 +135,17 @@ export function FortunePage({
   const router = useRouter();
   const profile = (product.saju_input_profile === "pair" ? "pair" : "single") as DemoProfile;
   const characterName = character?.name?.trim() || product.character_key;
-  const stepSubtitle = useMemo((): Record<FortuneStep, string> => {
-    const label = characterName.trim() ? `${characterName.trim()}선생님` : "선생님";
-    return {
-      0: `${label}의 점사`,
-      1: "생년월일 입력",
-      2: `${label} 소개`,
-      3: "사주 명식",
-      4: "오행 분석",
-      5: `${label} 질문`,
-      6: "풀이 완성",
-      7: "풀이 결과",
-    };
-  }, [characterName]);
+  const layout = useMemo(() => getFortuneStepLayout(product.slug), [product.slug]);
   const rawFortuneQuestions = (product as unknown as { fortune_questions?: unknown }).fortune_questions;
   const questions = useMemo(
     () => parseProductFortuneQuestions(rawFortuneQuestions || DEFAULT_FORTUNE_QUESTIONS),
     [rawFortuneQuestions],
   );
   const [step, setStep] = useState<FortuneStep>(0);
+  const headerSubtitle = useMemo(
+    () => subtitleForFortuneStep(step, layout, characterName),
+    [characterName, layout, step],
+  );
   const [direction, setDirection] = useState<SlideDirection>("forward");
   const [stored, setStored] = useState<FortuneFlowForm | null>(null);
   const [form, setForm] = useState<FortuneFlowForm>(() => defaultForm());
@@ -157,14 +193,14 @@ export function FortunePage({
   }, [product.slug]);
 
   useEffect(() => {
-    if (step !== 6 || prefetch?.complete) return undefined;
+    if (step !== layout.stepPreview || prefetch?.complete) return undefined;
     const t = window.setInterval(() => setPrefetch(readFortunePrefetch(product.slug)), 800);
     return () => window.clearInterval(t);
-  }, [prefetch?.complete, product.slug, step]);
+  }, [layout.stepPreview, prefetch?.complete, product.slug, step]);
 
-  /** Step 6에서만 prefetch state를 폴링하므로, Step 7에서는 sessionStorage 증분을 result에 반영해야 함 */
+  /** 프리뷰 스텝에서만 prefetch state를 폴링하므로, 결과 스텝에서는 sessionStorage 증분을 result에 반영해야 함 */
   useEffect(() => {
-    if (step !== 7 || result?.complete) return undefined;
+    if (step !== layout.stepResult || result?.complete) return undefined;
     const t = window.setInterval(() => {
       const p = readFortunePrefetch(product.slug);
       const next = fortuneResultFromPrefetch(p, profile, pendingOrderNo, true);
@@ -174,7 +210,7 @@ export function FortunePage({
       }
     }, 400);
     return () => window.clearInterval(t);
-  }, [pendingOrderNo, product.slug, profile, result?.complete, step]);
+  }, [layout.stepResult, pendingOrderNo, product.slug, profile, result?.complete, step]);
 
   useEffect(() => {
     if (step !== 1) setStep1MascotCorner("tl");
@@ -205,29 +241,29 @@ export function FortunePage({
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [step]);
 
-  /** 점사 결과(7): 새로고침·탭 닫기 시 경고(모바일은 브라우저별 제한). 당김 새로고침 완화는 CSS overscroll-behavior */
+  /** 점사 결과: 새로고침·탭 닫기 시 경고(모바일은 브라우저별 제한). 당김 새로고침 완화는 CSS overscroll-behavior */
   useEffect(() => {
-    if (step !== 7) return;
+    if (step !== layout.stepResult) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [step]);
+  }, [layout.stepResult, step]);
 
-  /** 스텝7에는 마스코트가 없어 onMascotArrive가 오지 않음 — is-walking에 머물면 모바일에서 터치·스크롤 레이어가 꼬일 수 있음 */
+  /** 결과 스텝에는 마스코트가 없어 onMascotArrive가 오지 않음 — is-walking에 머물면 모바일에서 터치·스크롤 레이어가 꼬일 수 있음 */
   useEffect(() => {
-    if (step === 7) setStageReady(true);
-  }, [step]);
+    if (step === layout.stepResult) setStageReady(true);
+  }, [layout.stepResult, step]);
 
   const syncGuideTop = useCallback(() => {
     // 마스코트는 항상 헤더(56px) 직하단(60px)에 고정한다.
     // "헤더~정보요소 사이 가운데" 자동 보정은 Step3 처럼 갭이 큰 화면에서 헤더와의 빈 공간을 키우는 부작용이 있어 제거.
     // 정보요소와의 겹침은 step별 page--stack 의 padding-top 으로 충분히 확보된다.
-    if (step > 6) return;
+    if (step >= layout.stepResult) return;
     setGuideTop(60);
-  }, [step]);
+  }, [layout.stepResult, step]);
 
   const onMascotArrive = useCallback(() => {
     setStageReady(true);
@@ -250,7 +286,7 @@ export function FortunePage({
   }, [resultStream.result]);
 
   useEffect(() => {
-    if (step !== 7 || !result?.complete || savedResultRef.current) return;
+    if (step !== layout.stepResult || !result?.complete || savedResultRef.current) return;
     const html = resultHtmlForSave(result);
     if (!html.trim()) return;
     savedResultRef.current = true;
@@ -270,15 +306,16 @@ export function FortunePage({
     }).catch(() => {
       savedResultRef.current = false;
     });
-  }, [product, profile, result, step]);
+  }, [layout.stepResult, product, profile, result, step]);
 
   const go = useCallback(
     (next: FortuneStep, dir: SlideDirection = "forward") => {
       setDirection(dir);
       setStageReady(false);
       /** 명식 탭 말풍선은 오행 분석 등 다른 스텝으로 나가면 즉시 제거 */
+      const myungsikStep = layout.stepMyungsik;
       setStep((prev) => {
-        if (prev === 3 && next !== 3) queueMicrotask(() => setGuideTextOverride(null));
+        if (prev === myungsikStep && next !== myungsikStep) queueMicrotask(() => setGuideTextOverride(null));
         return next;
       });
       // Step6/7는 stage 내부 스크롤이므로 window 만 0 으로 올리면 효과가 없다.
@@ -290,7 +327,7 @@ export function FortunePage({
       window.setTimeout(scrollAllToTop, 0);
       window.setTimeout(scrollAllToTop, 80);
     },
-    [],
+    [layout.stepMyungsik],
   );
 
   const startPrefetch = useCallback(
@@ -342,11 +379,17 @@ export function FortunePage({
       if (!r) return false;
       setForm(normalized);
       setManse(r.manse);
-      startPrefetch(normalized);
+      if (!fortuneProductHasExtraInputs(product.slug)) startPrefetch(normalized);
       return true;
     },
-    [startPrefetch],
+    [product.slug, startPrefetch],
   );
+
+  const onExtraContinue = useCallback(() => {
+    startPrefetch(form);
+    setEpisode(0);
+    go(layout.stepCharIntro);
+  }, [form, go, layout.stepCharIntro, startPrefetch]);
 
   const onUseStored = () => {
     if (!stored) return;
@@ -379,12 +422,12 @@ export function FortunePage({
     if (next) {
       setResult(next);
       if (!next.complete) setResultStreamEnabled(true);
-      go(7);
+      go(layout.stepResult);
       return;
     }
     setResult(null);
     setResultStreamEnabled(true);
-    go(7);
+    go(layout.stepResult);
   };
 
   const onBack = () => {
@@ -397,18 +440,26 @@ export function FortunePage({
   };
 
   const guide = useMemo(() => {
-    const base = guideForStep(step, mascot, characterName, form.name, manse);
+    const base = buildFortuneGuide(step, layout, product.slug, step1MascotCorner, mascot, characterName, form.name, manse);
     let text = base.text;
     if (guideTextOverride) text = guideTextOverride;
     const pos = step === 1 && step1MascotCorner === "tr" ? "tr" : base.pos;
     return { ...base, text, pos };
-  }, [characterName, form.name, guideTextOverride, manse, mascot, menuCardEntry, step, step1MascotCorner]);
+  }, [characterName, form.name, guideTextOverride, layout, manse, mascot, product.slug, step, step1MascotCorner]);
 
-  /** 점사 결과(스텝7)에서는 마스코트 미표시 */
-  const showFortuneMascot = menuCardEntry && step < 7;
+  const stageBottomScreenUi =
+    (layout.hasProductExtras && step === 2) ||
+    step === layout.stepCharIntro ||
+    step === layout.stepOhaeng ||
+    step === layout.stepQuestions;
+  const stageLockedViewport = step === layout.stepOhaeng || step === layout.stepQuestions;
+  const stageAnchorTop = step >= layout.stepPreview && step <= layout.stepResult;
 
-  /** 스텝7: 스트림이 끝난 뒤에만 헤더 뒤로 = 하단 「나가기」와 동일 목적지 */
-  const showFortuneResultHeaderExit = step === 7 && Boolean(result?.complete);
+  /** 점사 결과 스텝에서는 마스코트 미표시 */
+  const showFortuneMascot = menuCardEntry && step < layout.stepResult;
+
+  /** 결과: 스트림이 끝난 뒤에만 헤더 뒤로 = 하단 「나가기」와 동일 목적지 */
+  const showFortuneResultHeaderExit = step === layout.stepResult && Boolean(result?.complete);
 
   const headerBackHref = useMemo(() => {
     const appendFc = (href: string) => {
@@ -444,11 +495,13 @@ export function FortunePage({
       ref={rootRef}
       className="y-fortune-v2-root"
       data-step={step}
+      data-extra-inputs={layout.hasProductExtras && step === 2 ? "1" : undefined}
+      data-extra-slug={layout.hasProductExtras && step === 2 ? product.slug : undefined}
       style={guideTop == null ? undefined : ({ "--fortune-v2-guide-top": `${guideTop}px` } as CSSProperties)}
     >
       {menuCardEntry ? <MascotPreloadClient /> : null}
       <header className="y-fortune-v2-header">
-        {step === 7 ? (
+        {step === layout.stepResult ? (
           showFortuneResultHeaderExit ? (
             <Link href={headerBackHref} className="y-fortune-v2-back" aria-label="나가기" prefetch={false}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -467,19 +520,24 @@ export function FortunePage({
         )}
         <div className="y-fortune-v2-header-title">
           <h1>{product.title}</h1>
-          <p>{stepSubtitle[step]}</p>
+          <p>{headerSubtitle}</p>
         </div>
         <Link className="y-fortune-v2-header-link" href={headerBackHref} aria-label="상품으로 이동" />
       </header>
       <main
-        className={`y-fortune-v2-stage y-fortune-v2-stage--${direction} ${stageReady ? "is-ready" : "is-walking"} ${step === 2 || step === 4 || step === 5 ? "y-fortune-v2-stage--bottom-screen-ui" : ""} ${step === 4 || step === 5 ? "y-fortune-v2-stage--locked-viewport" : ""} ${step >= 6 && step <= 7 ? "y-fortune-v2-stage--anchor-top" : ""}`}
+        className={`y-fortune-v2-stage y-fortune-v2-stage--${direction} ${stageReady ? "is-ready" : "is-walking"} ${stageBottomScreenUi ? "y-fortune-v2-stage--bottom-screen-ui" : ""} ${stageLockedViewport ? "y-fortune-v2-stage--locked-viewport" : ""} ${stageAnchorTop ? "y-fortune-v2-stage--anchor-top" : ""}`}
       >
         {showFortuneMascot ? (
           <MascotGuide
             guide={guide}
             fortuneStep={step}
-            bubbleDockFixedLeft={step === 3 && Boolean(guideTextOverride)}
-            bubbleDockExtraWide={step === 3 && Boolean(guideTextOverride)}
+            milestoneSteps={{
+              myungsik: layout.stepMyungsik,
+              questions: layout.stepQuestions,
+              preview: layout.stepPreview,
+            }}
+            bubbleDockFixedLeft={step === layout.stepMyungsik && Boolean(guideTextOverride)}
+            bubbleDockExtraWide={step === layout.stepMyungsik && Boolean(guideTextOverride)}
             reactClip={answerReactClip}
             onReactClipDone={onAnswerReactDone}
             onArrive={onMascotArrive}
@@ -497,34 +555,39 @@ export function FortunePage({
           />
         ) : null}
         {step === 1 ? <Step1Input form={form} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} onSubmit={onInputSubmit} /> : null}
-        {step === 2 ? (
+        {layout.hasProductExtras && step === 2 ? (
+          <StepProductExtraInputs productSlug={product.slug} onBack={() => go(1, "back")} onContinue={onExtraContinue} />
+        ) : null}
+        {step === layout.stepCharIntro ? (
           <Step2CharIntro
             product={product}
             character={character}
             episode={episode}
             onNextEpisode={() => {
-              if (episode >= 2) go(3);
+              if (episode >= 2) go(layout.stepMyungsik);
               else setEpisode((v) => v + 1);
             }}
           />
         ) : null}
-        {step === 3 && manse ? (
+        {step === layout.stepMyungsik && manse ? (
           <Step3Myungsik
             name={form.name || "회원"}
             manse={manse}
             onPillarTalk={setGuideTextOverride}
-            onNext={() => go(4)}
+            onNext={() => go(layout.stepOhaeng)}
           />
         ) : null}
-        {step === 4 && manse ? <Step4Ohaeng manse={manse} onNext={() => go(5)} /> : null}
-        {step === 5 ? <Step5Questions characterName={characterName} questions={questions} onAnswer={onAnswer} onDone={() => go(6)} /> : null}
-        {step === 6 ? (
+        {step === layout.stepOhaeng && manse ? <Step4Ohaeng manse={manse} onNext={() => go(layout.stepQuestions)} /> : null}
+        {step === layout.stepQuestions ? (
+          <Step5Questions characterName={characterName} questions={questions} onAnswer={onAnswer} onDone={() => go(layout.stepPreview)} />
+        ) : null}
+        {step === layout.stepPreview ? (
           <Step6Preview product={product} prefetch={prefetch} onPaid={onPaid} />
         ) : null}
-        {step === 7 && result ? (
+        {step === layout.stepResult && result ? (
           <Step7Result product={product} result={result} exitHref={headerBackHref} />
         ) : null}
-        {step === 7 && !result ? (
+        {step === layout.stepResult && !result ? (
           <div className="y-fortune-v2-result-loading">
             <span />
             <h2>풀이를 여는 중이에요.</h2>

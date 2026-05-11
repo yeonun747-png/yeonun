@@ -10980,11 +10980,13 @@ a.y-fortune-v2-back {
 }
 
 /** 점사 결과: 당김 새로고침·상위 스크롤 전파 완화(iOS/Android Chrome 등 — 브라우저마다 차이 있음) */
-.y-fortune-v2-root[data-step="7"] {
+.y-fortune-v2-root[data-step="7"],
+.y-fortune-v2-root[data-step="8"] {
   overscroll-behavior-y: none;
 }
 
-html:has(.y-fortune-v2-root[data-step="7"]) {
+html:has(.y-fortune-v2-root[data-step="7"]),
+html:has(.y-fortune-v2-root[data-step="8"]) {
   overscroll-behavior-y: none;
 }
 
@@ -11144,6 +11146,111 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
   background: rgba(255, 255, 255, 0.7);
 }
 
+.y-fortune-v2-extra-block {
+  margin-top: 14px;
+}
+
+.y-fortune-v2-extra-hint {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: var(--ink3);
+  line-height: 1.55;
+}
+
+.y-fortune-v2-extra-req {
+  font-weight: 700;
+  color: var(--rose2);
+  font-size: 11px;
+}
+
+.y-fortune-v2-extra-textarea {
+  min-height: 140px;
+  resize: vertical;
+  line-height: 1.65;
+}
+
+.y-fortune-v2-toggle--wrap {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.y-fortune-v2-toggle--wrap button {
+  flex: 1 1 calc(50% - 6px);
+  min-width: 0;
+}
+
+.y-fortune-v2-extra-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  align-items: stretch;
+}
+
+.y-fortune-v2-extra-actions .y-fortune-v2-outline,
+.y-fortune-v2-extra-actions .y-fortune-v2-primary {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* 상품 추가 입력: Step1과 동일하게 상단 33vh로 마스코트·말풍선과 겹침 방지, 본문·버튼은 아래쪽에 모임 */
+.y-fortune-v2-page--product-extra .y-fortune-v2-section-head {
+  margin-bottom: 4px;
+}
+
+.y-fortune-v2-page--product-extra .y-fortune-v2-section-head h1 {
+  margin-top: 0;
+}
+
+.y-fortune-v2-page--product-extra > .y-fortune-v2-section-head + .y-fortune-v2-extra-block .y-fortune-v2-label {
+  margin-top: 10px;
+}
+
+/* 입력·예시 문장(Step1 생년 + 상품 추가 입력 공통): 산세리프, placeholder 톤 */
+.y-fortune-v2-page--input .y-fortune-v2-input,
+.y-fortune-v2-page--input .y-fortune-v2-date-grid select {
+  font-family: "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+.y-fortune-v2-page--input .y-fortune-v2-input::placeholder {
+  font-family: "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  color: rgba(24, 20, 15, 0.42);
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+  opacity: 1;
+}
+
+/* 스크롤 막대가 라운드 박스 밖으로 나가지 않도록 테두리는 껍데기에만 */
+.y-fortune-v2-textarea-shell {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(24, 20, 15, 0.12);
+  background: #fff;
+  overflow: hidden;
+}
+
+.y-fortune-v2-page--input .y-fortune-v2-textarea-shell textarea.y-fortune-v2-input {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 96px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 7px 14px 14px;
+  box-sizing: border-box;
+  font-size: 14px;
+  color: var(--ink);
+  font-family: "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
 .y-fortune-v2-link {
   margin-top: 10px;
   border: 0;
@@ -11167,6 +11274,14 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
   padding: 0 14px;
   color: var(--ink);
   font-size: 14px;
+}
+
+/* 입력 단계 공통: 좌우 14px, 위는 절반(7px)으로 예시 문장 상단 여백 완화 */
+.y-fortune-v2-page--input input.y-fortune-v2-input {
+  height: auto;
+  min-height: 48px;
+  padding: 7px 14px 14px;
+  box-sizing: border-box;
 }
 
 .y-fortune-v2-label {
@@ -11977,13 +12092,15 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
   width: 100%;
 }
 
-/* 스텝7: 마스코트 없음 — 헤더(56px) 직후부터 본문 (기존 큰 상단 공백 제거) */
-.y-fortune-v2-root[data-step="7"] .y-fortune-v2-result-page {
+/* 스텝7·8(추가입력 삽입 시 결과): 마스코트 없음 — 헤더(56px) 직후부터 본문 (기존 큰 상단 공백 제거) */
+.y-fortune-v2-root[data-step="7"] .y-fortune-v2-result-page,
+.y-fortune-v2-root[data-step="8"] .y-fortune-v2-result-page {
   padding-top: calc(56px + 10px);
 }
 
-/* 스텝7: 스텝6과 같이 스테이지가 스크롤 루트 — iOS 등에서 window 스크롤과 하단 버튼 터치가 어긋나는 현상 완화 */
-.y-fortune-v2-root[data-step="7"] .y-fortune-v2-stage {
+/* 스텝7·8: 스텝6과 같이 스테이지가 스크롤 루트 — iOS 등에서 window 스크롤과 하단 버튼 터치가 어긋나는 현상 완화 */
+.y-fortune-v2-root[data-step="7"] .y-fortune-v2-stage,
+.y-fortune-v2-root[data-step="8"] .y-fortune-v2-stage {
   position: relative;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -11991,7 +12108,8 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
   overscroll-behavior-y: none;
 }
 
-.y-fortune-v2-root[data-step="7"] .y-fortune-v2-result-loading {
+.y-fortune-v2-root[data-step="7"] .y-fortune-v2-result-loading,
+.y-fortune-v2-root[data-step="8"] .y-fortune-v2-result-loading {
   padding-top: calc(56px + 24px);
   min-height: calc(100svh - 56px - 40px);
 }
@@ -12272,6 +12390,76 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
   display: flex;
   flex-direction: column;
   padding-bottom: calc(16px * 1.5 + env(safe-area-inset-bottom, 0px));
+}
+
+/** 상품 추가 입력 스텝: 스크롤 없음, 하단 여백만 좌우(16px)의 1.5배 + safe-area — 본문·버튼 한 화면에 */
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-stage {
+  display: flex;
+  flex-direction: column;
+  height: calc(100svh - 56px);
+  max-height: calc(100svh - 56px);
+  padding: 0 16px calc(16px * 1.5 + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-guide {
+  position: absolute;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-stage > *:not(.y-fortune-v2-guide) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-page--input.y-fortune-v2-page--product-extra {
+  padding-top: min(18vh, 112px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-section-head {
+  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-section-head + .y-fortune-v2-extra-block {
+  margin-top: 0;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-extra-block {
+  margin-top: 6px;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-label {
+  margin: 8px 0 4px;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-extra-hint {
+  margin: 2px 0 4px;
+}
+
+.y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-extra-actions {
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+/* 꿈·커리어: 꿈 내용 / 고민 상황 텍스트영역 세로만 이전(144px) 대비 1.5배 ≈ 216px */
+.y-fortune-v2-root[data-extra-slug="dream-lastnight"] .y-fortune-v2-textarea-shell textarea.y-fortune-v2-input,
+.y-fortune-v2-root[data-extra-slug="career-timing"] .y-fortune-v2-textarea-shell textarea.y-fortune-v2-input {
+  min-height: 216px;
+}
+
+.y-fortune-v2-root[data-extra-slug="naming-baby"] .y-fortune-v2-textarea-shell textarea.y-fortune-v2-input {
+  min-height: 72px;
 }
 
 /** 스텝 4·5: 스테이지 높이 고정 · 스크롤 없음 */

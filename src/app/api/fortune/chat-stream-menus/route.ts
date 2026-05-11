@@ -36,6 +36,8 @@ type Body = {
   character_key?: string;
   order_no?: string;
   title?: string;
+  /** 클라이언트가 조립한 상품별 추가 입력(평문) */
+  fortune_extra_context?: string;
   manse_ryeok_text?: string;
   user_info?: {
     name?: string;
@@ -124,6 +126,7 @@ export async function POST(request: Request) {
 
   const user_info = normUser(body.user_info);
   const partner_info = profile === "pair" && body.partner_info ? normUser(body.partner_info) : null;
+  const fortune_extra_context = String(body.fortune_extra_context ?? "").trim();
 
   const claudeModel =
     typeof body.model === "string" && body.model.trim()
@@ -159,6 +162,7 @@ export async function POST(request: Request) {
       profile,
       subtitle_title: sec.subtitle_title,
       interpretation_prompt: sec.interpretation_prompt,
+      ...(fortune_extra_context ? { fortune_extra_context } : {}),
     }),
     subtitle_title: sec.subtitle_title,
   }));

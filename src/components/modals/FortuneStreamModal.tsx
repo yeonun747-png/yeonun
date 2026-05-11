@@ -18,6 +18,9 @@ import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import { splitHtmlAfterFirstSubtitleH3Close } from "@/lib/fortune-section-html-split";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
+import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
+import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
+import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 
 /** 음성 무료 잔여(초). 없으면 첫 방문 시 충분히 크게 두고, 0이면 충전 유도 */
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
@@ -327,6 +330,12 @@ export function FortuneStreamModal() {
       const user_info = readUserInfoFromYeonunSajuV1();
       const partner_info = profile === "pair" ? partnerInfoFromPartnerStorage(product) : null;
 
+      const extraCfg = getFortuneProductExtraConfig(product);
+      const fortune_extra_context = (() => {
+        if (!extraCfg) return "";
+        return formatFortuneExtraForPrompt(extraCfg, readFortuneExtraAnswers(product)).trim();
+      })();
+
       const streamBody = {
         product_slug: product,
         profile,
@@ -336,6 +345,7 @@ export function FortuneStreamModal() {
         manse_ryeok_text,
         user_info,
         partner_info,
+        ...(fortune_extra_context ? { fortune_extra_context } : {}),
       };
 
       let res = await fetch("/api/fortune/chat-stream-menus", {

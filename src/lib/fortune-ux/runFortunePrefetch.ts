@@ -12,6 +12,9 @@ import {
 } from "@/lib/fortune-stream-client";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
+import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
+import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
+import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 
 type PumpMode = "claude_html_stream" | "sections";
 
@@ -34,6 +37,13 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
   const user_info = readUserInfoFromYeonunSajuV1();
   const partner_info = profile === "pair" ? partnerInfoFromPartnerStorage(productSlug) : null;
 
+  const extraCfg = getFortuneProductExtraConfig(productSlug);
+  const fortune_extra_context = (() => {
+    if (!extraCfg) return "";
+    const s = formatFortuneExtraForPrompt(extraCfg, readFortuneExtraAnswers(productSlug)).trim();
+    return s;
+  })();
+
   const streamBody = {
     product_slug: productSlug,
     profile,
@@ -43,6 +53,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     manse_ryeok_text,
     user_info,
     partner_info,
+    ...(fortune_extra_context ? { fortune_extra_context } : {}),
   };
 
   const streamHeaders = { "Content-Type": "application/json", Accept: "text/event-stream" as const };
