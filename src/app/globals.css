@@ -12426,6 +12426,26 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   overflow: hidden;
 }
 
+/** 메뉴 카드(mc=1) 스텝1 생년 입력: 스텝0→「새로 입력」 후 33vh만으로 본문이 화면 하단 밖으로 밀림 — 추가 입력 스텝과 동일하게 하단(좌우 16px의 1.5배+safe-area) 기준 정렬 */
+.y-fortune-v2-root[data-fortune-menu-card="1"][data-step="1"] .y-fortune-v2-stage > *:not(.y-fortune-v2-guide) {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.y-fortune-v2-root[data-fortune-menu-card="1"][data-step="1"] .y-fortune-v2-page.y-fortune-v2-page--input.y-fortune-v2-page--stack {
+  padding-top: min(18vh, 112px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  box-sizing: border-box;
+}
+
 .y-fortune-v2-root[data-extra-inputs="1"] .y-fortune-v2-section-head {
   margin-bottom: 2px;
   flex-shrink: 0;

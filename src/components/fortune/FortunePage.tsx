@@ -459,7 +459,8 @@ export function FortunePage({
     (layout.hasProductExtras && step === 2) ||
     step === layout.stepCharIntro ||
     step === layout.stepOhaeng ||
-    step === layout.stepQuestions;
+    step === layout.stepQuestions ||
+    (menuCardEntry && step === 1);
   const stageLockedViewport = step === layout.stepOhaeng || step === layout.stepQuestions;
   const stageAnchorTop = step >= layout.stepPreview && step <= layout.stepResult;
 
@@ -504,6 +505,7 @@ export function FortunePage({
       className="y-fortune-v2-root"
       data-step={step}
       data-fortune-preview={step === layout.stepPreview ? "1" : undefined}
+      data-fortune-menu-card={menuCardEntry ? "1" : undefined}
       data-extra-inputs={layout.hasProductExtras && step === 2 ? "1" : undefined}
       data-extra-slug={layout.hasProductExtras && step === 2 ? product.slug : undefined}
       style={guideTop == null ? undefined : ({ "--fortune-v2-guide-top": `${guideTop}px` } as CSSProperties)}
