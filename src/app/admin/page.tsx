@@ -18,6 +18,25 @@ const PRODUCTS_SELECT_NO_PROFILE =
 const PRODUCTS_SELECT_ADMIN =
   "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,created_at";
 
+/** 어드민에 노출하는 공통 시스템 프롬프트만 조회 — `order+limit`만 쓰면 행이 늘었을 때 특정 key가 목록에서 빠질 수 있음 */
+const ADMIN_SERVICE_PROMPT_KEYS = ["yeonun_common_system", "yeonun_fortune_text_system", "yeonun_chat_text_system"] as const;
+
+async function readServicePromptsForAdmin(): Promise<{ rows: Row[]; ready: boolean; error?: string }> {
+  const supabase = supabaseServer();
+  try {
+    const { data, error } = await supabase
+      .from("service_prompts")
+      .select("key,title,prompt,is_active")
+      .in("key", [...ADMIN_SERVICE_PROMPT_KEYS]);
+    if (error) return { rows: [], ready: false, error: error.message };
+    const rowsUnknown = (data ?? []) as unknown;
+    const rows = Array.isArray(rowsUnknown) ? (rowsUnknown as Row[]) : [];
+    return { rows, ready: true };
+  } catch (error) {
+    return { rows: [], ready: false, error: error instanceof Error ? error.message : "unknown error" };
+  }
+}
+
 async function readRows(table: string, select = "*", order?: string, limit = 20): Promise<{ rows: Row[]; ready: boolean; error?: string }> {
   const supabase = supabaseServer();
   try {
@@ -81,7 +100,7 @@ export default async function AdminHomePage() {
       readRows("products", PRODUCTS_SELECT_ADMIN, "created_at", 80),
       readRows("characters", "key,name,han,en,spec,greeting", "key", 20),
       readRows("character_personas", "character_key,color_hex,age_impression,voice_tone,honorific_style,field_core,emotional_distance,sentence_tempo,endings,specialties,temperament,speech_style,emotion_style,strengths,keywords,is_active", "character_key", 20),
-      readRows("service_prompts", "key,title,prompt,is_active", "created_at", 10),
+      readServicePromptsForAdmin(),
       readRows("character_mode_prompts", "character_key,mode,title,prompt,is_active,tts_voice_id,updated_at", "updated_at", 50),
       readRows("tts_voices", "id,provider,label,external_id,gender,sort_order,is_active", "sort_order", 100),
       readRows("categories", "slug,label,sort_order", "sort_order", 50),
