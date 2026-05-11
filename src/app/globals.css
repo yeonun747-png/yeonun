@@ -12563,23 +12563,23 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
 }
 
 /* 풀이완성: 스테이지 내부 스크롤 — 마스코트는 absolute로 본문과 함께 이동 */
-.y-fortune-v2-root[data-step="6"] .y-fortune-v2-stage {
+.y-fortune-v2-root[data-fortune-preview="1"] .y-fortune-v2-stage {
   position: relative;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   max-height: calc(100svh - 56px);
 }
 
-.y-fortune-v2-root[data-step="6"] .y-fortune-v2-guide {
+.y-fortune-v2-root[data-fortune-preview="1"] .y-fortune-v2-guide {
   position: absolute;
 }
 
-.y-fortune-v2-root[data-step="6"] .y-fortune-v2-guide-mascot-row {
+.y-fortune-v2-root[data-fortune-preview="1"] .y-fortune-v2-guide-mascot-row {
   gap: 4px;
 }
 
 /* 풀이완성: 말풍선을 마스코트에 더 붙이고(--bubble-adjust 와 합산) 더 위로 */
-.y-fortune-v2-root[data-step="6"] .y-fortune-v2-bubble.y-fortune-v2-bubble--beside-mascot {
+.y-fortune-v2-root[data-fortune-preview="1"] .y-fortune-v2-bubble.y-fortune-v2-bubble--beside-mascot {
   transform: translate(var(--bubble-adjust-x, 0px), calc(var(--bubble-adjust-y, 0px) - 22px));
 }
 

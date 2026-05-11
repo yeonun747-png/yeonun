@@ -373,29 +373,22 @@ function GuideCanvas({
 }
 
 /**
- * 실제 이동 픽셀 벡터로 회전. 화면에서 `top`이 작아질수록 위쪽 = **dy < 0**.
- * Y가 큰 쪽 → 작은 쪽으로 이동할 때는 워킹 중 **뒷모습(등)**이 보이도록 회전을 **π에 고정**.
+ * 실제 이동 픽셀 벡터로 회전한다.
+ * `GuideModel`에서 최종 적용은 `rotation.y = -yaw`이므로, 7c48b43의 축 정의와 같은 `atan2(-dx, dy)`를 저장한다.
  */
-function yawForWalkPixels(
-  fromPx: { left: number; top: number },
-  toPx: { left: number; top: number },
-  _prevYaw: number,
-  _logicalTarget: MascotPosKey,
-): number {
+function yawForWalkPixels(fromPx: { left: number; top: number }, toPx: { left: number; top: number }, prevYaw: number): number {
   const dx = toPx.left - fromPx.left;
   const dy = toPx.top - fromPx.top;
   const eps = 1.5;
-  if (Math.abs(dx) < eps && Math.abs(dy) < eps) return _prevYaw;
-
-  const base = Math.atan2(-dx, dy);
-  /** 목표 top이 더 작아짐 = 위로 이동 → 등 방향으로 강제 */
-  const y = dy < -eps ? Math.PI : base;
-
-  let out = -y;
-  while (out > Math.PI) out -= 2 * Math.PI;
-  while (out < -Math.PI) out += 2 * Math.PI;
-  return out;
+  if (Math.abs(dx) < eps && Math.abs(dy) < eps) return prevYaw;
+  return Math.atan2(-dx, dy);
 }
+
+const DEFAULT_MILESTONE_STEPS: { myungsik: number; questions: number; preview: number } = {
+  myungsik: 3,
+  questions: 5,
+  preview: 6,
+};
 
 function MascotGuideInner({
   guide,
@@ -424,7 +417,11 @@ function MascotGuideInner({
   reactClip?: string | null;
   onReactClipDone?: () => void;
 }) {
-  const ms = milestoneSteps ?? { myungsik: 3, questions: 5, preview: 6 };
+  /** 부모가 매 렌더 `milestoneSteps={{...}}`를 넘기면 참조만 바뀌어 computePosPx/walkTo가 매번 새로 만들어지고, guide 동기화 effect가 걷기 중에도 재실행되어 `guide.pos===posRef`+`setYaw(0)`로 회전이 지워짐 */
+  const ms = useMemo(
+    () => milestoneSteps ?? DEFAULT_MILESTONE_STEPS,
+    [milestoneSteps?.myungsik, milestoneSteps?.questions, milestoneSteps?.preview],
+  );
   const guideBoxRef = useRef<HTMLDivElement>(null);
   const bubbleOuterRef = useRef<HTMLDivElement>(null);
   /** 명식 넓은 말풍선 래퍼: CSS vw/fixed 조합 대신 실제 레이아웃 폭(clientWidth·visualViewport)으로 기하 적용 */
@@ -657,7 +654,7 @@ function MascotGuideInner({
       step6EntryViewportAnchorRef.current = null;
       return;
     }
-    if (prev !== 5) return;
+    if (prev !== ms.questions) return;
 
     const stageEl = document.querySelector<HTMLElement>(".y-fortune-v2-stage");
     const guideEl = guideBoxRef.current;
@@ -678,7 +675,7 @@ function MascotGuideInner({
     const guideViewportTL = { left: mascotTL.left - dx, top: mascotTL.top - dy };
     step6EntryViewportAnchorRef.current = guideViewportTL;
     applyPosCoords(viewportPxToStageLocal(stageEl, guideViewportTL.left, guideViewportTL.top), 0);
-  }, [fortuneStep, applyPosCoords]);
+  }, [fortuneStep, applyPosCoords, ms.preview, ms.questions]);
 
   /** 질문·풀이완성: DOM이 한 박자 늦게 올라와도 목표 Y를 다시 맞춤 */
   useLayoutEffect(() => {
@@ -694,7 +691,7 @@ function MascotGuideInner({
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [applyPosCoords, computePosPx, fortuneStep, guide.pos, hasArrived, isMoving, manualMode, view.pos]);
+  }, [applyPosCoords, computePosPx, fortuneStep, guide.pos, hasArrived, isMoving, manualMode, ms.preview, ms.questions, view.pos]);
 
   /** 이동 방향으로 먼저 회전(idle) 후, 워킹 클립 루프로 실제 이동 — 풀이완성은 지연 없이 바로 걷기 */
   const TURN_BEFORE_WALK_MS = 150;
@@ -715,7 +712,7 @@ function MascotGuideInner({
       const walkGlbUrl = getFortuneMascotGlbUrl(mk === "yeon" ? "yeon" : "un", picked, mk === "yeon" ? YEON_GLB : UN_GLB);
       void useGLTF.preload(walkGlbUrl);
 
-      const from = posRef.current;
+      const fromKey = posRef.current;
       pendingArriveRef.current = callback;
       const token = (moveTokenRef.current += 1);
       const box = guideBoxRef.current;
@@ -738,9 +735,9 @@ function MascotGuideInner({
                   const br = box.getBoundingClientRect();
                   return { left: br.left, top: br.top };
                 })()
-              : computePosPx(from));
+              : computePosPx(fromKey));
       const toPx = computePosPx(target);
-      const nextYaw = yawForWalkPixels(fromPx, toPx, yawRef.current, target);
+      const nextYaw = yawForWalkPixels(fromPx, toPx, yawRef.current);
       yawRef.current = nextYaw;
       setYaw(nextYaw);
 
@@ -815,7 +812,7 @@ function MascotGuideInner({
 
       fallbackTimerRef.current = window.setTimeout(finishFacingFront, turnMs + Math.ceil(moveDurSec * 1000) + 420);
     },
-    [applyPosCoords, clearReactClip, computePosPx, flushPendingWalkLayout, fortuneStep, view.mascot],
+    [applyPosCoords, clearReactClip, computePosPx, flushPendingWalkLayout, fortuneStep, ms.preview, view.mascot],
   );
 
   useEffect(() => {
@@ -928,6 +925,10 @@ function MascotGuideInner({
   }, [manualMode, manualMoveTo]);
 
   useEffect(() => {
+    /** walkTo가 즉시 posRef=목표로 맞춤 → 논리 위치는 이미 도착으로 보이나 pending 이동 중이면 아래에서 setYaw(0) 하면 안 됨 */
+    if (guide.pos === posRef.current && pendingArriveRef.current) {
+      return undefined;
+    }
     readyNotifiedRef.current = false;
     setHasArrived(false);
     if (guide.pos === posRef.current) {

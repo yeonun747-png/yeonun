@@ -146,6 +146,14 @@ export function FortunePage({
     () => subtitleForFortuneStep(step, layout, characterName),
     [characterName, layout, step],
   );
+  const mascotMilestoneSteps = useMemo(
+    () => ({
+      myungsik: layout.stepMyungsik,
+      questions: layout.stepQuestions,
+      preview: layout.stepPreview,
+    }),
+    [layout.stepMyungsik, layout.stepQuestions, layout.stepPreview],
+  );
   const [direction, setDirection] = useState<SlideDirection>("forward");
   const [stored, setStored] = useState<FortuneFlowForm | null>(null);
   const [form, setForm] = useState<FortuneFlowForm>(() => defaultForm());
@@ -495,6 +503,7 @@ export function FortunePage({
       ref={rootRef}
       className="y-fortune-v2-root"
       data-step={step}
+      data-fortune-preview={step === layout.stepPreview ? "1" : undefined}
       data-extra-inputs={layout.hasProductExtras && step === 2 ? "1" : undefined}
       data-extra-slug={layout.hasProductExtras && step === 2 ? product.slug : undefined}
       style={guideTop == null ? undefined : ({ "--fortune-v2-guide-top": `${guideTop}px` } as CSSProperties)}
@@ -531,11 +540,7 @@ export function FortunePage({
           <MascotGuide
             guide={guide}
             fortuneStep={step}
-            milestoneSteps={{
-              myungsik: layout.stepMyungsik,
-              questions: layout.stepQuestions,
-              preview: layout.stepPreview,
-            }}
+            milestoneSteps={mascotMilestoneSteps}
             bubbleDockFixedLeft={step === layout.stepMyungsik && Boolean(guideTextOverride)}
             bubbleDockExtraWide={step === layout.stepMyungsik && Boolean(guideTextOverride)}
             reactClip={answerReactClip}
