@@ -78,9 +78,11 @@ export default async function LibraryFortuneDetailPage({ params }: Props) {
   if (!detail) notFound();
 
   let productTitle: string | null = null;
+  let productRow: Awaited<ReturnType<typeof getProductBySlugCached>> = null;
   const slug = detail.product_slug?.trim();
   if (slug) {
     const p = await getProductBySlugCached(slug);
+    productRow = p ?? null;
     productTitle = p?.title ?? null;
   }
 
@@ -116,6 +118,7 @@ export default async function LibraryFortuneDetailPage({ params }: Props) {
             fallbackTocTitles={fallbackTocTitles}
             characterKey={characterKey}
             productSlug={detail.product_slug?.trim() || null}
+            product={productRow}
             voiceBriefTitle={heroTitle}
             resultId={detail.result_id}
             voiceConsultSummary={detail.voice_consult_summary}

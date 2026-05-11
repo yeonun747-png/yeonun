@@ -4,6 +4,15 @@ import { useCallback, useRef, useState } from "react";
 
 type Kind = "image" | "video";
 
+function isFortuneMenuStoragePublicUrl(url: string): boolean {
+  try {
+    const u = new URL(url.trim());
+    return /\/storage\/v1\/object\/public\/fortune_menu_assets\//.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
 export function AdminFortuneMenuMediaField({
   label,
   value,
@@ -17,6 +26,7 @@ export function AdminFortuneMenuMediaField({
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +62,30 @@ export function AdminFortuneMenuMediaField({
     },
     [kind, onChange, value],
   );
+
+  const deleteFromStorage = useCallback(async () => {
+    const url = value.trim();
+    if (!url || !isFortuneMenuStoragePublicUrl(url)) return;
+    if (!globalThis.confirm("Supabase 스토리지에서 이 파일을 삭제할까요? (URL 입력란도 비웁니다)")) return;
+    setErr(null);
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/admin/fortune-menu-asset", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ public_url: url }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; detail?: string };
+      if (!res.ok || !j.ok) {
+        throw new Error(j.detail || j.error || "삭제 실패");
+      }
+      onChange("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "삭제 실패");
+    } finally {
+      setDeleting(false);
+    }
+  }, [onChange, value]);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -112,6 +146,21 @@ export function AdminFortuneMenuMediaField({
         <span className="y-admin-stack-legend y-admin-muted">URL (직접 붙여넣기·수정)</span>
         <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="업로드 후 자동 입력 또는 외부 URL" />
       </label>
+      {value.trim() && isFortuneMenuStoragePublicUrl(value) ? (
+        <div className="y-admin-fortune-storage-actions">
+          <button
+            type="button"
+            className="y-admin-danger-soft"
+            disabled={uploading || deleting}
+            onClick={() => void deleteFromStorage()}
+          >
+            {deleting ? "삭제 중…" : "스토리지에서 파일 삭제"}
+          </button>
+          <span className="y-admin-muted y-admin-fortune-storage-actions-hint">
+            fortune_menu_assets 버킷에 올린 주소만 삭제됩니다. 삭제 후 상품 저장을 잊지 마세요.
+          </span>
+        </div>
+      ) : null}
       {err ? <p className="y-admin-save-err">{err}</p> : null}
     </div>
   );

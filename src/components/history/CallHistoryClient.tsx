@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { VOICE_CALL_ARCHIVE_LIST_DAYS, type VoiceCallHistoryRowVm } from "@/lib/voice-call-history-public";
 
 import { CallHistorySheet } from "./CallHistorySheet";
+
+type GroupedBlock = { monthLabel: string; rows: VoiceCallHistoryRowVm[] };
 
 function HeadphoneIcon() {
   return (
@@ -33,14 +36,42 @@ function HeadphoneIcon() {
   );
 }
 
-export function CallHistoryClient({
-  grouped,
-  loadError,
-}: {
-  grouped: { monthLabel: string; rows: VoiceCallHistoryRowVm[] }[];
-  loadError: string | null;
-}) {
-  const empty = !loadError && grouped.every((g) => g.rows.length === 0);
+export function CallHistoryClient() {
+  const [grouped, setGrouped] = useState<GroupedBlock[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      if (cancelled) return;
+      void (async () => {
+        try {
+          const r = await fetch("/api/my/voice-call-history", { method: "GET", cache: "no-store" });
+          const j = (await r.json()) as { ok: true; grouped: GroupedBlock[] } | { ok: false; error?: string };
+          if (cancelled) return;
+          if (!j.ok) {
+            setLoadError(typeof j.error === "string" ? j.error : "목록을 불러오지 못했습니다.");
+            setGrouped([]);
+            setLoaded(true);
+            return;
+          }
+          setLoadError(null);
+          setGrouped(Array.isArray(j.grouped) ? j.grouped : []);
+        } catch {
+          if (!cancelled) setLoadError("목록을 불러오지 못했습니다.");
+        } finally {
+          if (!cancelled) setLoaded(true);
+        }
+      })();
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, []);
+
+  const empty = loaded && !loadError && grouped.every((g) => g.rows.length === 0);
 
   return (
     <CallHistorySheet>
@@ -58,7 +89,7 @@ export function CallHistoryClient({
           </div>
         ) : null}
 
-        {!loadError && !empty
+        {loaded && !loadError && !empty
           ? grouped.map((block, mi) => (
               <section key={`${block.monthLabel}-${mi}`} className="y-call-hist-section" aria-labelledby={`call-hist-m-${mi}`}>
                 <h2 id={`call-hist-m-${mi}`} className="y-call-hist-month">

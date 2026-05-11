@@ -836,6 +836,18 @@ a {
 .y-admin-fortune-url-row {
   margin-top: 2px;
 }
+.y-admin-fortune-storage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 6px;
+}
+.y-admin-fortune-storage-actions-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  flex: 1 1 200px;
+}
 .y-admin-fortune-media-preview {
   margin-top: 4px;
 }
@@ -8500,6 +8512,10 @@ button.y-dw-listen:disabled {
   --y-fs-accent: #c05060;
   --y-fs-ink: #333333;
   --y-fs-mute: #8a8580;
+  /* 대메뉴·소메뉴: 크림/베이지 배경에 맞춘 고채도 톤(웜 브라운 / 틸) */
+  --y-fs-menu-main: #6e351f;
+  --y-fs-menu-sub: #216a6d;
+  --y-fs-menu-sub-active: #155558;
   /* 목차 패널 베이지(점사 결과 참고 UI #F5F2ED 계열) */
   --y-fs-toc-beige-top: #f5f2ed;
   --y-fs-toc-beige-mid: #faf8f5;
@@ -8638,7 +8654,7 @@ button.y-dw-listen:disabled {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.45;
-  color: #2b2620;
+  color: var(--y-fs-menu-main, #6e351f);
   padding: 4px 2px 6px 0;
   border-bottom: none;
 }
@@ -8730,7 +8746,7 @@ button.y-dw-listen:disabled {
   line-height: 1.35;
   background: transparent;
   box-shadow: none;
-  color: var(--y-fs-ink);
+  color: var(--y-fs-menu-sub, #216a6d);
   transition: background 0.15s ease;
 }
 /** 목차 행 사이: 참고 UI는 연한 회색 dashed 전체 폭 */
@@ -8775,8 +8791,8 @@ button.y-dw-listen:disabled {
   color: #fff;
 }
 .y-fs-toc-item--active .y-fs-toc-tx {
-  color: var(--y-fs-ink);
-  font-weight: 500;
+  color: var(--y-fs-menu-sub-active, #155558);
+  font-weight: 700;
 }
 .y-fs-toc-item--done {
   opacity: 1;
@@ -8813,7 +8829,7 @@ button.y-dw-listen:disabled {
 .y-fs-toc-tx {
   flex: 1;
   min-width: 0;
-  font-weight: 400;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 .y-fs-main-panel {
@@ -8862,7 +8878,7 @@ button.y-dw-listen:disabled {
   font-size: 1.22rem;
   font-weight: 700;
   margin: 0 0 12px;
-  color: #2b2620;
+  color: var(--y-fs-menu-main, #6e351f);
   letter-spacing: -0.02em;
   line-height: 1.35;
 }
@@ -8878,6 +8894,46 @@ button.y-dw-listen:disabled {
 .y-fs-body-thumb-wrap .y-fs-section-media {
   margin-bottom: 0;
 }
+
+/* 점사 결과: 대메뉴 썸네일 — 위 여백 없음(Step7·모달). 보관함만 아래 .y-lib-replay 에서 100px */
+.y-fs-body-thumb-wrap--result-main .y-fs-section-media {
+  border-radius: 12px;
+  overflow: hidden;
+  width: max-content;
+  max-width: 100%;
+}
+.y-fs-body-thumb-wrap--result-main .y-fs-section-media-base,
+.y-fs-body-thumb-wrap--result-main .y-fs-section-media-video-only {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+}
+
+/* 소메뉴 블록(첫 소제목까지 HTML) 위 50px — 썸네일·제목 사이가 아님 */
+.y-fortune-v2-result-html .y-fs-result-sub-section-start,
+.y-lib-replay .y-fs-result-sub-section-start,
+.y-fs-modal .y-fs-result-sub-section-start {
+  margin-top: 50px;
+}
+
+/* 점사 결과: 소메뉴 썸네일 — 가로 60%, 둥근 모서리(위 여백은 .y-fs-result-sub-section-start) */
+.y-fs-body-thumb-wrap--result-sub .y-fs-section-media {
+  border-radius: 12px;
+  overflow: hidden;
+  width: calc(min(50vw, 100%) * 0.6);
+  max-width: 60%;
+}
+.y-fs-body-thumb-wrap--result-sub .y-fs-section-media-base,
+.y-fs-body-thumb-wrap--result-sub .y-fs-section-media-video-only {
+  width: 100%;
+  height: auto;
+}
+
+/* 보관함 재생: 새 대메뉴 블록마다 대메뉴명 위 100px (첫 구간·두 번째 대메뉴 이후 동일) */
+.y-lib-replay .y-fortune-v2-result-chunk--main-start {
+  margin-top: 100px;
+}
+
 .y-fs-section-media {
   position: relative;
   width: min(50vw, 100%);
@@ -8933,9 +8989,9 @@ button.y-dw-listen:disabled {
 .y-fs-html h3.subtitle-title {
   font-family: "Noto Serif KR", serif;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
   margin: 0 0 12px;
-  color: var(--y-fs-ink);
+  color: var(--y-fs-menu-sub, #216a6d);
   letter-spacing: -0.02em;
   line-height: 1.35;
 }
@@ -10931,6 +10987,9 @@ a.y-vip-card--link {
   --purple: #6b4fa0;
   --green: #1e6b4a;
   --gnL: #e8f4ee;
+  /* Step7·청크 본문: 대메뉴(키커) vs 소제목(h3) — 모달과 동일 고채도 팔레트 */
+  --fv2-menu-main: #6e351f;
+  --fv2-menu-sub: #216a6d;
   min-height: 100svh;
   background:
     radial-gradient(circle at 80% 8%, rgba(232, 96, 122, 0.12), transparent 34%),
@@ -12138,11 +12197,18 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   line-height: 2;
 }
 
-.y-fortune-v2-result-html h2,
+.y-fortune-v2-result-html h2 {
+  font-family: "Noto Serif KR", serif;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 700;
+  margin: 34px 0 10px;
+}
 .y-fortune-v2-result-html h3,
 .y-fortune-v2-result-html .subtitle-title {
   font-family: "Noto Serif KR", serif;
-  color: var(--ink);
+  color: var(--fv2-menu-sub, #216a6d);
   font-size: 18px;
   line-height: 1.5;
   font-weight: 700;
@@ -12159,7 +12225,11 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   font-weight: 700;
   margin-top: 0;
   margin-bottom: 10px;
-  color: var(--ink);
+  color: var(--fv2-menu-sub, #216a6d);
+}
+
+.y-fortune-v2-result-html .y-fs-section-main-kicker {
+  color: var(--fv2-menu-main, #6e351f);
 }
 
 .y-fortune-v2-result-html .y-fs-html :is(h3.subtitle-title, .subtitle-section h3):first-child {

@@ -15,7 +15,10 @@ import {
 import { FortuneStreamSectionMedia } from "@/components/modals/FortuneStreamSectionMedia";
 import { FortuneVoiceConsultDock } from "@/components/modals/FortuneVoiceConsultDock";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
-import { splitHtmlAfterFirstSubtitleH3Close } from "@/lib/fortune-section-html-split";
+import {
+  mainTitleDuplicatedAsFirstSubtitleH3,
+  splitHtmlAfterFirstSubtitleH3Close,
+} from "@/lib/fortune-section-html-split";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
@@ -64,7 +67,8 @@ function countApproxCharsFromHtml(html: string): number {
 /** 스트리밍 HTML 안에서 완결된 subtitle-section 루트 개수(목차 동기화용) */
 function countSubtitleSections(html: string): number {
   if (!html) return 0;
-  const re = /<div\b[^>]*\bclass\s*=\s*["'][^"']*\bsubtitle-section\b[^"']*["'][^>]*>/gi;
+  const re =
+    /<(?:div|section)\b[^>]*\bclass\s*=\s*["'][^"']*\bsubtitle-section\b[^"']*["'][^>]*>/gi;
   let n = 0;
   for (const _ of html.matchAll(re)) n += 1;
   return n;
@@ -1040,14 +1044,22 @@ export function FortuneStreamModal() {
                     const showSubThumb =
                       fv && Boolean((item.image_url ?? "").trim() || (item.video_thumb_url ?? "").trim());
                     const split = htmlTrim ? splitHtmlAfterFirstSubtitleH3Close(html) : null;
+                    const hideReactMainKickerBecauseH3Duplicates =
+                      showMainKicker &&
+                      (split
+                        ? mainTitleDuplicatedAsFirstSubtitleH3(split.head, mainLabel)
+                        : mainTitleDuplicatedAsFirstSubtitleH3(html, mainLabel));
+                    const splitHeadHtml = split ? split.head : "";
                     return (
                       <article key={item.id} id={`y-fs-section-${i}`} className={boxCls} aria-labelledby={`y-fs-h-${i}`}>
                         <div className={`y-fs-section-inner${active ? " y-fs-section-inner--streaming" : ""}`}>
                           {htmlTrim ? (
                             <>
-                              {showMainKicker ? <p className="y-fs-section-main-kicker">{mainLabel}</p> : null}
+                              {showMainKicker && !hideReactMainKickerBecauseH3Duplicates ? (
+                                <p className="y-fs-section-main-kicker">{mainLabel}</p>
+                              ) : null}
                               {showMainThumb ? (
-                                <div className="y-fs-body-thumb-wrap">
+                                <div className="y-fs-body-thumb-wrap y-fs-body-thumb-wrap--result-main">
                                   <FortuneStreamSectionMedia
                                     imageUrl={item.main_image_url}
                                     videoThumbUrl={item.main_video_thumb_url}
@@ -1057,13 +1069,13 @@ export function FortuneStreamModal() {
                               {split ? (
                                 <>
                                   <div
-                                    className="y-fs-html"
+                                    className="y-fs-html y-fs-result-sub-section-start"
                                     id={`y-fs-h-${i}`}
                                     // eslint-disable-next-line react/no-danger
-                                    dangerouslySetInnerHTML={{ __html: split.head }}
+                                    dangerouslySetInnerHTML={{ __html: splitHeadHtml }}
                                   />
                                   {showSubThumb ? (
-                                    <div className="y-fs-body-thumb-wrap">
+                                    <div className="y-fs-body-thumb-wrap y-fs-body-thumb-wrap--result-sub">
                                       <FortuneStreamSectionMedia
                                         imageUrl={item.image_url}
                                         videoThumbUrl={item.video_thumb_url}
@@ -1092,7 +1104,7 @@ export function FortuneStreamModal() {
                             <div id={`y-fs-h-${i}`}>
                               {showMainKicker ? <p className="y-fs-section-main-kicker">{mainLabel}</p> : null}
                               {showMainThumb ? (
-                                <div className="y-fs-body-thumb-wrap">
+                                <div className="y-fs-body-thumb-wrap y-fs-body-thumb-wrap--result-main">
                                   <FortuneStreamSectionMedia
                                     imageUrl={item.main_image_url}
                                     videoThumbUrl={item.main_video_thumb_url}

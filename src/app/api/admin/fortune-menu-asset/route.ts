@@ -107,3 +107,34 @@ export async function POST(request: Request) {
     bucket: BUCKET,
   });
 }
+
+/** 어드민: `fortune_menu_assets` 공개 URL에 해당하는 객체만 스토리지에서 수동 삭제 */
+export async function DELETE(request: Request) {
+  if (!env.supabaseServiceRoleKey) {
+    return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, { status: 501 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  const publicUrl = String((body as { public_url?: string })?.public_url ?? "").trim();
+  if (!publicUrl) {
+    return NextResponse.json({ error: "missing_public_url" }, { status: 400 });
+  }
+
+  const parsed = parseStorageObjectFromPublicUrl(publicUrl);
+  if (!parsed || parsed.bucket !== BUCKET) {
+    return NextResponse.json({ error: "not_fortune_menu_asset_url" }, { status: 400 });
+  }
+
+  const supabase = supabaseServer();
+  const { error } = await supabase.storage.from(BUCKET).remove([parsed.objectPath]);
+  if (error) {
+    return NextResponse.json({ error: "remove_failed", detail: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

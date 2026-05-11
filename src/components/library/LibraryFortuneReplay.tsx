@@ -4,12 +4,18 @@ import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { FortuneResultSectionChunks, enrichTocWithMenuMedia } from "@/components/fortune/FortuneResultSectionChunks";
 import { FortuneVoiceConsultDock } from "@/components/modals/FortuneVoiceConsultDock";
-import { setVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
+import type { Product } from "@/lib/data/content";
 import { flattenTocGroupsToFlatItems } from "@/lib/library-toc-snapshot";
-import { injectMainKickersFromTocIfApplicable } from "@/lib/fortune-saved-html-toc";
+import {
+  injectMainKickersFromTocIfApplicable,
+  sanitizeFortuneJoinedHtmlForLibraryReplay,
+  splitJoinedLibraryHtmlToSectionHtml,
+} from "@/lib/fortune-saved-html-toc";
 import type { FortuneTocItem } from "@/lib/fortune-stream-client";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
+import { setVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
 
@@ -30,6 +36,8 @@ export function LibraryFortuneReplay(props: {
   fallbackTocTitles?: string[];
   characterKey: string;
   productSlug: string | null;
+  /** 있으면 보관함 본문에 대/소메뉴 썸네일 URL 보강 */
+  product: Product | null;
   voiceBriefTitle: string;
   resultId: string;
   voiceConsultSummary?: string | null;
@@ -48,6 +56,7 @@ export function LibraryFortuneReplay(props: {
     fallbackTocTitles = [],
     characterKey,
     productSlug,
+    product,
     voiceBriefTitle,
     resultId,
     voiceConsultSummary,
@@ -131,10 +140,21 @@ export function LibraryFortuneReplay(props: {
     return null;
   }, [tocSections, tocGroups]);
 
-  const displayHtml = useMemo(
-    () => injectMainKickersFromTocIfApplicable(html, tocFlatForInject),
-    [html, tocFlatForInject],
+  /** 저장 목차에 빠진 main_title·미디어 URL을 상품 fortune_menu 로 맞춤 — split 시 키커 경계와 일치 */
+  const tocForBody = useMemo(
+    () => enrichTocWithMenuMedia(tocFlatForInject ?? [], product ?? null),
+    [tocFlatForInject, product],
   );
+
+  const displayHtml = useMemo(() => {
+    const injected = injectMainKickersFromTocIfApplicable(html, tocForBody.length ? tocForBody : null);
+    return sanitizeFortuneJoinedHtmlForLibraryReplay(injected);
+  }, [html, tocForBody]);
+
+  const sectionHtmlReplay = useMemo(() => {
+    if (!tocForBody.length) return null;
+    return splitJoinedLibraryHtmlToSectionHtml(displayHtml, tocForBody);
+  }, [displayHtml, tocForBody]);
 
   const onVoiceContinue = useCallback(async () => {
     if (voiceContinueBusy) return;
@@ -290,11 +310,21 @@ export function LibraryFortuneReplay(props: {
               <div className="y-fs-body y-fs-body--visible">
                 <article id="y-fs-section-0" className="y-fs-section y-fs-section--active">
                   <div className="y-fs-section-inner">
-                    <div
-                      className="y-fs-html y-fs-html--claude-stream"
-                      id="y-fs-h-0"
-                      dangerouslySetInnerHTML={{ __html: displayHtml }}
-                    />
+                    {sectionHtmlReplay && tocForBody.length ? (
+                      <div className="y-fs-html y-fs-html--claude-stream" id="y-fs-h-0">
+                        <FortuneResultSectionChunks
+                          toc={tocForBody}
+                          sectionIndices={tocForBody.map((_, i) => i)}
+                          sectionHtml={sectionHtmlReplay}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className="y-fs-html y-fs-html--claude-stream"
+                        id="y-fs-h-0"
+                        dangerouslySetInnerHTML={{ __html: displayHtml }}
+                      />
+                    )}
                   </div>
                 </article>
               </div>

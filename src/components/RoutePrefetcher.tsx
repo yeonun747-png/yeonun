@@ -8,6 +8,8 @@ type IdleWindow = Window & {
   cancelIdleCallback?: (id: number) => void;
 };
 
+const MY_SHEET_PRIORITY = new Set(["/library", "/history/calls", "/history/chats"]);
+
 export function RoutePrefetcher({ routes }: { routes: string[] }) {
   const router = useRouter();
   const uniqueRoutes = useMemo(() => [...new Set(routes.filter(Boolean))], [routes]);
@@ -16,18 +18,30 @@ export function RoutePrefetcher({ routes }: { routes: string[] }) {
   useEffect(() => {
     if (!uniqueRoutes.length) return;
 
-    const run = () => {
-      for (const route of uniqueRoutes) router.prefetch(route);
+    const priority = uniqueRoutes.filter((r) => MY_SHEET_PRIORITY.has(r));
+    const rest = uniqueRoutes.filter((r) => !MY_SHEET_PRIORITY.has(r));
+
+    const prefetch = (list: string[]) => {
+      for (const route of list) router.prefetch(route);
     };
 
+    /** 마이 보관함 등: 첫 페인트 직후 바로 프리페치( idle 전 클릭 대비 ) */
+    if (priority.length) prefetch(priority);
+
+    const runRest = () => prefetch(rest);
+
     const idleWindow = window as IdleWindow;
-    if (idleWindow.requestIdleCallback) {
-      const id = idleWindow.requestIdleCallback(run, { timeout: 1200 });
+    if (rest.length && idleWindow.requestIdleCallback) {
+      const id = idleWindow.requestIdleCallback(runRest, { timeout: 900 });
       return () => idleWindow.cancelIdleCallback?.(id);
     }
 
-    const id = window.setTimeout(run, 250);
-    return () => window.clearTimeout(id);
+    if (rest.length) {
+      const id = window.setTimeout(runRest, 120);
+      return () => window.clearTimeout(id);
+    }
+
+    return undefined;
   }, [key, router, uniqueRoutes]);
 
   return null;

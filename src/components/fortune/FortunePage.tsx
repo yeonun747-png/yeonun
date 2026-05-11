@@ -28,6 +28,7 @@ import type { Character } from "@/lib/data/characters";
 import type { Product } from "@/lib/data/content";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { fortunePrefetchStorageKey, readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { runFortunePrefetch } from "@/lib/fortune-ux/runFortunePrefetch";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { DEFAULT_FORTUNE_QUESTIONS } from "@/lib/fortune-ux/defaultQuestions";
@@ -36,6 +37,7 @@ import { parseProductFortuneQuestions } from "@/lib/product-fortune-questions";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import { YEON, UN } from "@/components/mascot/mascotAssets";
 import { happyPoolFor, pickFromPool } from "@/components/mascot/mascotClipPools";
+import { readFortuneExtraAnswers, writeFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
 import { fortuneProductHasExtraInputs, getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { getFortuneStepLayout, type FortuneStepLayout } from "@/lib/fortune-step-layout";
 
@@ -107,7 +109,12 @@ function buildFortuneGuide(
     const text = day ? `${day.gan}${day.ji} 일주... 강한 분이세요 🌙` : baseText;
     return { mascot, name, pos: "tr", text, clip: idle };
   }
-  if (step === layout.stepOhaeng) return { mascot, name, pos: "tr", text: "목(木) 기운이 가득해요! 🌸 흥미로운 명식이에요", clip: idle };
+  if (step === layout.stepOhaeng) {
+    const text = manse
+      ? getOhaengMascotGuideText(manse)
+      : "오행 분포를 보면서 같이 읽어볼게요! 🌸 흥미로운 명식이에요";
+    return { mascot, name, pos: "tr", text, clip: idle };
+  }
   if (step === layout.stepQuestions) {
     return { mascot, name, pos: "center", text: `${characterName}선생님이 여쭤봐요 🌸 솔직하게 답해주세요!`, clip: idle };
   }
@@ -208,6 +215,14 @@ export function FortunePage({
     }
     return () => abortRef.current?.abort();
   }, [menuCardEntry, product.slug]);
+
+  /** 어젯밤 꿈: sessionStorage에 남은 꿈 본문은 `/fortune/dream-lastnight`에 다시 들어올 때 비움(같은 방문 안 스텝2↔3 뒤로는 유지). */
+  useEffect(() => {
+    if (product.slug !== "dream-lastnight") return;
+    const cur = readFortuneExtraAnswers("dream-lastnight");
+    if (!(cur.dream_content ?? "").trim()) return;
+    writeFortuneExtraAnswers("dream-lastnight", { ...cur, dream_content: "" });
+  }, [product.slug]);
 
   const prevStepForMascotCornerRef = useRef(step);
   useEffect(() => {

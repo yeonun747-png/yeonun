@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { LIBRARY_CHARACTER_FILTER_ORDER } from "@/lib/library-character-filters";
 import type { LibraryListItemVm } from "@/lib/library-list-vm";
@@ -18,16 +18,43 @@ function kickerClass(characterKey: LibraryListItemVm["characterKey"]): string {
   return "y-lib-mock-kicker--neutral";
 }
 
-export function LibraryListScreenClient({
-  items,
-  loadError,
-  backHref = "/my",
-}: {
-  items: LibraryListItemVm[];
-  loadError: string | null;
-  backHref?: string;
-}) {
+export function LibraryListScreenClient({ backHref = "/my" }: { backHref?: string }) {
+  const [items, setItems] = useState<LibraryListItemVm[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
+
+  useEffect(() => {
+    let cancelled = false;
+    const id = requestAnimationFrame(() => {
+      if (cancelled) return;
+      void (async () => {
+        try {
+          const r = await fetch("/api/my/fortune-library-list", { method: "GET", cache: "no-store" });
+          const j = (await r.json()) as
+            | { ok: true; items: LibraryListItemVm[] }
+            | { ok: false; error?: string };
+          if (cancelled) return;
+          if (!j.ok) {
+            setLoadError(typeof j.error === "string" ? j.error : "목록을 불러오지 못했습니다.");
+            setItems([]);
+            setLoaded(true);
+            return;
+          }
+          setLoadError(null);
+          setItems(Array.isArray(j.items) ? j.items : []);
+        } catch {
+          if (!cancelled) setLoadError("목록을 불러오지 못했습니다.");
+        } finally {
+          if (!cancelled) setLoaded(true);
+        }
+      })();
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id);
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     if (filter === "all") return items;
@@ -72,7 +99,7 @@ export function LibraryListScreenClient({
           </>
         ) : null}
 
-        {!loadError && items.length === 0 ? (
+        {loaded && !loadError && items.length === 0 ? (
           <div className="y-lib-empty y-lib-empty--sheet">
             <p className="y-lib-empty-desc">아직 저장된 풀이가 없습니다.</p>
             <Link className="y-lib-empty-cta" href="/content">
@@ -81,11 +108,11 @@ export function LibraryListScreenClient({
           </div>
         ) : null}
 
-        {!loadError && items.length > 0 && filtered.length === 0 ? (
+        {loaded && !loadError && items.length > 0 && filtered.length === 0 ? (
           <p className="y-lib-mock-empty-filter">이 인연의 저장 풀이가 없습니다.</p>
         ) : null}
 
-        {!loadError && filtered.length > 0 ? (
+        {loaded && !loadError && filtered.length > 0 ? (
           <ul className="y-lib-mock-list" aria-label="저장된 풀이 목록">
             {filtered.map((item) => (
               <li key={item.requestId}>
