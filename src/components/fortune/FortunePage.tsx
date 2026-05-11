@@ -172,7 +172,7 @@ export function FortunePage({
   const [mascot, setMascot] = useState<"yeon" | "un">("yeon");
   const lastHappyClipRef = useRef<string | null>(null);
   const [answerReactClip, setAnswerReactClip] = useState<string | null>(null);
-  /** 스텝0「새로 입력할게요」·메뉴 카드(mc)·저장 없음으로 스텝1만: 우상(tr). 그 외 스텝1 기본은 좌상(tl). */
+  /** 저장 없이 스텝1: 우상(tr). 스텝0「새로 입력할게요」도 onNew에서 tr. 스텝1→이후로 갔다가 돌아올 때는 이탈 시 tl 리셋 후 tl. */
   const [step1MascotCorner, setStep1MascotCorner] = useState<"tl" | "tr">("tl");
   const onAnswerReactDone = useCallback(() => setAnswerReactClip(null), []);
   const resultStream = useFortuneResultStream({
@@ -196,11 +196,18 @@ export function FortunePage({
     setPrefetch(readFortunePrefetch(product.slug));
     if (!prev) {
       setStep(1);
-      /** 메뉴 카드·저장 없음 → 입력만: 마스코트 기본 슬롯 우상(tr) — 스텝0 없이 tl로 두면 왼쪽 끝에 붙음 */
-      if (menuCardEntry) setStep1MascotCorner("tr");
+      /** 저장 생년 없음 → 스텝1만: 우상(tr). (스텝0이 잠깐 0일 때 `step` 이펙트가 tl로 덮지 않도록 1→타 스텝 이탈 시만 tl 리셋) */
+      setStep1MascotCorner("tr");
     }
     return () => abortRef.current?.abort();
   }, [menuCardEntry, product.slug]);
+
+  const prevStepForMascotCornerRef = useRef(step);
+  useEffect(() => {
+    const prev = prevStepForMascotCornerRef.current;
+    prevStepForMascotCornerRef.current = step;
+    if (prev === 1 && step !== 1) setStep1MascotCorner("tl");
+  }, [step]);
 
   useEffect(() => {
     if (step !== layout.stepPreview || prefetch?.complete) return undefined;
@@ -221,10 +228,6 @@ export function FortunePage({
     }, 400);
     return () => window.clearInterval(t);
   }, [layout.stepResult, pendingOrderNo, product.slug, profile, result?.complete, step]);
-
-  useEffect(() => {
-    if (step !== 1) setStep1MascotCorner("tl");
-  }, [step]);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
