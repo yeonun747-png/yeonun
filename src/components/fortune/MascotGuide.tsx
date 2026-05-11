@@ -358,8 +358,9 @@ function GuideCanvas({
       <ambientLight intensity={0.75} />
       <directionalLight position={[4, 6, 5]} intensity={1.65} />
       <Suspense fallback={null}>
+        {/* 분할 GLB(idle↔walk)마다 리마운트해야 워크 믹서가 붙음. key=kind만 두면 같은 인스턴스에서 GLB만 바뀌어 걷기 없이 CSS만 이동하는 증상 발생 */}
         <GuideModel
-          key={kind}
+          key={glbUrl}
           kind={kind}
           clipLogical={clipLogical}
           yaw={yaw}
