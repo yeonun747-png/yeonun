@@ -10980,8 +10980,7 @@ a.y-fortune-v2-back {
 }
 
 /** 점사 결과: 당김 새로고침·상위 스크롤 전파 완화(iOS/Android Chrome 등 — 브라우저마다 차이 있음) */
-.y-fortune-v2-root[data-step="7"],
-.y-fortune-v2-root[data-step="7"] .y-fortune-v2-stage {
+.y-fortune-v2-root[data-step="7"] {
   overscroll-behavior-y: none;
 }
 
@@ -11983,6 +11982,15 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
   padding-top: calc(56px + 10px);
 }
 
+/* 스텝7: 스텝6과 같이 스테이지가 스크롤 루트 — iOS 등에서 window 스크롤과 하단 버튼 터치가 어긋나는 현상 완화 */
+.y-fortune-v2-root[data-step="7"] .y-fortune-v2-stage {
+  position: relative;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(100svh - 56px);
+  overscroll-behavior-y: none;
+}
+
 .y-fortune-v2-root[data-step="7"] .y-fortune-v2-result-loading {
   padding-top: calc(56px + 24px);
   min-height: calc(100svh - 56px - 40px);
@@ -12128,6 +12136,9 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
 
 /* 목업 yeonun_fortune_v5 `.next-card` — 본문 아래 인라인(스크롤 고정 아님), 폭은 섹션 안에서만 */
 .y-fortune-v2-result-dock-inline {
+  position: relative;
+  z-index: 8;
+  isolation: isolate;
   margin-top: 16px;
   width: 100%;
   max-width: 100%;
@@ -12145,11 +12156,14 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
   border: 1.5px solid rgba(24, 20, 15, 0.1);
   border-radius: 16px;
   padding: 14px 16px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(201, 64, 96, 0.15);
   transition:
     background 0.2s ease,
     border-color 0.2s ease;

@@ -216,6 +216,11 @@ export function FortunePage({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [step]);
 
+  /** 스텝7에는 마스코트가 없어 onMascotArrive가 오지 않음 — is-walking에 머물면 모바일에서 터치·스크롤 레이어가 꼬일 수 있음 */
+  useEffect(() => {
+    if (step === 7) setStageReady(true);
+  }, [step]);
+
   const syncGuideTop = useCallback(() => {
     // 마스코트는 항상 헤더(56px) 직하단(60px)에 고정한다.
     // "헤더~정보요소 사이 가운데" 자동 보정은 Step3 처럼 갭이 큰 화면에서 헤더와의 빈 공간을 키우는 부작용이 있어 제거.
