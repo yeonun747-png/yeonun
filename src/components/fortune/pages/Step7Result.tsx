@@ -186,10 +186,19 @@ export function Step7Result({
               <span className="y-fortune-v2-step7-next-anchor" />
             </span>
           </button>
-        ) : (
+        ) : result.complete ? (
           <Link href={exitHref} className="y-fortune-v2-result-exit-btn">
             나가기 (점사는 자동 저장되요)
           </Link>
+        ) : (
+          <span
+            className="y-fortune-v2-result-exit-btn y-fortune-v2-result-exit-btn--waiting"
+            role="status"
+            aria-live="polite"
+            aria-label="실시간 점사가 모두 끝나면 나갈 수 있어요"
+          >
+            나가기 (점사는 자동 저장되요)
+          </span>
         )}
       </div>
     </section>

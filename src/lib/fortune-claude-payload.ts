@@ -177,16 +177,19 @@ export function buildFortuneMenuSectionUserMessage(input: {
   subtitle_title: string;
   interpretation_prompt: string;
 }): string {
+  const hasInterp = Boolean(input.interpretation_prompt.trim());
   const tool = [
     `이번 응답에서는 소제목「${input.subtitle_title}」만 해석합니다.`,
-    input.interpretation_prompt.trim().length
-      ? `운영자가 지정한 해석 지침:\n${input.interpretation_prompt.trim()}`
+    hasInterp ? `운영자가 지정한 해석 지침:\n${input.interpretation_prompt.trim()}` : "",
+    hasInterp
+      ? "위 해석 지침에 적힌 분량·글자 수·범위가 있으면 그것을 우선합니다. 지침과 다른 고정 분량 규칙은 무시합니다."
       : "",
     "반드시 한국어 HTML만 출력하세요. 마크다운 코드 펜스(```)는 사용하지 마세요.",
     "반드시 다음 구조 한 덩어리만 출력합니다(앞뒤에 다른 소제목·서론을 붙이지 마세요):",
     `<div class="subtitle-section"><h3 class="subtitle-title">${input.subtitle_title}</h3><div class="subtitle-content">…본문…</div></div>`,
     "문단은 <p> 또는 <br> 로 구분합니다.",
-    "분량은 약 600~1200자 내외로 작성합니다.",
+    // 해석 지침이 비어 있을 때만 기본 분량 힌트 (메뉴 점사는 소메뉴별로 별도 호출되므로 고정 자수는 어드민 지침과 충돌하기 쉬움)
+    hasInterp ? "" : "분량은 약 600~1200자 내외로 작성합니다.",
     "이번 응답에는 위에서 요청한 subtitle-section 한 블록만 출력합니다. h3 제목 텍스트를 바꾸지 마세요.",
   ]
     .filter(Boolean)

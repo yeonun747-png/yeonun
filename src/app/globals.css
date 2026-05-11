@@ -12242,6 +12242,17 @@ html:has(.y-fortune-v2-root[data-step="7"]) {
   transform: scale(0.98);
 }
 
+/* 마지막 파트: 실시간 점사 미완료 — 결제 전 primary disabled·다음 풀이 카드 disabled와 비슷한 흐림 */
+.y-fortune-v2-result-exit-btn--waiting {
+  opacity: 0.48;
+  cursor: default;
+  pointer-events: none;
+  transform: none;
+  box-shadow: 0 2px 12px rgba(24, 20, 15, 0.06);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(232, 96, 122, 0.22));
+  color: rgba(255, 255, 255, 0.88);
+}
+
 /** 스텝 2·4·5: 좌우 패딩(16px)의 1.5배만큼 스크린 하단에서 띄워 주요 UI 정렬 */
 .y-fortune-v2-stage--bottom-screen-ui {
   display: flex;
