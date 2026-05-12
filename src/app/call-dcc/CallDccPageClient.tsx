@@ -3,15 +3,19 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { buildFortuneManseContext } from "@/lib/fortune-manse-context";
 import { computeManseFromFormInput } from "@/lib/manse-ryeok";
+import { extractRealtimeFunctionCallsFromResponseDone } from "@/lib/openai-realtime-function-calls";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
 import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
+import { YEONUN_CREDIT_UPDATE_EVENT, readWallet } from "@/lib/credit-balance-local";
+import {
+  CREDIT_FREE_TRIAL_GRANT,
+  CREDIT_VOICE_PER_MINUTE,
+} from "@/lib/credit-policy";
 import { clearVoiceManseMeta, readVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
-import { VoiceDccAudioRecorder } from "@/lib/voice-dcc/audio-recorder";
-import { VoiceLiveAudioStreamer } from "@/lib/voice-live/audio-streamer";
+import { getOrCreateVoiceVisitorRef } from "@/lib/voice-visitor-ref";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -29,31 +33,66 @@ function asCharacterKey(v: string | null): CharacterKey {
   return "yeon";
 }
 
-/**
- * 기본 퍼센트(낮게)에서 VAD 게인=1.0 → 예전 슬라이더 50%·게인 1.0과 동일.
- * 0%는 더 둔함, 100%는 더 민감. 근거리 마이크는 원본 RMS가 커서 낮은 슬라이더에서도 발화가 잡힌다.
- */
-const MIC_SENSITIVITY_DEFAULT_PERCENT = 14;
+const MOBILE_STT_WAVE_ACTIVATE_MIN = 0.04;
 
-/** 서비스 모바일 우선: 폰 마이크 바닥잡음·에코로 STT 파형이 "내 턴"처럼 켜지는 것 방지 */
-const MOBILE_STT_WAVE_ACTIVATE_MIN = 0.11;
-
-function micPercentToVadGain(percent: number) {
-  const p = Math.max(0, Math.min(100, percent));
-  const a = MIC_SENSITIVITY_DEFAULT_PERCENT;
-  if (p <= a) {
-    const gLo = 0.14;
-    return gLo + (p / a) * (1 - gLo);
-  }
-  return 1 + ((p - a) / (100 - a)) * 0.52;
+function formatMmSs(totalSec: number): string {
+  const m = Math.floor(Math.max(0, totalSec) / 60);
+  const s = Math.max(0, totalSec) % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-type NdjsonMsg =
-  | { type: "userTranscript"; text: string }
-  | { type: "audio"; base64: string; format?: "pcm_s16le"; sampleRate?: number }
-  | { type: "assistantText"; text: string }
-  | { type: "error"; message?: string }
-  | { type: "done" };
+function buildVoiceCreditLines(): { line1: string; line2: string } {
+  const wallet = readWallet();
+  const now = Date.now();
+  const freeExpired = wallet.freeExpiresAtMs < now;
+  const freeUsed = Math.max(
+    0,
+    CREDIT_FREE_TRIAL_GRANT - Math.min(CREDIT_FREE_TRIAL_GRANT, Math.max(0, wallet.free)),
+  );
+  let line1: string;
+  if (!freeExpired && (wallet.free > 0 || freeUsed > 0)) {
+    line1 = `무료 ${CREDIT_FREE_TRIAL_GRANT.toLocaleString("ko-KR")} 크레딧 중 ${freeUsed.toLocaleString("ko-KR")} 사용`;
+  } else if (wallet.paid > 0) {
+    line1 = `충전 크레딧 ${wallet.paid.toLocaleString("ko-KR")} 잔여`;
+  } else {
+    line1 = `잔여 ${(wallet.free + wallet.paid).toLocaleString("ko-KR")} 크레딧`;
+  }
+  return { line1, line2: `이후 분당 ${CREDIT_VOICE_PER_MINUTE} 크레딧` };
+}
+
+function extractAssistantFromResponseDone(ev: unknown): string {
+  if (!ev || typeof ev !== "object") return "";
+  const root = ev as Record<string, unknown>;
+  try {
+    const response = root.response;
+    if (!response || typeof response !== "object") return "";
+    const resp = response as Record<string, unknown>;
+    const out = resp.output;
+    if (Array.isArray(out)) {
+      const parts: string[] = [];
+      for (const item of out) {
+        if (!item || typeof item !== "object") continue;
+        const content = (item as Record<string, unknown>).content;
+        if (Array.isArray(content)) {
+          for (const c of content) {
+            if (!c || typeof c !== "object") continue;
+            const o = c as Record<string, unknown>;
+            if (typeof o.text === "string") parts.push(o.text);
+            if (typeof o.transcript === "string") parts.push(o.transcript);
+          }
+        }
+      }
+      const joined = parts.join(" ").trim();
+      if (joined) return joined;
+    }
+  } catch {
+    // ignore
+  }
+  const response = root.response;
+  if (!response || typeof response !== "object") return "";
+  const t = (response as Record<string, unknown>).output_text;
+  return typeof t === "string" ? t.trim() : "";
+}
 
 export default function CallDccPageClient() {
   const router = useRouter();
@@ -61,36 +100,75 @@ export default function CallDccPageClient() {
   const characterKey = asCharacterKey(sp.get("character_key"));
   const meta = CHARACTER_META[characterKey];
   const voiceOverride = String(sp.get("voice_external_id") ?? "").trim();
-  /** 점사·보관함에서 온 경우에만 true — 궁합 만세력(sessionStorage 상대) 유지 */
   const fromFortuneNav = sp.get("from_fortune") === "1";
 
-  const [unlocked] = useState(true);
-  const [status, setStatus] = useState<string>("대기 중");
+  const [status, setStatus] = useState<string>("준비 중");
   const [lastUserText, setLastUserText] = useState("");
-  const lastAssistantTextRef = useRef<string>("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [fetchedVoiceExternalId, setFetchedVoiceExternalId] = useState<string | null>(null);
   const [micLevel, setMicLevel] = useState(0);
-  /** 0=둔함(잡음·에코에 덜 반응) … 100=민감. VAD·파형만; STT 녹음 PCM은 원본 */
-  const [micSensitivityPercent, setMicSensitivityPercent] = useState(MIC_SENSITIVITY_DEFAULT_PERCENT);
   const [ttsLevel, setTtsLevel] = useState(0);
   const [ttsPlaying, setTtsPlaying] = useState(false);
-  /** 캐릭터 TTS 이번 턴 남은 분량(스케줄된 PCM 큐 기준, 1=전부 남음) */
-  const [ttsRemainFrac, setTtsRemainFrac] = useState(1);
   const [uiError, setUiError] = useState<string>("");
   const [muted, setMuted] = useState(false);
   const [activeLine, setActiveLine] = useState<"tts" | "stt">("tts");
-  const [pttDown, setPttDown] = useState(false);
-  const pttDownAtRef = useRef<number>(0);
-  /** 마이크·recorder 준비 완료(오프닝 인사는 이후에만 호출) */
-  const [dccAudioReady, setDccAudioReady] = useState(false);
-  const openingDoneSessionRef = useRef<string | null>(null);
-  const openingGenRef = useRef(0);
+  const [rtcReady, setRtcReady] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [creditLine, setCreditLine] = useState(() => buildVoiceCreditLines());
+  const [speakerMuted, setSpeakerMuted] = useState(false);
+
   const sessionIdRef = useRef<string | null>(null);
   const sessionStartMsRef = useRef(0);
   const endPostedRef = useRef(false);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const dcRef = useRef<RTCDataChannel | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const mutedRef = useRef(muted);
+  const speakerMutedRef = useRef(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const openingSentRef = useRef(false);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsPlayingRef = useRef(false);
+  const micFloatBufRef = useRef<Float32Array | null>(null);
+  /** item_id → 누적 delta (completed 시 비움) */
+  const userSttPartialByItemRef = useRef<Record<string, string>>({});
 
-  const bars = useMemo(() => Array.from({ length: 12 }, (_, i) => i), []);
+  const voiceExternalId = voiceOverride || fetchedVoiceExternalId || null;
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const tick = () => {
+      const start = sessionStartMsRef.current;
+      if (!start) return;
+      setElapsedSec(Math.max(0, Math.floor((Date.now() - start) / 1000)));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [sessionId]);
+
+  useEffect(() => {
+    const on = () => setCreditLine(buildVoiceCreditLines());
+    window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, on);
+    return () => window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, on);
+  }, []);
+
+  useEffect(() => {
+    speakerMutedRef.current = speakerMuted;
+    const el = remoteAudioRef.current;
+    if (el) el.muted = speakerMuted;
+  }, [speakerMuted]);
+
+  useEffect(() => {
+    const tr = micStreamRef.current?.getAudioTracks?.()[0];
+    if (tr) tr.enabled = !muted;
+  }, [muted]);
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
@@ -139,46 +217,6 @@ export default function CallDccPageClient() {
     };
   }, [finalizeVoiceSession]);
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const streamerRef = useRef<VoiceLiveAudioStreamer | null>(null);
-  const recorderRef = useRef<VoiceDccAudioRecorder | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const micAnalyserRef = useRef<AnalyserNode | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const turnAbortRef = useRef<AbortController | null>(null);
-  const assistantSpeakingRef = useRef(false);
-  /** dcc-turn 응답 스트림 수신 중(LLM+TTS 청크 도착 전·사이 포함) — 모바일에서 상대 턴 오인 방지 */
-  const assistantPipelineRef = useRef(false);
-  const rmsRef = useRef(0);
-  const micVadGainRef = useRef(micPercentToVadGain(MIC_SENSITIVITY_DEFAULT_PERCENT));
-  // 초기 노이즈 플로어를 낮게 잡고(실측 rms 0.003~0.01), 적응형으로 천천히 올린다.
-  const noiseFloorRef = useRef(0.003);
-  const speechRef = useRef(false);
-  const lastHotAtRef = useRef(0);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const vadRafRef = useRef<number | null>(null);
-  const vadStateRef = useRef<{ thrOn: number; thrOff: number; above: number; below: number; speech: boolean }>({
-    thrOn: 0,
-    thrOff: 0,
-    above: 0,
-    below: 0,
-    speech: false,
-  });
-  const vadSpeechSinceRef = useRef<number>(Date.now());
-  const vadPrevSpeechRef = useRef<boolean>(false);
-  /** 발화 구간 RMS 엔벨로프(릴리즈). 피크만으로 thrOff 잡으면 조용한 말끝에서 말끝 감지가 안 됨 */
-  const vadEnvRef = useRef(0);
-  const vadPeakRef = useRef(0);
-  const vadLastActiveAtRef = useRef(0);
-  const utteranceStartRef = useRef(0);
-
-  const voiceExternalId = voiceOverride || fetchedVoiceExternalId || null;
-  const voiceExternalIdRef = useRef<string | null>(null);
-  voiceExternalIdRef.current = voiceExternalId;
-
-  const micSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const micMeterSinkRef = useRef<GainNode | null>(null);
-
   const ensureAudioRunning = async (ctx: AudioContext) => {
     try {
       await ctx.resume?.();
@@ -186,7 +224,6 @@ export default function CallDccPageClient() {
       // ignore
     }
     if (ctx.state === "running") return;
-    // 브라우저 자동재생 정책 때문에, 사용자 제스처가 필요할 수 있다.
     setStatus("화면을 한 번 탭해 시작해 주세요");
     await new Promise<void>((resolve) => {
       const on = async () => {
@@ -204,35 +241,6 @@ export default function CallDccPageClient() {
     });
   };
 
-  const makeStreamer = (ctx: AudioContext) =>
-    new VoiceLiveAudioStreamer(ctx, {
-      onActiveChange: (active) => {
-        assistantSpeakingRef.current = active;
-        setTtsPlaying(active);
-        if (active) setActiveLine("tts");
-      },
-      onOutputLevel: (v) => setTtsLevel(v),
-      streamingGapGraceMs: 400,
-    });
-
-  useEffect(() => {
-    if (!ttsPlaying) {
-      setTtsRemainFrac(1);
-      return;
-    }
-    let raf = 0;
-    const tick = () => {
-      const fr = streamerRef.current?.getTtsRemainingFraction();
-      setTtsRemainFrac(typeof fr === "number" ? fr : 1);
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      setTtsRemainFrac(1);
-    };
-  }, [ttsPlaying]);
-
   function buildManseContext(): string {
     const vm = readVoiceManseMeta();
     if (vm?.productSlug) {
@@ -241,7 +249,15 @@ export default function CallDccPageClient() {
     try {
       const raw = localStorage.getItem("yeonun_saju_v1");
       if (!raw) return appendKstToManseContext("");
-      const j = JSON.parse(raw) as any;
+      const j = JSON.parse(raw) as {
+        calendarType?: string;
+        year?: string | number;
+        month?: string | number;
+        day?: string | number;
+        hour?: string | number | null;
+        minute?: string | number | null;
+        name?: string;
+      };
       const cal =
         j.calendarType === "lunar-leap" ? "음력(윤)" : j.calendarType === "lunar" ? "음력" : "양력";
       const y = String(j.year || "").trim();
@@ -269,7 +285,17 @@ export default function CallDccPageClient() {
       });
       if (!r) return appendKstToManseContext(birthLines);
       const m = r.manse;
-      const one = (p: any) =>
+      type Pillar = {
+        gan: string;
+        ji: string;
+        sibsung: string;
+        jiSibsung: string;
+        ohang: string;
+        eumyang: string;
+        sibiunsung: string;
+        sibisinsal: string;
+      };
+      const one = (p: Pillar) =>
         `${p.gan}${p.ji} · 십성 ${p.sibsung}/${p.jiSibsung} · 오행 ${p.ohang} · 음양 ${p.eumyang} · 운성 ${p.sibiunsung} · 신살 ${p.sibisinsal}`;
       const lines = [`연주: ${one(m.year)}`, `월주: ${one(m.month)}`, `일주: ${one(m.day)}`, `시주: ${one(m.hour)}`].join("\n");
       return appendKstToManseContext(`${birthLines}\n\n[만세력 사주 명식]\n${lines}`);
@@ -278,7 +304,21 @@ export default function CallDccPageClient() {
     }
   }
 
-  // 캐릭터별 voice external id 확보(기존 세션 API 재사용)
+  const appendTurn = useCallback(async (role: "user" | "assistant", text: string) => {
+    const sid = sessionIdRef.current;
+    const t = String(text ?? "").trim();
+    if (!sid || !t) return;
+    try {
+      await fetch(`/api/voice/sessions/${sid}/append-turn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, text: t.slice(0, 12000) }),
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     if (voiceOverride) {
@@ -286,7 +326,6 @@ export default function CallDccPageClient() {
         cancelled = true;
       };
     }
-    /** 점사 완료 → 음성 CTA로 들어온 경우에만 요약을 넣는다. 만남 탭 직입장은 summary 없음 → 오프닝이 일반 입장으로 동작 */
     let summaryForSession: string | null = null;
     try {
       const raw = sessionStorage.getItem("yeonun_fortune_voice_brief");
@@ -306,7 +345,7 @@ export default function CallDccPageClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         character_key: characterKey,
-        user_ref: "guest",
+        user_ref: getOrCreateVoiceVisitorRef(),
         ...(summaryForSession ? { summary: summaryForSession } : {}),
       }),
     })
@@ -318,14 +357,16 @@ export default function CallDccPageClient() {
           sessionStartMsRef.current = Date.now();
           endPostedRef.current = false;
           sessionIdRef.current = sid;
+          setElapsedSec(0);
           setSessionId(sid);
         }
-        const ext = data?.prompt_context?.cartesia_voice?.external_id;
-        if (typeof ext === "string" && ext.trim()) {
-          setFetchedVoiceExternalId(ext.trim());
+        const tv = data?.prompt_context?.tts_voice ?? data?.prompt_context?.cartesia_voice;
+        const ext = typeof tv?.external_id === "string" ? tv.external_id.trim() : "";
+        if (ext) {
+          setFetchedVoiceExternalId(ext);
           setUiError("");
         } else {
-          setUiError("Cartesia voice 설정을 찾지 못했어요. ?voice_external_id=... 를 붙이거나 서버에 CARTESIA_DEFAULT_VOICE_EXTERNAL_ID를 설정해 주세요.");
+          setUiError("Realtime 보이스가 설정되지 않았어요. 어드민에서 OpenAI 보이스 10종 DB 반영 후 캐릭터 음성 프롬프트를 연결해 주세요.");
         }
       })
       .catch((e) => {
@@ -337,521 +378,314 @@ export default function CallDccPageClient() {
   }, [characterKey, meta.name, voiceOverride]);
 
   useEffect(() => {
-    if (!dccAudioReady || !sessionId || !voiceExternalId) return;
-    if (openingDoneSessionRef.current === sessionId) return;
-    const myGen = ++openingGenRef.current;
+    if (!sessionId || !voiceExternalId) return;
     let cancelled = false;
+    openingSentRef.current = false;
+
+    const tickMeter = () => {
+      if (cancelled) return;
+      const a = micAnalyserRef.current;
+      if (a) {
+        let buf = micFloatBufRef.current;
+        if (!buf || buf.length !== a.fftSize) {
+          buf = new Float32Array(a.fftSize);
+          micFloatBufRef.current = buf;
+        }
+        // TS 5.8+ lib: Float32Array<ArrayBufferLike> vs WebIDL ArrayBuffer — 런타임은 동일 버퍼
+        // @ts-expect-error AnalyserNode.getFloatTimeDomainData buffer typing mismatch
+        a.getFloatTimeDomainData(buf);
+        let peak = 0;
+        let sumSq = 0;
+        for (let i = 0; i < buf.length; i++) {
+          const s = buf[i];
+          const abs = Math.abs(s);
+          if (abs > peak) peak = abs;
+          sumSq += s * s;
+        }
+        const rms = Math.sqrt(sumSq / buf.length);
+        // 피크+ RMS 조합(로컬 모니터링은 에코캔슬 등으로 RMS만으로는 너무 작을 때가 많음)
+        const raw = peak * 1.85 + rms * 6.5;
+        setMicLevel(Math.max(0, Math.min(1, Math.pow(raw, 0.72))));
+      }
+      const fakeTts = ttsPlayingRef.current ? 0.35 + Math.sin(Date.now() / 210) * 0.12 : 0;
+      setTtsLevel(fakeTts);
+      rafRef.current = requestAnimationFrame(tickMeter);
+    };
+
     const run = async () => {
       try {
-        setStatus(`${meta.name}가 인사 중…`);
-        const ctx = audioCtxRef.current;
-        if (!ctx) return;
-        await ensureAudioRunning(ctx);
-        if (cancelled || myGen !== openingGenRef.current) return;
-        try {
-          streamerRef.current?.stop();
-        } catch {}
-        if (audioCtxRef.current) streamerRef.current = makeStreamer(audioCtxRef.current);
-        lastAssistantTextRef.current = "";
-        assistantPipelineRef.current = true;
-        assistantSpeakingRef.current = true;
-        try {
-          turnAbortRef.current?.abort();
-        } catch {}
-        const ac = new AbortController();
-        turnAbortRef.current = ac;
-        const res = await fetch("/api/voice/dcc-turn", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            character_key: characterKey,
-            session_id: sessionId,
-            voice_external_id: voiceExternalId,
-            manse_context: buildManseContext(),
-            opening_handshake: true,
-          }),
-          signal: ac.signal,
-        });
-        if (cancelled || myGen !== openingGenRef.current) return;
-        if (!res.ok || !res.body) {
-          const detail = await res.text().catch(() => "");
-          setUiError(detail ? `인사(dcc-turn) 실패: ${detail.slice(0, 300)}` : "인사(dcc-turn) 실패");
-          setStatus("듣는 중");
-          return;
-        }
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (cancelled || myGen !== openingGenRef.current) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split("\n");
-          buf = lines.pop() ?? "";
-          for (const line of lines) {
-            const t = line.trim();
-            if (!t) continue;
-            let msg: NdjsonMsg | null = null;
-            try {
-              msg = JSON.parse(t);
-            } catch {
-              continue;
-            }
-            if (!msg) continue;
-            if (msg.type === "userTranscript") {
-              setLastUserText(String(msg.text ?? ""));
-            } else if (msg.type === "audio") {
-              const b64 = String(msg.base64 ?? "");
-              const sr = Number(msg.sampleRate ?? 24000);
-              if (b64) streamerRef.current?.pushPcm16Base64(b64, sr);
-            } else if (msg.type === "assistantText") {
-              lastAssistantTextRef.current = String(msg.text ?? "");
-            } else if (msg.type === "error") {
-              setStatus("오류");
-            }
-          }
-        }
-        if (!cancelled && myGen === openingGenRef.current) {
-          openingDoneSessionRef.current = sessionId;
-        }
-      } catch (e: unknown) {
-        const err = e as { name?: string; message?: string };
-        const msg = String(err?.message ?? e ?? "");
-        const aborted =
-          err?.name === "AbortError" || /aborted|AbortError|BodyStreamBuffer was aborted/i.test(msg);
-        if (!aborted && !cancelled && myGen === openingGenRef.current) {
-          setUiError(`인사 스트림 실패: ${msg}`);
-        }
-      } finally {
-        assistantPipelineRef.current = false;
-        assistantSpeakingRef.current = streamerRef.current?.isActive?.() ?? false;
-        if (!cancelled && myGen === openingGenRef.current) {
-          setStatus("듣는 중");
-        }
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-      assistantPipelineRef.current = false;
-      openingGenRef.current += 1;
-    };
-  }, [dccAudioReady, sessionId, voiceExternalId, characterKey, meta.name]);
-
-  useEffect(() => {
-    if (!unlocked) return;
-    let cancelled = false;
-    const start = async () => {
-      try {
-        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) {
-          setUiError("이 브라우저는 AudioContext를 지원하지 않아요.");
-          return;
-        }
-        if (!audioCtxRef.current) audioCtxRef.current = new Ctx({ sampleRate: 16000 });
-        const ctx = audioCtxRef.current;
-        await ensureAudioRunning(ctx);
-        if (cancelled) return;
-        streamerRef.current = makeStreamer(audioCtxRef.current);
-
-        // 마이크 입력은 analyser로 "프레임 단위" RMS를 뽑아 VAD/바지인 반응성을 reunionf82 급으로 맞춘다.
+        setStatus("연결 중…");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false },
         });
-        micStreamRef.current = stream;
-        const tracks = stream.getAudioTracks?.() ?? [];
-        if (tracks.length === 0) throw new Error("마이크 오디오 트랙이 없어요(권한/디바이스를 확인해 주세요).");
-        const src = ctx.createMediaStreamSource(stream);
-        if (!src) throw new Error("createMediaStreamSource 실패");
-        micSourceRef.current = src;
-        const analyser = ctx.createAnalyser();
-        if (!analyser) throw new Error("createAnalyser 실패");
-        analyser.fftSize = 1024;
-        analyser.smoothingTimeConstant = 0.36;
-        const meterSink = ctx.createGain();
-        meterSink.gain.value = 0;
-        micMeterSinkRef.current = meterSink;
-        try {
-          src.connect(analyser);
-          analyser.connect(meterSink);
-          meterSink.connect(ctx.destination);
-        } catch (e: any) {
-          throw new Error(`마이크 입력 연결 실패: ${String(e?.message || e)}`);
-        }
-        micAnalyserRef.current = analyser;
-
-        const sampleRms = () => {
-          const a = micAnalyserRef.current;
-          if (!a) return 0;
-          const buf = new Uint8Array(a.fftSize);
-          a.getByteTimeDomainData(buf);
-          let sum = 0;
-          for (let i = 0; i < buf.length; i++) {
-            const v = (buf[i] - 128) / 128;
-            sum += v * v;
-          }
-          return Math.sqrt(sum / buf.length);
-        };
-        const tick = () => {
-          if (cancelled) return;
-          const raw = sampleRms();
-          rmsRef.current = raw;
-          const g = micVadGainRef.current;
-          if (!speechRef.current && !assistantSpeakingRef.current && !assistantPipelineRef.current) {
-            // 노이즈 플로어는 급격히 커지지 않게 상한/하한을 둔다.
-              const nf = noiseFloorRef.current;
-              // 말소리(rms 상승)를 노이즈로 학습해버리면 VAD가 영원히 안 걸린다.
-              // "충분히 조용할 때만" 천천히 노이즈 플로어를 업데이트한다. (원본 RMS)
-              if (raw <= Math.max(0.006, nf * 1.15)) {
-                const next = nf * 0.96 + raw * 0.04;
-                noiseFloorRef.current = Math.max(0.0015, Math.min(0.02, next));
-              }
-          }
-          setMicLevel(Math.max(0, Math.min(1, raw * 3.4 * g)));
-          rafRef.current = requestAnimationFrame(tick);
-        };
-        rafRef.current = requestAnimationFrame(tick);
-
-        recorderRef.current = new VoiceDccAudioRecorder();
-        await recorderRef.current.start({
-          ctx,
-          stream,
-          existingMediaStreamSource: src,
-        });
-        if (cancelled) return;
-        const voiceWaitDeadline = Date.now() + 120_000;
-        while (!cancelled && !voiceExternalIdRef.current) {
-          if (Date.now() > voiceWaitDeadline) {
-            setUiError("음성 ID를 기다리다 시간이 초과됐어요. 새로고침 후 다시 시도해 주세요.");
-            setStatus("오류");
-            return;
-          }
-          await new Promise<void>((r) => setTimeout(r, 80));
-        }
-        if (cancelled) return;
-        setDccAudioReady(true);
-        setStatus("듣는 중");
-      } catch (e: any) {
-        setUiError(`초기화 실패: ${String(e?.message || e)}`);
-        setStatus("오류");
-      }
-    };
-    start();
-    return () => {
-      cancelled = true;
-      setDccAudioReady(false);
-      setStatus("종료");
-      try {
-        turnAbortRef.current?.abort();
-      } catch {}
-      try {
-        if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
-      } catch {}
-      rafRef.current = null;
-      try {
-        if (vadRafRef.current != null) cancelAnimationFrame(vadRafRef.current);
-      } catch {}
-      vadRafRef.current = null;
-      try {
-        recorderRef.current?.stop(true);
-      } catch {}
-      try {
-        micSourceRef.current?.disconnect();
-      } catch {}
-      micSourceRef.current = null;
-      try {
-        micAnalyserRef.current?.disconnect();
-      } catch {}
-      micAnalyserRef.current = null;
-      try {
-        micMeterSinkRef.current?.disconnect();
-      } catch {}
-      micMeterSinkRef.current = null;
-      try {
-        micStreamRef.current?.getTracks?.().forEach((t) => t.stop());
-      } catch {}
-      micStreamRef.current = null;
-      try {
-        streamerRef.current?.stop();
-      } catch {}
-    };
-  }, [unlocked]);
-
-  // VAD(로컬): 말 시작/끝 감지해서 STT+스트리밍 턴 호출
-  useEffect(() => {
-    if (!unlocked) return;
-    if (!voiceExternalId) return;
-    let cancelled = false;
-
-    // 노이즈 적응형 threshold (환경/기기별 편차 흡수)
-    // (실측) 많은 기기에서 평상시 rms가 0.003~0.010 수준이라, 최소 threshold를 더 낮춰야 VAD가 걸린다.
-    const THRESH_ON_MIN = 0.0035;
-    const THRESH_OFF_MIN = 0.003;
-    /** TTS 재생 중 마이크로 끊을 때(에코와 트레이드오프) — 낮출수록 빠른 바지인 */
-    const BARGE_IN_THRESH_ON_MIN = 0.0185;
-    /** 말끝 확정 후 flush/STT까지 (너무 길면 글자화 체감 지연) */
-    const HOLD_OFF_MS = 38;
-    /** RMS가 thrOff 위로만 남을 때(말끝 잡기 어려운 환경) 상한 대기 */
-    const SPEECH_END_MS = 185;
-    const VAD_WARMUP_MS = 420;
-    /** 말끝이 절대 안 잡히는 환경(배경 RMS가 thrOff보다 큼)에서도 턴이 나가게 */
-    const MAX_UTTERANCE_MS = 52_000;
-    const MIN_GAP_MS = 190;
-    /** 바지인만 짧게: 긴 턴 직후에도 끊기 반응이 나가게 */
-    const MIN_GAP_BARGE_MS = 72;
-    const FRAMES_ON = 1;
-    const BARGE_IN_FRAMES_ON = 1;
-    const FRAMES_OFF = 1;
-    let above = 0;
-    let below = 0;
-    const vadReadyAt = Date.now() + VAD_WARMUP_MS;
-
-    const clearSilenceTimer = () => {
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
-      }
-    };
-
-    let endUtteranceInFlight = false;
-    const runEndOfUtterance = async () => {
-      if (endUtteranceInFlight) return;
-      endUtteranceInFlight = true;
-      try {
-        if (!speechRef.current) return;
-        speechRef.current = false;
-        setStatus("처리 중…");
-        const pcmBase64 = (await recorderRef.current?.stopAndGetBase64Pcm16()) || "";
-        if (!pcmBase64) {
-          setUiError("녹음 데이터가 비어 있어요. (마이크 입력/Worklet 연결을 확인해 주세요)");
-          setStatus("듣는 중");
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
           return;
         }
-        const ctx = audioCtxRef.current;
-        const stream = micStreamRef.current ?? undefined;
-        if (ctx) {
-          recorderRef.current = new VoiceDccAudioRecorder();
-          const shared = micSourceRef.current;
-          recorderRef.current
-            .start({
-              ctx,
-              stream,
-              existingMediaStreamSource: shared ?? undefined,
-              onRms: (rms) => {
-                rmsRef.current = rms;
-                setMicLevel(Math.max(0, Math.min(1, rms * 3.4 * micVadGainRef.current)));
-              },
-            })
-            .catch(() => {});
-        }
+        micStreamRef.current = stream;
 
-        try {
-          streamerRef.current?.stop();
-        } catch {}
-        if (audioCtxRef.current) streamerRef.current = makeStreamer(audioCtxRef.current);
-        lastAssistantTextRef.current = "";
-        assistantPipelineRef.current = true;
-        assistantSpeakingRef.current = true;
-        try {
-          turnAbortRef.current?.abort();
-        } catch {}
-        const ac = new AbortController();
-        turnAbortRef.current = ac;
+        const Ctx =
+          window.AudioContext ??
+          (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) throw new Error("AudioContext 미지원");
+        const ctx = new Ctx();
+        audioCtxRef.current = ctx;
+        await ensureAudioRunning(ctx);
 
-        const res = await fetch("/api/voice/dcc-turn", {
+        const src = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.36;
+        const sink = ctx.createGain();
+        sink.gain.value = 0;
+        src.connect(analyser);
+        analyser.connect(sink);
+        sink.connect(ctx.destination);
+        micAnalyserRef.current = analyser;
+        rafRef.current = requestAnimationFrame(tickMeter);
+
+        const audioTrack = stream.getAudioTracks()[0];
+        if (!audioTrack) throw new Error("마이크 트랙 없음");
+        audioTrack.enabled = !mutedRef.current;
+
+        const secretRes = await fetch("/api/voice/openai-realtime/client-secret", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             character_key: characterKey,
             session_id: sessionId,
-            voice_external_id: voiceExternalId,
             manse_context: buildManseContext(),
-            audio_base64: pcmBase64,
           }),
-          signal: ac.signal,
         });
-        if (!res.ok || !res.body) {
-          const detail = await res.text().catch(() => "");
-          setUiError(detail ? `dcc-turn 실패: ${detail.slice(0, 300)}` : "dcc-turn 실패");
-          setStatus("오류");
-          assistantPipelineRef.current = false;
-          assistantSpeakingRef.current = false;
-          return;
+        const secretJson = (await secretRes.json().catch(() => ({}))) as { ok?: boolean; value?: string; error?: string; details?: string };
+        if (!secretRes.ok || !secretJson.ok || !secretJson.value) {
+          throw new Error(secretJson.details || secretJson.error || "Realtime 토큰 발급 실패");
         }
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buf += decoder.decode(value, { stream: true });
-          const lines = buf.split("\n");
-          buf = lines.pop() ?? "";
-          for (const line of lines) {
-            const t = line.trim();
-            if (!t) continue;
-            let msg: NdjsonMsg | null = null;
+        const EPHEMERAL_KEY = String(secretJson.value);
+
+        const pc = new RTCPeerConnection();
+        pcRef.current = pc;
+
+        const remoteAudio = document.createElement("audio");
+        remoteAudio.autoplay = true;
+        remoteAudio.setAttribute("playsinline", "true");
+        remoteAudio.style.display = "none";
+        document.body.appendChild(remoteAudio);
+        remoteAudioRef.current = remoteAudio;
+        pc.ontrack = (e) => {
+          const [ms] = e.streams;
+          remoteAudio.srcObject = ms;
+          remoteAudio.muted = speakerMutedRef.current;
+          void remoteAudio.play().catch(() => {});
+        };
+
+        pc.addTrack(audioTrack);
+
+        const dc = pc.createDataChannel("oai-events");
+        dcRef.current = dc;
+
+        const flushSaveUserInsightCalls = async (fcs: ReturnType<typeof extractRealtimeFunctionCallsFromResponseDone>) => {
+          const sid = sessionIdRef.current;
+          if (!sid || !fcs.length) return;
+          let handled = false;
+          for (const fc of fcs) {
+            if (fc.name !== "save_user_insight") continue;
+            handled = true;
+            let payload: { category?: string; detail?: string; importance_level?: number };
             try {
-              msg = JSON.parse(t);
+              payload = JSON.parse(fc.arguments || "{}") as typeof payload;
             } catch {
+              const dcE = dcRef.current;
+              if (dcE?.readyState === "open") {
+                dcE.send(
+                  JSON.stringify({
+                    type: "conversation.item.create",
+                    item: {
+                      type: "function_call_output",
+                      call_id: fc.call_id,
+                      output: JSON.stringify({ ok: false, error: "invalid_json" }),
+                    },
+                  }),
+                );
+              }
               continue;
             }
-            if (!msg) continue;
-            if (msg.type === "userTranscript") {
-              setLastUserText(String(msg.text ?? ""));
-            } else if (msg.type === "audio") {
-              const b64 = String(msg.base64 ?? "");
-              const sr = Number(msg.sampleRate ?? 24000);
-              if (b64) {
-                streamerRef.current?.pushPcm16Base64(b64, sr);
-              }
-            } else if (msg.type === "assistantText") {
-              lastAssistantTextRef.current = String(msg.text ?? "");
-            } else if (msg.type === "error") {
-              setStatus("오류");
-            } else if (msg.type === "done") {
-              // no-op
+            const res = await fetch(`/api/voice/sessions/${sid}/save-insight`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                category: payload.category,
+                detail: payload.detail,
+                importance_level: payload.importance_level,
+              }),
+            });
+            const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+            const ok = res.ok && j.ok === true;
+            const dcOut = dcRef.current;
+            if (dcOut?.readyState === "open") {
+              dcOut.send(
+                JSON.stringify({
+                  type: "conversation.item.create",
+                  item: {
+                    type: "function_call_output",
+                    call_id: fc.call_id,
+                    output: JSON.stringify(
+                      ok ? { ok: true } : { ok: false, error: j.error || `http_${res.status}` },
+                    ),
+                  },
+                }),
+              );
             }
           }
+          if (handled) {
+            const dcResume = dcRef.current;
+            if (dcResume?.readyState === "open") {
+              dcResume.send(JSON.stringify({ type: "response.create", response: {} }));
+            }
+          }
+        };
+
+        dc.addEventListener("open", () => {
+          setRtcReady(true);
+          setStatus("듣는 중");
+          if (!openingSentRef.current) {
+            openingSentRef.current = true;
+            dc.send(JSON.stringify({ type: "response.create", response: {} }));
+          }
+        });
+
+        dc.addEventListener("message", (ev) => {
+          let msg: Record<string, unknown>;
+          try {
+            msg = JSON.parse(String(ev.data)) as Record<string, unknown>;
+          } catch {
+            return;
+          }
+          const ty = String(msg.type ?? "");
+
+          if (ty === "error" || ty === "response.error") {
+            const errObj = msg.error;
+            const errRec = errObj && typeof errObj === "object" ? (errObj as Record<string, unknown>) : null;
+            const m = String(errRec?.message ?? msg.message ?? "Realtime 오류");
+            setUiError(m.slice(0, 400));
+          }
+
+          if (ty === "response.created" || ty === "response.output_audio.started") {
+            ttsPlayingRef.current = true;
+            setTtsPlaying(true);
+            setActiveLine("tts");
+          }
+
+          if (ty === "response.done") {
+            ttsPlayingRef.current = false;
+            setTtsPlaying(false);
+            setStatus("듣는 중");
+            const assistantText = extractAssistantFromResponseDone(msg);
+            if (assistantText) void appendTurn("assistant", assistantText);
+            const fcs = extractRealtimeFunctionCallsFromResponseDone(msg);
+            if (fcs.length) void flushSaveUserInsightCalls(fcs);
+          }
+
+          if (ty === "conversation.item.input_audio_transcription.delta") {
+            const id = String(msg.item_id ?? "_");
+            const delta = String(msg.delta ?? "");
+            if (delta) {
+              userSttPartialByItemRef.current[id] = (userSttPartialByItemRef.current[id] ?? "") + delta;
+              setLastUserText(userSttPartialByItemRef.current[id]);
+              setActiveLine("stt");
+            }
+          }
+
+          if (ty === "conversation.item.input_audio_transcription.completed") {
+            const id = String(msg.item_id ?? "");
+            if (id) delete userSttPartialByItemRef.current[id];
+            const ut = String(msg.transcript ?? "").trim();
+            if (ut) {
+              setLastUserText(ut);
+              void appendTurn("user", ut);
+            }
+          }
+        });
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        const sdpRes = await fetch("https://api.openai.com/v1/realtime/calls", {
+          method: "POST",
+          body: offer.sdp ?? "",
+          headers: {
+            Authorization: `Bearer ${EPHEMERAL_KEY}`,
+            "Content-Type": "application/sdp",
+          },
+        });
+        const answerSdp = await sdpRes.text();
+        if (!sdpRes.ok) {
+          throw new Error(answerSdp.slice(0, 500));
         }
+        await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
       } catch (e: unknown) {
-        const err = e as { name?: string; message?: string };
-        const msg = String(err?.message ?? e ?? "");
-        const aborted =
-          err?.name === "AbortError" || /aborted|AbortError|BodyStreamBuffer was aborted/i.test(msg);
-        if (aborted) {
-          return;
-        }
-        setUiError(`스트림 처리 실패: ${msg}`);
-      } finally {
-        assistantPipelineRef.current = false;
-        assistantSpeakingRef.current = streamerRef.current?.isActive?.() ?? false;
-        setStatus("듣는 중");
-        endUtteranceInFlight = false;
+        const err = e instanceof Error ? e.message : String(e);
+        if (!cancelled) setUiError(`Realtime 연결 실패: ${err}`);
+        setStatus("오류");
       }
     };
 
-    const scheduleSpeechEnd = () => {
-      if (silenceTimerRef.current) return;
-      silenceTimerRef.current = setTimeout(() => {
-        silenceTimerRef.current = null;
-        void runEndOfUtterance();
-      }, HOLD_OFF_MS);
-    };
+    void run();
 
-    const tick = () => {
-      if (cancelled) return;
-      const raw = rmsRef.current;
-      const vadRms = raw * micVadGainRef.current;
-      const now = Date.now();
-      if (!speechRef.current) {
-        const floor = noiseFloorRef.current;
-        if (!assistantSpeakingRef.current && !assistantPipelineRef.current && raw <= Math.max(0.012, floor * 1.35)) {
-          const next = floor * 0.94 + raw * 0.06;
-          noiseFloorRef.current = Math.max(0.0015, Math.min(0.02, next));
-        }
-        // 초기 노이즈플로어가 높게 잡히면 영원히 트리거가 안 걸릴 수 있어 multiplier를 낮춘다.
-        const aiSpeaking = assistantSpeakingRef.current || assistantPipelineRef.current;
-        const learnedFloor = noiseFloorRef.current;
-        const thrOn = aiSpeaking
-          ? Math.max(BARGE_IN_THRESH_ON_MIN, learnedFloor * 3.15)
-          : Math.max(THRESH_ON_MIN, learnedFloor * 1.35, learnedFloor + 0.002);
-        const framesOnTarget = aiSpeaking ? BARGE_IN_FRAMES_ON : FRAMES_ON;
-        const minGapMs = aiSpeaking ? MIN_GAP_BARGE_MS : MIN_GAP_MS;
-        vadStateRef.current.thrOn = thrOn;
-        vadStateRef.current.thrOff = Math.max(THRESH_OFF_MIN, learnedFloor * 1.02);
-        vadStateRef.current.above = above;
-        vadStateRef.current.below = below;
-        const speechNow = false;
-        if (vadPrevSpeechRef.current !== speechNow) {
-          vadSpeechSinceRef.current = Date.now();
-          vadPrevSpeechRef.current = speechNow;
-        }
-        vadStateRef.current.speech = speechNow;
-        if (now < vadReadyAt && !aiSpeaking) {
-          above = 0;
-        } else if (vadRms >= thrOn) above += 1;
-        else above = 0;
-        if (above >= framesOnTarget && now - lastHotAtRef.current >= minGapMs) {
-          // lastHotAtRef는 speech-start 스팸 방지용
-          lastHotAtRef.current = now;
-          speechRef.current = true;
-          above = 0;
-          below = 0;
-          vadEnvRef.current = Math.max(vadRms, 0.0004);
-          vadPeakRef.current = Math.max(vadRms, THRESH_ON_MIN);
-          vadLastActiveAtRef.current = now;
-          utteranceStartRef.current = now;
-          setActiveLine("stt");
-
-          // barge-in: 사용자가 말 시작하면 "조건 없이" 즉시 끊는다.
-          // - 스트리밍 요청이 진행 중이면 abort
-          // - 이미 받아둔 오디오 큐가 재생 중이어도 stop
-          try {
-            turnAbortRef.current?.abort();
-          } catch {}
-          try {
-            streamerRef.current?.stop();
-          } catch {}
-          if (audioCtxRef.current) streamerRef.current = makeStreamer(audioCtxRef.current);
-          assistantPipelineRef.current = false;
-          assistantSpeakingRef.current = streamerRef.current?.isActive?.() ?? false;
-
-          setStatus("말하는 중");
-          clearSilenceTimer();
-        }
-      } else {
-        const floor = noiseFloorRef.current;
-        // 고정 thrOff만 쓰면 "말한 뒤에도 RMS가 thrOff보다 큰" 기기에서 말끝이 영원히 안 옴 → bytes/audio 0
-        let env = vadEnvRef.current;
-        if (vadRms >= env) env = vadRms;
-        else env = Math.max(vadRms, env * 0.907);
-        vadEnvRef.current = env;
-        const peak = Math.max(vadPeakRef.current, vadRms);
-        vadPeakRef.current = peak;
-        const activeThr = Math.max(THRESH_OFF_MIN, floor * 1.2, peak * 0.38);
-        if (vadRms >= activeThr) {
-          vadLastActiveAtRef.current = now;
-        }
-        const thrOff = Math.max(THRESH_OFF_MIN * 0.92, floor * 1.015, Math.min(env * 0.34, activeThr));
-        vadStateRef.current.thrOn = Math.max(THRESH_ON_MIN, floor * 1.05);
-        vadStateRef.current.thrOff = thrOff;
-        vadStateRef.current.above = above;
-        vadStateRef.current.below = below;
-        const speechNow = true;
-        if (vadPrevSpeechRef.current !== speechNow) {
-          vadSpeechSinceRef.current = Date.now();
-          vadPrevSpeechRef.current = speechNow;
-        }
-        vadStateRef.current.speech = speechNow;
-        if (now - utteranceStartRef.current > MAX_UTTERANCE_MS) {
-          clearSilenceTimer();
-          void runEndOfUtterance();
-        } else if (vadRms <= thrOff) {
-          // 말소리가 잠깐만 thrOff 아래로 내려와도 먼저 잡음(SPEECH_END_MS 전에 STT로 넘김)
-          below += 1;
-          if (below >= FRAMES_OFF && !silenceTimerRef.current) scheduleSpeechEnd();
-        } else if (now - vadLastActiveAtRef.current >= SPEECH_END_MS) {
-          scheduleSpeechEnd();
-        } else {
-          below = 0;
-          clearSilenceTimer();
-        }
-      }
-      requestAnimationFrame(tick);
-    };
-    vadRafRef.current = requestAnimationFrame(tick);
     return () => {
       cancelled = true;
-      assistantPipelineRef.current = false;
-      clearSilenceTimer();
+      userSttPartialByItemRef.current = {};
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
       try {
-        if (vadRafRef.current != null) cancelAnimationFrame(vadRafRef.current);
-      } catch {}
-      vadRafRef.current = null;
+        dcRef.current?.close();
+      } catch {
+        // ignore
+      }
+      dcRef.current = null;
+      try {
+        pcRef.current?.getSenders().forEach((s) => {
+          try {
+            s.track?.stop();
+          } catch {
+            // ignore
+          }
+        });
+        pcRef.current?.close();
+      } catch {
+        // ignore
+      }
+      pcRef.current = null;
+      try {
+        micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      } catch {
+        // ignore
+      }
+      micStreamRef.current = null;
+      try {
+        const el = remoteAudioRef.current;
+        if (el?.parentNode) el.parentNode.removeChild(el);
+      } catch {
+        // ignore
+      }
+      remoteAudioRef.current = null;
+      ttsPlayingRef.current = false;
+      try {
+        micAnalyserRef.current?.disconnect();
+      } catch {
+        // ignore
+      }
+      micAnalyserRef.current = null;
+      try {
+        audioCtxRef.current?.close();
+      } catch {
+        // ignore
+      }
+      audioCtxRef.current = null;
+      setRtcReady(false);
     };
-  }, [unlocked, voiceExternalId, characterKey, sessionId]);
+  }, [sessionId, voiceExternalId, characterKey, appendTurn]);
+
+  const bars = useMemo(() => Array.from({ length: 12 }, (_, i) => i), []);
 
   return (
     <div className="yeonunPage" style={{ background: "#1A1815" }}>
@@ -865,14 +699,10 @@ export default function CallDccPageClient() {
               e.preventDefault();
               void (async () => {
                 try {
-                  turnAbortRef.current?.abort();
-                } catch {}
-                try {
-                  recorderRef.current?.stop(true);
-                } catch {}
-                try {
-                  streamerRef.current?.stop();
-                } catch {}
+                  pcRef.current?.close();
+                } catch {
+                  // ignore
+                }
                 await finalizeVoiceSession();
                 router.push("/meet");
               })();
@@ -887,7 +717,6 @@ export default function CallDccPageClient() {
         </header>
 
         <section className="y-call-stage" aria-label="통화 중">
-
           <div className="y-call-avatar-wrap">
             <div className="y-call-aura-1" />
             <div className="y-call-aura-2" />
@@ -900,7 +729,7 @@ export default function CallDccPageClient() {
             <h1 className="y-call-name">{meta.name}</h1>
             <div className="y-call-status">
               <span className="y-call-status-text">
-                {ttsPlaying || assistantPipelineRef.current ? `${meta.name}가 말하고 있어요` : status}
+                {ttsPlaying ? `${meta.name}가 말하고 있어요` : rtcReady ? status : "연결 중…"}
               </span>
               <span className="pulse-dots" aria-hidden="true">
                 <span />
@@ -912,7 +741,7 @@ export default function CallDccPageClient() {
 
           <div className="y-call-wave-dual" aria-label="듀얼 파형">
             <div
-              className={`y-wave-line tts ${activeLine === "tts" || ttsPlaying || assistantPipelineRef.current ? "active" : ""}`}
+              className={`y-wave-line tts ${activeLine === "tts" || ttsPlaying ? "active" : ""}`}
               onClick={() => setActiveLine("tts")}
             >
               <div className="y-wave-tag">
@@ -924,38 +753,20 @@ export default function CallDccPageClient() {
                   const spread = 0.42 + (((i * 3 + 2) % 8) / 11);
                   const h = 8 + Math.round(ttsLevel * 36 * spread);
                   return (
-                  <div
-                    key={`t${i}`}
-                    className="y-wave-bar tts"
-                    style={{
-                      height: `${h}px`,
-                      transition: "height 70ms linear",
-                    }}
-                  />
+                    <div
+                      key={`t${i}`}
+                      className="y-wave-bar tts"
+                      style={{
+                        height: `${h}px`,
+                        transition: "height 70ms linear",
+                      }}
+                    />
                   );
                 })}
               </div>
-              <div
-                className="y-wave-tts-meter"
-                role={ttsPlaying ? "progressbar" : undefined}
-                aria-hidden={!ttsPlaying}
-                aria-valuemin={ttsPlaying ? 0 : undefined}
-                aria-valuemax={ttsPlaying ? 100 : undefined}
-                aria-valuenow={ttsPlaying ? Math.round((1 - ttsRemainFrac) * 100) : undefined}
-                aria-label={ttsPlaying ? `${meta.name} 음성 재생 남은 분량` : undefined}
-                title="이번 답변에서 아직 재생되지 않은 음성(도착한 큐 기준)"
-              >
-                <div className="y-wave-tts-meter-track" />
-                <div
-                  className="y-wave-tts-meter-fill"
-                  style={{
-                    width: ttsPlaying ? `${Math.max(0, Math.min(100, ttsRemainFrac * 100))}%` : "0%",
-                  }}
-                />
-              </div>
             </div>
             <div
-              className={`y-wave-line stt ${activeLine === "stt" || (!ttsPlaying && !assistantSpeakingRef.current && !assistantPipelineRef.current && micLevel > MOBILE_STT_WAVE_ACTIVATE_MIN) ? "active" : ""}`}
+              className={`y-wave-line stt ${activeLine === "stt" || (!ttsPlaying && micLevel > MOBILE_STT_WAVE_ACTIVATE_MIN) ? "active" : ""}`}
               onClick={() => setActiveLine("stt")}
             >
               <div className="y-wave-tag">
@@ -965,17 +776,17 @@ export default function CallDccPageClient() {
               <div className="y-wave-bars">
                 {bars.map((i) => {
                   const spread = 0.42 + (((i * 5 + 1) % 8) / 11);
-                  const micWave = Math.min(1, micLevel * 1.65);
+                  const micWave = Math.min(1, micLevel * 1.35);
                   const h = 8 + Math.round(micWave * 36 * spread);
                   return (
-                  <div
-                    key={`m${i}`}
-                    className="y-wave-bar stt"
-                    style={{
-                      height: `${h}px`,
-                      transition: "height 70ms linear",
-                    }}
-                  />
+                    <div
+                      key={`m${i}`}
+                      className="y-wave-bar stt"
+                      style={{
+                        height: `${h}px`,
+                        transition: "height 70ms linear",
+                      }}
+                    />
                   );
                 })}
               </div>
@@ -983,9 +794,9 @@ export default function CallDccPageClient() {
           </div>
 
           <div className="y-call-caption" aria-label="자막">
-            <div className="y-call-caption-head">내가 방금 한 말</div>
+            <div className="y-call-caption-head">내가 방금 한 말 (인식)</div>
             <div className="y-call-caption-body">
-              {uiError ? uiError : lastUserText ? lastUserText : voiceExternalId ? "말해보세요…" : "음성 설정 확인 중…"}
+              {uiError ? uiError : lastUserText ? lastUserText : voiceExternalId ? "말하면 자동으로 인식됩니다…" : "음성 설정 확인 중…"}
             </div>
           </div>
         </section>
@@ -993,149 +804,21 @@ export default function CallDccPageClient() {
         <footer className="y-call-controls" aria-label="컨트롤">
           <div className="y-call-meter">
             <div>
-              <div className="y-call-meter-time">02:34</div>
-              <div style={{ fontSize: 10, opacity: 0.6, marginTop: 2 }}>상담 시간</div>
+              <div className="y-call-meter-time">{formatMmSs(sessionId ? elapsedSec : 0)}</div>
+              <div className="y-call-meter-sub">상담 시간</div>
             </div>
             <div className="y-call-meter-info">
-              <div className="free">
-                무료 <span className="free">3분</span> 중 2:34 사용
-              </div>
-              <div>이후 분당 390원</div>
+              <div className="free">{creditLine.line1}</div>
+              <div>{creditLine.line2}</div>
             </div>
-          </div>
-
-          <div className="y-call-mic" aria-label="마이크 민감도">
-            <div className="y-call-mic-row">
-              <span className="label">마이크 민감도</span>
-              <span className="value">{micSensitivityPercent}%</span>
-            </div>
-            <input
-              type="range"
-              className="y-call-mic-range"
-              min={0}
-              max={100}
-              step={1}
-              value={micSensitivityPercent}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (!Number.isFinite(v)) return;
-                setMicSensitivityPercent(v);
-                micVadGainRef.current = micPercentToVadGain(v);
-              }}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={micSensitivityPercent}
-              aria-valuetext={`마이크 민감도 ${micSensitivityPercent}퍼센트. 낮추면 잡음에 덜 반응합니다.`}
-            />
           </div>
 
           <div className="y-call-btns">
             <button
-              className={`y-call-ctrl ${muted ? "muted" : ""}`}
+              className={`y-call-ctrl${muted ? " muted" : ""}`}
               type="button"
-              onPointerDown={() => {
-                pttDownAtRef.current = Date.now();
-                setPttDown(true);
-                setActiveLine("stt");
-                setStatus("말하는 중");
-              }}
-              onPointerUp={async () => {
-                const heldMs = Date.now() - pttDownAtRef.current;
-                setPttDown(false);
-                // 짧게 탭이면 음소거 토글(목업 동작), 길게 누르면 PTT 전송
-                if (heldMs < 180) {
-                  setMuted((v) => !v);
-                  return;
-                }
-                setStatus("처리 중…");
-                try {
-                  const pcmBase64 = (await recorderRef.current?.stopAndGetBase64Pcm16()) || "";
-                  if (!pcmBase64) return;
-                  // 새 recorder 재시작
-                  const ctx = audioCtxRef.current;
-                  const stream = micStreamRef.current ?? undefined;
-                  if (ctx) {
-                    recorderRef.current = new VoiceDccAudioRecorder();
-                    recorderRef.current
-                      .start({
-                        ctx,
-                        stream,
-                        existingMediaStreamSource: micSourceRef.current ?? undefined,
-                        onRms: (rms) => {
-                          rmsRef.current = rms;
-                          setMicLevel(Math.max(0, Math.min(1, rms * 3.4 * micVadGainRef.current)));
-                        },
-                      })
-                      .catch(() => {});
-                  }
-                  // 바지인 동작: 기존 재생/요청 중단
-                  try {
-                    turnAbortRef.current?.abort();
-                  } catch {}
-                  try {
-                    streamerRef.current?.stop();
-                  } catch {}
-                  if (audioCtxRef.current) streamerRef.current = makeStreamer(audioCtxRef.current);
-
-                  assistantPipelineRef.current = true;
-                  assistantSpeakingRef.current = true;
-                  const ac = new AbortController();
-                  turnAbortRef.current = ac;
-                  const res = await fetch("/api/voice/dcc-turn", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      character_key: characterKey,
-                      session_id: sessionId,
-                      voice_external_id: voiceExternalId,
-                      manse_context: buildManseContext(),
-                      audio_base64: pcmBase64,
-                    }),
-                    signal: ac.signal,
-                  });
-                  if (!res.ok || !res.body) {
-                    const detail = await res.text().catch(() => "");
-                    setUiError(detail ? `dcc-turn 실패: ${detail.slice(0, 300)}` : "dcc-turn 실패");
-                    assistantPipelineRef.current = false;
-                    assistantSpeakingRef.current = false;
-                    return;
-                  }
-                  const reader = res.body.getReader();
-                  const decoder = new TextDecoder();
-                  let buf = "";
-                  for (;;) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    buf += decoder.decode(value, { stream: true });
-                    const lines = buf.split("\n");
-                    buf = lines.pop() ?? "";
-                    for (const line of lines) {
-                      const t = line.trim();
-                      if (!t) continue;
-                      let msg: NdjsonMsg | null = null;
-                      try {
-                        msg = JSON.parse(t);
-                      } catch {
-                        continue;
-                      }
-                      if (!msg) continue;
-                      if (msg.type === "userTranscript") setLastUserText(String(msg.text ?? ""));
-                      else if (msg.type === "audio") {
-                        if (muted) continue;
-                        const b64 = String((msg as any).base64 ?? "");
-                        const sr = Number((msg as any).sampleRate ?? 24000);
-                        if (b64) streamerRef.current?.pushPcm16Base64(b64, sr);
-                      } else if (msg.type === "assistantText") lastAssistantTextRef.current = String(msg.text ?? "");
-                    }
-                  }
-                } finally {
-                  assistantPipelineRef.current = false;
-                  assistantSpeakingRef.current = streamerRef.current?.isActive?.() ?? false;
-                  setStatus("듣는 중");
-                }
-              }}
-              onPointerCancel={() => setPttDown(false)}
-              aria-label={pttDown ? "말하는 중" : muted ? "음소거 해제" : "음소거"}
+              onClick={() => setMuted((v) => !v)}
+              aria-label={muted ? "마이크 켜기" : "마이크 끄기"}
             >
               <svg viewBox="0 0 24 24">
                 <rect x="9" y="2" width="6" height="12" rx="3" />
@@ -1148,14 +831,10 @@ export default function CallDccPageClient() {
               type="button"
               onClick={() => {
                 try {
-                  turnAbortRef.current?.abort();
-                } catch {}
-                try {
-                  recorderRef.current?.stop(true);
-                } catch {}
-                try {
-                  streamerRef.current?.stop();
-                } catch {}
+                  pcRef.current?.close();
+                } catch {
+                  // ignore
+                }
                 setStatus("종료");
                 void (async () => {
                   await finalizeVoiceSession();
@@ -1173,23 +852,19 @@ export default function CallDccPageClient() {
             </button>
 
             <button
-              className="y-call-ctrl"
+              className={`y-call-ctrl${speakerMuted ? " speaker-muted" : ""}`}
               type="button"
-              onClick={() => setMuted((v) => !v)}
-              aria-label={muted ? "스피커 켜기" : "스피커 끄기"}
+              onClick={() => setSpeakerMuted((m) => !m)}
+              aria-label={speakerMuted ? "스피커 켜기" : "스피커 음소거"}
             >
               <svg viewBox="0 0 24 24">
                 <path d="M11 5L6 9H2v6h4l5 4z" />
                 <path d="M15 8a4 4 0 0 1 0 8" />
-                <path d="M18 5a8 8 0 0 1 0 14" />
               </svg>
             </button>
           </div>
-
-          <div className="y-call-tip">음성 응답이 1~2초 지연될 수 있어요 · 다른 작동(화면캡처·전화 등)을 하지 마세요</div>
         </footer>
       </main>
     </div>
   );
 }
-

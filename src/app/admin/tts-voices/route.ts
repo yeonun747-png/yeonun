@@ -13,9 +13,10 @@ export async function POST(request: Request) {
 
   if (!label || !external_id) return NextResponse.redirect(new URL("/admin#admin-tts-voices", request.url), 303);
 
+  const provider = String(form.get("provider") ?? "openai_realtime").trim() || "openai_realtime";
   const row = {
     ...(id ? { id } : {}),
-    provider: "cartesia",
+    provider,
     label,
     external_id,
     gender: gender === "female" || gender === "male" ? gender : "other",

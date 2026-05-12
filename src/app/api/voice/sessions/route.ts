@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const tv = characterPrompt?.tts_voice;
   return NextResponse.json({
     success: true,
     session: data,
@@ -36,8 +37,16 @@ export async function POST(request: Request) {
       common_system_prompt: commonPrompt?.prompt ?? null,
       character_system_prompt: characterPrompt?.prompt ?? null,
       persona_snapshot: persona ?? null,
-      cartesia_voice: characterPrompt?.tts_voice
-        ? { external_id: characterPrompt.tts_voice.external_id, label: characterPrompt.tts_voice.label }
+      tts_voice: tv
+        ? {
+            external_id: tv.external_id,
+            label: tv.label,
+            provider: tv.provider ?? "cartesia",
+          }
+        : null,
+      /** @deprecated Realtime 전환 후 `tts_voice` 사용 */
+      cartesia_voice: tv
+        ? { external_id: tv.external_id, label: tv.label, provider: tv.provider ?? "cartesia" }
         : null,
     },
   });

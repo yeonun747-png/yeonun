@@ -183,30 +183,20 @@ AI임을 밝히지 않습니다.$chat_sys$,true)
 on conflict (key) do nothing;
 
 
+-- OpenAI Realtime 보이스 카탈로그: 없을 때만 삽입(재시드·어드민 수정값 유지)
 insert into public.tts_voices(provider, external_id, label, gender, sort_order, is_active)
 values
-('cartesia','304fdbd8-65e6-40d6-ab78-f9d18b9efdf9','지현 - 앵커우먼','female',10,true),
-('cartesia','15628352-2ede-4f1b-89e6-ceda0c983fbc','지우 - 서비스 전문가','female',20,true),
-('cartesia','29e5f8b4-b953-4160-848f-40fae182235b','미미 - 쇼 스토퍼','female',30,true),
-('cartesia','663afeec-d082-4ab5-827e-2e41bf73a25b','재철 - 단호한 여성','female',40,true),
-('cartesia','cd6c48a9-774b-4397-98b4-9948c0a790f0','수진 - 도움되는 말투','female',50,true),
-('cartesia','cac92886-4b7c-4bc1-a524-e0f79c0381be','유나 - 다정한 언니','female',60,true),
-('cartesia','4dd4630e-19e0-4243-bca0-676ff85119b7','해운 - 세련된 존재감','female',70,true),
-('cartesia','ce9ca2b6-2bed-4452-99bb-052e1ec0b534','서윤 - 따뜻한 안내자','female',80,true),
-('cartesia','a0fc16d3-01af-482b-910f-ed063c3d79d3','수빈 - 우아한 발표자','female',90,true),
-('cartesia','7706804e-ea85-443a-968a-b9bf363bdde8','민지 - 현대적인 소통가','female',100,true),
-('cartesia','69c18e1d-fab0-4747-b9da-58617cd8b9e4','소연 - 밝은 동반자','female',110,true),
-('cartesia','90dba946-774b-40ed-98d9-ac3835117827','혜린 - 우아한 진행자','female',120,true),
-('cartesia','af6beeea-d732-40b6-8292-73af0035b740','병태 - 집행자','male',200,true),
-('cartesia','537a82ae-4926-4bfb-9aec-aff0b80a12a5','민호 - 친근한 영혼','male',210,true),
-('cartesia','f7755efb-1848-4321-aa22-5e5be5d32486','려욱 - 느긋한 친구','male',220,true),
-('cartesia','e1717dc3-b87b-4720-aa7f-b6db290e0609','태현 - 친근한 진행자','male',230,true),
-('cartesia','89f4372f-1f73-4b85-8e1e-5d24ed8bc826','재원 - 침착한 조언자','male',240,true)
-on conflict (provider, external_id) do update set
-  label = excluded.label,
-  gender = excluded.gender,
-  sort_order = excluded.sort_order,
-  is_active = excluded.is_active;
+('openai_realtime','alloy','Alloy — 중립적','other',10,true),
+('openai_realtime','ash','Ash — 감정표현 강함','other',20,true),
+('openai_realtime','ballad','Ballad — 부드럽고 스토리텔링','female',30,true),
+('openai_realtime','coral','Coral — 밝고 친근','female',40,true),
+('openai_realtime','echo','Echo — 따뜻함','male',50,true),
+('openai_realtime','sage','Sage — 성숙·안정','female',60,true),
+('openai_realtime','shimmer','Shimmer — energetic','female',70,true),
+('openai_realtime','verse','Verse — 표현력 강함','other',80,true),
+('openai_realtime','marin','Marin — 가장 자연스러운 축','female',90,true),
+('openai_realtime','cedar','Cedar — conversational 최강','male',100,true)
+on conflict (provider, external_id) do nothing;
 
 insert into public.character_mode_prompts(character_key, mode, title, prompt, is_active, tts_voice_id)
 values
@@ -237,7 +227,7 @@ values
 
 [호흡]
 사용자가 울거나 말을 잃으면 한 박자 쉽니다.
-"괜찮아요. 천천히 말씀해주세요."$yeon_v$,true,(select id from public.tts_voices where provider='cartesia' and external_id='304fdbd8-65e6-40d6-ab78-f9d18b9efdf9' limit 1)),
+"괜찮아요. 천천히 말씀해주세요."$yeon_v$,true,(select id from public.tts_voices where provider='openai_realtime' and external_id='coral' limit 1)),
 ('yeon','fortune_text','연화 — 텍스트 점사형',$yeon_ft$[연화 텍스트 점사 규칙]
 
 [어조]
@@ -300,7 +290,7 @@ values
 흉운 절망적 전달. "올해 큰일 나요." 금지.
 호들갑. "대박!" "헐!" 금지.
 미신적 해결책.
-연애·재회 깊은 질문 → "그건 연화가 더 깊이 봐드려요."$byeol_v$,true,(select id from public.tts_voices where provider='cartesia' and external_id='15628352-2ede-4f1b-89e6-ceda0c983fbc' limit 1)),
+연애·재회 깊은 질문 → "그건 연화가 더 깊이 봐드려요."$byeol_v$,true,(select id from public.tts_voices where provider='openai_realtime' and external_id='ballad' limit 1)),
 ('byeol','fortune_text','별하 — 텍스트 점사형',$byeol_ft$[별하 텍스트 점사 규칙]
 
 [어조]
@@ -364,7 +354,7 @@ values
 가벼운 농담·감탄사.
 사용자의 결정을 대신 내려주기.
 의학적 진단.
-작명·택일 질문 → "작명은 운서 선생님께 가시지요."$yeo_v$,true,(select id from public.tts_voices where provider='cartesia' and external_id='29e5f8b4-b953-4160-848f-40fae182235b' limit 1)),
+작명·택일 질문 → "작명은 운서 선생님께 가시지요."$yeo_v$,true,(select id from public.tts_voices where provider='openai_realtime' and external_id='sage' limit 1)),
 ('yeo','fortune_text','여연 — 텍스트 점사형',$yeo_ft$[여연 텍스트 점사 규칙]
 
 [어조]
@@ -439,7 +429,7 @@ values
 즉답 단정. "이 이름으로 하세요!" 금지.
 흉일 절망적 전달. "이날 이사하면 망합니다." 금지.
 자녀의 사주로 부모를 과하게 안심시키거나 불안하게 만들기.
-연애·재회 깊은 질문 → "그건 연화가 더 깊이 봐드려요."$un_v$,true,(select id from public.tts_voices where provider='cartesia' and external_id='89f4372f-1f73-4b85-8e1e-5d24ed8bc826' limit 1)),
+연애·재회 깊은 질문 → "그건 연화가 더 깊이 봐드려요."$un_v$,true,(select id from public.tts_voices where provider='openai_realtime' and external_id='echo' limit 1)),
 ('un','fortune_text','운서 — 텍스트 점사형',$un_ft$[운서 텍스트 점사 규칙]
 
 [어조]

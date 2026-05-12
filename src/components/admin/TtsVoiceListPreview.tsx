@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-export function TtsVoiceListPreview({ externalId }: { externalId: string }) {
+export function TtsVoiceListPreview({ externalId, provider = "cartesia" }: { externalId: string; provider?: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -15,7 +15,6 @@ export function TtsVoiceListPreview({ externalId }: { externalId: string }) {
     setBusy(true);
     setErr(null);
 
-    // 클릭(사용자 제스처) 시점에 오디오 권한을 먼저 언락한다.
     if (typeof window !== "undefined" && !audioCtxRef.current) {
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       if (Ctx) audioCtxRef.current = new Ctx();
@@ -31,14 +30,16 @@ export function TtsVoiceListPreview({ externalId }: { externalId: string }) {
       setAudioUrl(null);
     }
     try {
-      const res = await fetch("/api/tts/cartesia/preview", {
+      const isOpenAi = provider === "openai_realtime";
+      const res = await fetch(isOpenAi ? "/api/tts/openai/speech" : "/api/tts/cartesia/preview", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          voice_external_id: externalId,
-          transcript: "안녕하세요. 연운 음성 미리듣기입니다.",
-        }),
+        body: JSON.stringify(
+          isOpenAi
+            ? { voice: externalId, input: "안녕하세요. 연운 음성 미리듣기입니다." }
+            : { voice_external_id: externalId, transcript: "안녕하세요. 연운 음성 미리듣기입니다." },
+        ),
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -47,14 +48,12 @@ export function TtsVoiceListPreview({ externalId }: { externalId: string }) {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       setAudioUrl(url);
-      // 1) controls용 audio src는 유지
       queueMicrotask(() => {
         const el = audioRef.current;
         if (!el) return;
         el.currentTime = 0;
       });
 
-      // 2) 실제 자동재생은 WebAudio로 (await 이후에도 재생 가능)
       const ctx = audioCtxRef.current;
       if (ctx) {
         try {
@@ -71,7 +70,7 @@ export function TtsVoiceListPreview({ externalId }: { externalId: string }) {
           sourceRef.current = src;
           src.start(0);
         } catch {
-          // WebAudio가 실패하면 controls로 재생하도록 둔다.
+          // ignore
         }
       }
     } catch (e) {

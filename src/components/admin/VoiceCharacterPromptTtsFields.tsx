@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 
-export type TtsVoiceOption = { id: string; label: string; external_id: string };
+export type TtsVoiceOption = { id: string; label: string; external_id: string; provider?: string };
 
 export function VoiceCharacterPromptTtsFields({
   voices,
@@ -21,14 +21,15 @@ export function VoiceCharacterPromptTtsFields({
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-  const externalId = useMemo(() => voices.find((v) => v.id === voiceId)?.external_id ?? "", [voices, voiceId]);
+  const picked = useMemo(() => voices.find((v) => v.id === voiceId), [voices, voiceId]);
+  const externalId = picked?.external_id ?? "";
+  const provider = picked?.provider ?? "cartesia";
 
   async function preview() {
     if (!externalId) return;
     setBusy(true);
     setErr(null);
 
-    // 클릭 시점에 오디오 권한 언락
     if (typeof window !== "undefined" && !audioCtxRef.current) {
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       if (Ctx) audioCtxRef.current = new Ctx();
@@ -44,14 +45,16 @@ export function VoiceCharacterPromptTtsFields({
       setAudioUrl(null);
     }
     try {
-      const res = await fetch("/api/tts/cartesia/preview", {
+      const isOpenAi = provider === "openai_realtime";
+      const res = await fetch(isOpenAi ? "/api/tts/openai/speech" : "/api/tts/cartesia/preview", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          voice_external_id: externalId,
-          transcript: "안녕하세요. 연운 음성 미리듣기입니다.",
-        }),
+        body: JSON.stringify(
+          isOpenAi
+            ? { voice: externalId, input: "안녕하세요. 연운 음성 미리듣기입니다." }
+            : { voice_external_id: externalId, transcript: "안녕하세요. 연운 음성 미리듣기입니다." },
+        ),
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -93,14 +96,18 @@ export function VoiceCharacterPromptTtsFields({
   }
 
   if (voices.length === 0) {
-    return <p className="y-admin-empty"><span>등록된 Cartesia 보이스가 없습니다. 위 「Cartesia TTS 보이스 등록」에서 먼저 추가하세요.</span></p>;
+    return (
+      <p className="y-admin-empty">
+        <span>등록된 보이스가 없습니다. 위 「OpenAI Realtime 보이스」에서 10종 DB 반영을 먼저 실행하세요.</span>
+      </p>
+    );
   }
 
   return (
     <div className="y-admin-tts-character-row">
       <div className="y-admin-tts-voice-and-preview">
         <select className="y-admin-tts-voice-select" name="tts_voice_id" value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
-          <option value="">Cartesia 보이스 선택</option>
+          <option value="">Realtime 보이스 선택</option>
           {voices.map((v) => (
             <option key={v.id} value={v.id}>
               {v.label}

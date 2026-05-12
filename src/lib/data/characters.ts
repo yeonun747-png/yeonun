@@ -50,7 +50,7 @@ export type CharacterModePrompt = {
   prompt: string;
   is_active: boolean;
   tts_voice_id: string | null;
-  tts_voice?: { external_id: string; label: string } | null;
+  tts_voice?: { external_id: string; label: string; provider?: string } | null;
 };
 
 export async function getCharacters(): Promise<Character[]> {
@@ -122,7 +122,7 @@ export async function getCharacterModePrompt(
 
   const { data: voice } = await supabase
     .from("tts_voices")
-    .select("external_id,label")
+    .select("external_id,label,provider")
     .eq("id", row.tts_voice_id)
     .maybeSingle();
   return { ...row, tts_voice: voice ?? null };

@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "VOICE FAST | 연운",
-  description: "Returnzero STT + Claude 4.6 스트리밍 + Cartesia 스트리밍 음성대화.",
+  description: "OpenAI gpt-realtime-2 · WebRTC 음성 상담.",
   alternates: { canonical: "/call-dcc" },
   robots: { index: false, follow: false },
 };

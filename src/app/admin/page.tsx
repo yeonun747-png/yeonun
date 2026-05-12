@@ -115,7 +115,12 @@ export default async function AdminHomePage() {
 
   const ttsVoiceOptionsActive: TtsVoiceOption[] = ttsVoices.rows
     .filter((r) => r.is_active !== false)
-    .map((r) => ({ id: text(r.id), label: text(r.label), external_id: text(r.external_id) }))
+    .map((r) => ({
+      id: text(r.id),
+      label: text(r.label),
+      external_id: text(r.external_id),
+      provider: text(r.provider, "cartesia"),
+    }))
     .sort((a, b) => text(a.label).localeCompare(text(b.label), "ko"));
 
   const categoriesForProducts = categoriesAssignableToProducts(categories.rows);
@@ -443,13 +448,13 @@ export default async function AdminHomePage() {
   );
 }
 
-function CrudSection({ id, title, hint, children }: { id: string; title: string; hint: string; children: React.ReactNode }) {
+function CrudSection({ id, title, hint, children }: { id: string; title: string; hint?: string; children: React.ReactNode }) {
   return (
     <section id={id} className="y-admin-crud-section">
       <div className="y-admin-subhead">
         <div>
           <h3>{title}</h3>
-          <p>{hint}</p>
+          {hint ? <p>{hint}</p> : null}
         </div>
       </div>
       <div className="y-admin-crud-list">{children}</div>
@@ -576,7 +581,7 @@ function PersonaEditor({ character, persona }: { character: Row; persona?: Row }
 function TtsVoicesRegistry({ data }: { data: { rows: Row[]; ready: boolean; error?: string } }) {
   if (!data.ready) {
     return (
-      <CrudSection id="admin-tts-voices" title="Cartesia TTS 보이스 등록" hint="Cartesia 콘솔의 Voice ID(UUID)를 등록합니다. 캐릭터 음성 프롬프트에서 선택·미리듣기합니다.">
+      <CrudSection id="admin-tts-voices" title="보이스 미리듣기">
         <div className="y-admin-tts-registry">
           <EmptyPanel label="tts_voices" error={data.error} />
         </div>
@@ -584,54 +589,21 @@ function TtsVoicesRegistry({ data }: { data: { rows: Row[]; ready: boolean; erro
     );
   }
   const sorted = [...data.rows].sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
-  const female = sorted.filter((r) => text(r.gender) === "female");
-  const male = sorted.filter((r) => text(r.gender) === "male");
-  const other = sorted.filter((r) => !["female", "male"].includes(text(r.gender)));
+  const openai = sorted.filter((r) => text(r.provider) === "openai_realtime");
   return (
-    <CrudSection
-      id="admin-tts-voices"
-      title="Cartesia TTS 보이스 등록"
-      hint="라벨·성별·Cartesia Voice UUID(external_id)를 관리합니다. 아래 「캐릭터별 프롬프트 — 음성 상담형」에서 드롭다운으로 연결합니다."
-    >
+    <CrudSection id="admin-tts-voices" title="보이스 미리듣기">
       <div className="y-admin-tts-registry">
-        <div className="y-admin-card y-admin-tts-quick">
-          <h4>보이스 추가</h4>
-          <form action="/admin/tts-voices" method="post" className="y-admin-form">
-            <input name="label" placeholder="표시명 (예: 지현 - 앵커우먼)" />
-            <input name="external_id" placeholder="Cartesia Voice UUID" />
-            <select name="gender" defaultValue="female">
-              <option value="female">여성</option>
-              <option value="male">남성</option>
-              <option value="other">기타</option>
-            </select>
-            <input name="sort_order" inputMode="numeric" placeholder="정렬 (작을수록 위)" defaultValue="100" />
-            <select name="is_active" defaultValue="true">
-              <option value="true">활성</option>
-              <option value="false">비활성</option>
-            </select>
-            <button type="submit">보이스 저장</button>
-          </form>
+        <div className="y-admin-tts-preview-grid">
+          {openai.length === 0 ? (
+            <p className="y-admin-muted" style={{ gridColumn: "1 / -1" }}>
+              등록된 OpenAI Realtime 보이스가 없습니다.
+            </p>
+          ) : (
+            openai.map((r) => <TtsVoiceEditor key={text(r.id)} row={r} />)
+          )}
         </div>
-        <div className="y-admin-tts-duo">
-          <TtsVoiceGroup title="여성 보이스" rows={female} />
-          <TtsVoiceGroup title="남성 보이스" rows={male} />
-        </div>
-        {other.length > 0 ? <TtsVoiceGroup title="기타" rows={other} /> : null}
       </div>
     </CrudSection>
-  );
-}
-
-function TtsVoiceGroup({ title, rows }: { title: string; rows: Row[] }) {
-  return (
-    <div className="y-admin-tts-group">
-      <h4>{title}</h4>
-      {rows.length === 0 ? (
-        <p className="y-admin-muted">등록된 보이스가 없습니다.</p>
-      ) : (
-        rows.map((r) => <TtsVoiceEditor key={text(r.id)} row={r} />)
-      )}
-    </div>
   );
 }
 
@@ -644,7 +616,7 @@ function TtsVoiceEditor({ row }: { row: Row }) {
           <em>sort {text(row.sort_order)}</em>
         </span>
         <span className="y-admin-tts-summary-actions">
-          <TtsVoiceListPreview externalId={text(row.external_id, "")} />
+          <TtsVoiceListPreview externalId={text(row.external_id, "")} provider={text(row.provider, "cartesia")} />
           <form action="/admin/tts-voices/toggle-active" method="post">
             <input type="hidden" name="id" value={text(row.id, "")} />
             <input type="hidden" name="is_active" value={row.is_active === false ? "true" : "false"} />
@@ -660,7 +632,8 @@ function TtsVoiceEditor({ row }: { row: Row }) {
       <form action="/admin/tts-voices" method="post" className="y-admin-form y-admin-edit-form">
         <input type="hidden" name="id" value={text(row.id, "")} />
         <input name="label" defaultValue={text(row.label, "")} />
-        <input name="external_id" defaultValue={text(row.external_id, "")} />
+        <input name="external_id" defaultValue={text(row.external_id, "")} readOnly={text(row.provider) === "openai_realtime"} aria-readonly={text(row.provider) === "openai_realtime"} />
+        <input type="hidden" name="provider" value={text(row.provider, "cartesia")} />
         <select name="gender" defaultValue={text(row.gender, "other")}>
           <option value="female">여성</option>
           <option value="male">남성</option>
