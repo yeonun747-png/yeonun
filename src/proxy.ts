@@ -7,10 +7,15 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!pathname.startsWith("/admin")) return NextResponse.next();
-  // 요청: 어드민 비밀번호 없이 접근 허용
-  return NextResponse.next();
-  if (!process.env.ADMIN_PASSWORD) return NextResponse.next();
-  if (pathname === "/admin/login" || pathname === "/admin/login/action") {
+
+  const adminPw = String(process.env.ADMIN_PASSWORD ?? "").trim();
+  if (!adminPw) return NextResponse.next();
+
+  if (
+    pathname === "/admin/login" ||
+    pathname === "/admin/login/action" ||
+    pathname === "/admin/logout"
+  ) {
     return NextResponse.next();
   }
 
@@ -25,4 +30,3 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: ["/admin/:path*"],
 };
-

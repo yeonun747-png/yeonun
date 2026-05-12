@@ -7,6 +7,7 @@ import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { buildFortuneManseContext } from "@/lib/fortune-manse-context";
 import { computeManseFromFormInput } from "@/lib/manse-ryeok";
 import { extractRealtimeFunctionCallsFromResponseDone } from "@/lib/openai-realtime-function-calls";
+import { extractRealtimeResponseUsage } from "@/lib/voice-realtime-response-usage";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
 import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
 import { YEONUN_CREDIT_UPDATE_EVENT, readWallet } from "@/lib/credit-balance-local";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/credit-policy";
 import { clearVoiceManseMeta, readVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 import { getOrCreateVoiceVisitorRef } from "@/lib/voice-visitor-ref";
+import { rollMaxAssistantResponses, rollWallMs } from "@/lib/voice-roll-triggers";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -148,6 +150,14 @@ export default function CallDccPageClient() {
   const micFloatBufRef = useRef<Float32Array | null>(null);
   /** item_id → 누적 delta (completed 시 비움) */
   const userSttPartialByItemRef = useRef<Record<string, string>>({});
+  const resumeAfterRollRef = useRef(false);
+  const rollBusyRef = useRef(false);
+  const assistantResponseDoneCountRef = useRef(0);
+  /** compress-roll / roll-status / realtime-usage — 세션 생성·롤·client-secret에서 채움 */
+  const rollSecretRef = useRef("");
+  const responseCreatedAtRef = useRef<number | null>(null);
+  /** response.done usage — 누적/스냅샷 혼용 대비해 직전 값 대비 델타만 서버에 보냄 */
+  const lastUsageSnapshotRef = useRef({ in: 0, out: 0, tot: 0 });
 
   const voiceExternalId = voiceOverride || fetchedVoiceExternalId || null;
 
@@ -186,6 +196,7 @@ export default function CallDccPageClient() {
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
+    lastUsageSnapshotRef.current = { in: 0, out: 0, tot: 0 };
   }, [sessionId]);
 
   useLayoutEffect(() => {
@@ -373,6 +384,8 @@ export default function CallDccPageClient() {
           sessionIdRef.current = sid;
           setElapsedSec(0);
           setSessionId(sid);
+          const rs = (data.session as { roll_secret?: string }).roll_secret;
+          if (typeof rs === "string" && rs.trim()) rollSecretRef.current = rs.trim();
         }
         const tv = data?.prompt_context?.tts_voice ?? data?.prompt_context?.cartesia_voice;
         const ext = typeof tv?.external_id === "string" ? tv.external_id.trim() : "";
@@ -398,6 +411,7 @@ export default function CallDccPageClient() {
     remoteTailAudibleRef.current = false;
     ttsUiGateRef.current = false;
     ttsOutputUiLastRef.current = false;
+    assistantResponseDoneCountRef.current = 0;
     setTtsOutputActive(false);
 
     const tickMeter = () => {
@@ -528,6 +542,8 @@ export default function CallDccPageClient() {
         if (!secretOk || !secretJson.ok || !secretJson.value) {
           throw new Error(secretJson.details || secretJson.error || "Realtime 토큰 발급 실패");
         }
+        const rs = (secretJson as { roll_secret?: string }).roll_secret;
+        if (typeof rs === "string" && rs.trim()) rollSecretRef.current = rs.trim();
         const EPHEMERAL_KEY = String(secretJson.value);
 
         const pc = new RTCPeerConnection();
@@ -649,11 +665,65 @@ export default function CallDccPageClient() {
           }
         };
 
+        const checkSessionRoll = async () => {
+          if (rollBusyRef.current || cancelled) return;
+          const sid = sessionIdRef.current;
+          if (!sid) return;
+          if (Date.now() - sessionStartMsRef.current < 12_000) return;
+          let should = false;
+          const elapsed = Date.now() - sessionStartMsRef.current;
+          if (elapsed >= rollWallMs()) should = true;
+          if (assistantResponseDoneCountRef.current >= rollMaxAssistantResponses()) should = true;
+          if (!should && rollSecretRef.current) {
+            try {
+              const rs = await fetch(`/api/voice/sessions/${sid}/roll-status`, {
+                headers: { "X-Voice-Roll-Secret": rollSecretRef.current },
+              });
+              const j = (await rs.json().catch(() => ({}))) as { should_roll?: boolean; ok?: boolean };
+              if (rs.ok && j.should_roll === true) should = true;
+            } catch {
+              // ignore
+            }
+          }
+          if (!should || cancelled) return;
+          rollBusyRef.current = true;
+          try {
+            const r = await fetch(`/api/voice/sessions/${sid}/compress-roll`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(rollSecretRef.current ? { "X-Voice-Roll-Secret": rollSecretRef.current } : {}),
+              },
+              body: JSON.stringify({}),
+            });
+            const j = (await r.json().catch(() => ({}))) as {
+              ok?: boolean;
+              new_session_id?: string;
+              roll_secret?: string;
+            };
+            if (cancelled || !r.ok || !j.ok || typeof j.new_session_id !== "string" || !j.new_session_id.trim()) {
+              return;
+            }
+            const nrs = typeof j.roll_secret === "string" ? j.roll_secret.trim() : "";
+            if (nrs) rollSecretRef.current = nrs;
+            resumeAfterRollRef.current = true;
+            sessionStartMsRef.current = Date.now();
+            assistantResponseDoneCountRef.current = 0;
+            setSessionId(j.new_session_id.trim());
+          } finally {
+            rollBusyRef.current = false;
+          }
+        };
+
         dc.addEventListener("open", () => {
           setRtcReady(true);
           setStatus("듣는 중");
           if (!openingSentRef.current) {
             openingSentRef.current = true;
+            if (resumeAfterRollRef.current) {
+              resumeAfterRollRef.current = false;
+              return;
+            }
             dc.send(JSON.stringify({ type: "response.create", response: {} }));
           }
         });
@@ -674,6 +744,10 @@ export default function CallDccPageClient() {
             setUiError(m.slice(0, 400));
           }
 
+          if (ty === "response.created") {
+            responseCreatedAtRef.current = Date.now();
+          }
+
           if (ty === "response.created" || ty === "response.output_audio.started") {
             ttsPlayingRef.current = true;
             setActiveLine("tts");
@@ -683,9 +757,50 @@ export default function CallDccPageClient() {
             ttsPlayingRef.current = false;
             setStatus("듣는 중");
             const assistantText = extractAssistantFromResponseDone(msg);
-            if (assistantText) void appendTurn("assistant", assistantText);
             const fcs = extractRealtimeFunctionCallsFromResponseDone(msg);
-            if (fcs.length) void flushSaveUserInsightCalls(fcs);
+            const usage = extractRealtimeResponseUsage(msg);
+            const t0 = responseCreatedAtRef.current;
+            responseCreatedAtRef.current = null;
+            const latencyMs = t0 != null ? Math.max(0, Date.now() - t0) : 0;
+            const prev = lastUsageSnapshotRef.current;
+            let di = 0;
+            let doo = 0;
+            let dtot = 0;
+            if (usage) {
+              di = Math.max(0, usage.input_tokens - prev.in);
+              doo = Math.max(0, usage.output_tokens - prev.out);
+              dtot = Math.max(0, usage.total_tokens - prev.tot);
+              if (dtot === 0 && (di > 0 || doo > 0)) dtot = di + doo;
+              lastUsageSnapshotRef.current = {
+                in: Math.max(prev.in, usage.input_tokens),
+                out: Math.max(prev.out, usage.output_tokens),
+                tot: Math.max(prev.tot, usage.total_tokens),
+              };
+            }
+            void (async () => {
+              if (assistantText) await appendTurn("assistant", assistantText);
+              if (fcs.length) await flushSaveUserInsightCalls(fcs);
+              assistantResponseDoneCountRef.current += 1;
+              const sidU = sessionIdRef.current;
+              const sec = rollSecretRef.current;
+              if (sidU && sec && (di > 0 || doo > 0 || dtot > 0 || latencyMs > 0)) {
+                try {
+                  await fetch(`/api/voice/sessions/${sidU}/realtime-usage`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-Voice-Roll-Secret": sec },
+                    body: JSON.stringify({
+                      input_tokens_delta: di,
+                      output_tokens_delta: doo,
+                      total_tokens_delta: dtot > 0 ? dtot : di + doo,
+                      response_latency_ms: latencyMs,
+                    }),
+                  });
+                } catch {
+                  // ignore
+                }
+              }
+              await checkSessionRoll();
+            })();
           }
 
           if (ty === "conversation.item.input_audio_transcription.delta") {

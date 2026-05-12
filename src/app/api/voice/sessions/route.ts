@@ -1,7 +1,19 @@
+import { randomBytes } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/supabase/server";
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
+
+function normalizeVoiceUserRef(raw: string | undefined): string {
+  const t = String(raw ?? "").trim();
+  if (!t || t === "guest") return `visitor_${randomBytes(16).toString("hex")}`;
+  return t;
+}
+
+function newVoiceRollSecret(): string {
+  return randomBytes(24).toString("hex");
+}
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
@@ -11,6 +23,9 @@ export async function POST(request: Request) {
   };
 
   const character_key = String(body.character_key ?? "yeon").trim();
+  const user_ref = normalizeVoiceUserRef(body.user_ref);
+  const roll_secret = newVoiceRollSecret();
+
   const [commonPrompt, characterPrompt, persona] = await Promise.all([
     getServicePrompt("yeonun_common_system"),
     getCharacterModePrompt(character_key, "voice"),
@@ -21,11 +36,12 @@ export async function POST(request: Request) {
     .from("voice_sessions")
     .insert({
       character_key,
-      user_ref: body.user_ref ?? "guest",
+      user_ref,
+      roll_secret,
       status: "active",
       summary: body.summary ?? null,
     })
-    .select("id,status,started_at")
+    .select("id,status,started_at,user_ref,roll_secret")
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -51,4 +67,3 @@ export async function POST(request: Request) {
     },
   });
 }
-

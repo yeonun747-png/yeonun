@@ -9,7 +9,8 @@ export const VOICE_REALTIME_INSIGHT_TOOL_DEFINITION = {
   description:
     "사용자가 음성으로 말한 내용 중, 이후 상담에 꼭 기억해둘 가치가 있는 사실만 기록합니다. " +
     "매 턴 호출하지 말고, 분명한 사실·감정·인물·사건·수치가 나왔을 때만 호출합니다. " +
-    "추측·상담사의 해석은 저장하지 않습니다.",
+    "추측·상담사의 해석은 저장하지 않습니다. " +
+    "잡담·반복 인사·의미 없는 필러·바지인으로 끊긴 불완전 발화·낮은 확신의 내용은 저장하지 마세요.",
   parameters: {
     type: "object",
     additionalProperties: false,
@@ -47,7 +48,7 @@ export const VOICE_REALTIME_RETENTION_BLOCK = `
 /** 매 세션 공통: 추출·비용·프루닝 원칙 */
 export const VOICE_REALTIME_OPTIMIZATION_BLOCK = `
 [컨텍스트·비용(Pruning 원칙)]
-- [User_History_Context]는 입장 직후 인사와 첫 질문에만 적극 사용하고, 이후에는 최근 음성 대화 흐름을 최우선으로 따릅니다.
+- [User_History_Context]·[Compressed_Memory]는 입장 직후 인사와 첫 질문에만 적극 사용하고, 이후에는 최근 음성 대화 흐름을 최우선으로 따릅니다.
 - 과거 메모를 길게 인용하거나 반복해 읽지 않습니다.
 - save_user_insight는 하루치 상담에서도 수회 이하가 되도록, 정말 남길 가치가 있을 때만 호출합니다.
 `.trim();

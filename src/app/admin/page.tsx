@@ -127,6 +127,11 @@ export default async function AdminHomePage() {
     }))
     .sort((a, b) => text(a.label).localeCompare(text(b.label), "ko"));
 
+  /** 음성 상담형(Realtime) 캐릭터 보이스 — 카테시아 TTS는 선택 풀에서 제외 */
+  const ttsVoiceOptionsVoiceRealtime = ttsVoiceOptionsActive.filter(
+    (v) => String(v.provider ?? "").trim().toLowerCase() !== "cartesia",
+  );
+
   const categoriesForProducts = categoriesAssignableToProducts(categories.rows);
 
   const kpis = [
@@ -151,7 +156,23 @@ export default async function AdminHomePage() {
           <div className="y-admin-hero-card">
             <span>Auth</span>
             <strong>Single Admin Cookie</strong>
-            <small>`src/proxy.ts` 보호 적용</small>
+            <small>`src/proxy.ts` — `ADMIN_PASSWORD` 설정 시 로그인 필요</small>
+            <form action="/admin/logout" method="post" style={{ marginTop: 10 }}>
+              <button
+                type="submit"
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  border: "1px solid var(--y-line)",
+                  background: "transparent",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                로그아웃
+              </button>
+            </form>
           </div>
         </section>
 
@@ -317,7 +338,7 @@ export default async function AdminHomePage() {
           <CrudSection
             id="admin-character-voice-prompts"
             title="캐릭터별 프롬프트 — 음성 상담형"
-            hint="음성 상담에서 캐릭터 말투/역할을 고정하는 프롬프트입니다. (공통 프롬프트 + 캐릭터 프롬프트로 합성)"
+            hint="음성 상담에서 캐릭터 말투/역할을 고정하는 프롬프트입니다. 보이스 풀은 Realtime(OpenAI)만 표시됩니다."
           >
             {characters.rows.map((c) => {
               const row = characterModePrompts.rows.find(
@@ -330,7 +351,7 @@ export default async function AdminHomePage() {
                   mode="voice"
                   row={row}
                   defaultTitle={`${text(c.name)} — 음성 상담형`}
-                  ttsVoiceOptions={ttsVoiceOptionsActive}
+                  ttsVoiceOptions={ttsVoiceOptionsVoiceRealtime}
                   adminTtsPreviewToken={adminTtsPreviewToken}
                 />
               );

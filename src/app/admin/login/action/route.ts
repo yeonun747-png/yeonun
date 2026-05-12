@@ -20,7 +20,9 @@ export async function POST(request: Request) {
   }
 
   if (password !== expected) {
-    return NextResponse.redirect(new URL("/admin/login", request.url), 303);
+    const u = new URL("/admin/login", request.url);
+    u.searchParams.set("e", "1");
+    return NextResponse.redirect(u, 303);
   }
 
   const jar = await cookies();

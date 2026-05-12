@@ -312,6 +312,31 @@ create table if not exists public.voice_sessions (
 -- 기존 DB에 테이블만 있고 컬럼이 없을 때
 alter table public.voice_sessions add column if not exists memory_summary text null;
 alter table public.voice_sessions add column if not exists memory_updated_at timestamptz null;
+alter table public.voice_sessions add column if not exists continuity_summary text null;
+alter table public.voice_sessions add column if not exists rolled_from_session_id uuid null references public.voice_sessions (id) on delete set null;
+alter table public.voice_sessions add column if not exists rolling_generation int not null default 0;
+alter table public.voice_sessions add column if not exists roll_secret text null;
+alter table public.voice_sessions add column if not exists realtime_input_tokens int not null default 0;
+alter table public.voice_sessions add column if not exists realtime_output_tokens int not null default 0;
+alter table public.voice_sessions add column if not exists realtime_total_tokens int not null default 0;
+alter table public.voice_sessions add column if not exists realtime_max_response_latency_ms int not null default 0;
+
+create table if not exists public.voice_memory_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_ref text not null,
+  character_key text not null references public.characters (key) on delete cascade,
+  session_id uuid null references public.voice_sessions (id) on delete set null,
+  memory_type text not null,
+  importance numeric(4, 3) not null check (importance >= 0 and importance <= 1),
+  summary text not null,
+  promoted boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_voice_memory_entries_user_char_imp
+  on public.voice_memory_entries (user_ref, character_key, importance desc, created_at desc);
+
+alter table public.voice_memory_entries enable row level security;
 
 create table if not exists public.voice_turns (
   id uuid primary key default gen_random_uuid(),

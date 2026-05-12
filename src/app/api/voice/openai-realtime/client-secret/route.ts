@@ -11,6 +11,7 @@ import {
   VOICE_REALTIME_RETENTION_BLOCK,
 } from "@/lib/voice-realtime-insight-prompt";
 import { buildUserHistoryContextBlock, fetchVoiceUserInsightsForContext } from "@/lib/voice-user-insights";
+import { buildVoiceMemoryEntriesContextBlock, fetchVoiceMemoryEntriesForContext } from "@/lib/voice-memory-retrieval";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -97,7 +98,9 @@ export async function POST(request: Request) {
   const supabase = supabaseServer();
   const { data: sess, error: sessErr } = await supabase
     .from("voice_sessions")
-    .select("id,summary,character_key,status,user_ref")
+    .select(
+      "id,summary,character_key,status,user_ref,memory_summary,continuity_summary,rolling_generation,roll_secret",
+    )
     .eq("id", session_id)
     .maybeSingle();
 
@@ -129,18 +132,47 @@ export async function POST(request: Request) {
   const historyBlock = buildUserHistoryContextBlock(insightRows);
   const hasHistoryInsights = Boolean(historyBlock);
 
+  const memoryEntryRows = await fetchVoiceMemoryEntriesForContext(supabase, userRef, character_key);
+  const compressedMemoryBlock = buildVoiceMemoryEntriesContextBlock(memoryEntryRows);
+  const hasCompressedMemory = Boolean(compressedMemoryBlock);
+
+  const continuity = String(sess.continuity_summary ?? "").trim();
+  const hasContinuity = continuity.length > 0;
+  const rollingGen = Math.max(0, Number(sess.rolling_generation ?? 0));
+
+  const continuityBlock = hasContinuity
+    ? `[Session_Continuity]\n` +
+      `음성 Realtime 연결만 새로 열렸습니다. **전체 전사·대화 로그는 모델에 넘기지 않습니다.** 아래는 압축된 연속 맥락뿐입니다.\n` +
+      `규칙: 기계적으로 사실을 나열하지 말고, 사람이 이전 상담을 떠올리듯 한두 문장으로만 자연스럽게 이어 가세요. 긴 재인사·전체 요약·메모 낭독 금지.\n\n` +
+      continuity.slice(0, 3500)
+    : "";
+
+  const streamShapeBlock =
+    `[실시간 음성 호흡]\n` +
+    `- 한 번에 긴 독백을 피하고, 짧은 문장 단위로 끊어 말하세요.\n` +
+    `- 바지인(끼어들기)이 있을 수 있으므로, 문장 중간에도 자연스럽게 멈출 수 있는 호흡을 유지하세요.\n` +
+    `- 불필요한 서론·메타 설명은 줄이세요.` +
+    (rollingGen > 0
+      ? `\n- 이 세션은 롤링 ${rollingGen}차입니다. 원문 전체 대화는 모델에 전달되지 않았습니다.`
+      : "");
+
   const personaSnap = compactPersona(persona);
   const fortuneBlock = sessionSummary
     ? `[점사 직후 맥락·세션 입장 요약]\n${sessionSummary.slice(0, 8000)}\n\n위 맥락에 없는 사실은 지어내지 마세요.`
     : `사용자는 음성 상담 화면에 막 입장했습니다. 아직 긴 대화는 없습니다.`;
 
-  const openingInstruction =
-    sessionSummary && hasHistoryInsights
+  const openingInstruction = hasContinuity
+    ? `이 세션은 롤링 후 **연속 상담**입니다. [Session_Continuity]만 근거로 짧게 이어 가고, ${specKo} 톤을 유지하세요. 전사 복기·긴 인사·메모 나열 금지.${
+        hasHistoryInsights || hasCompressedMemory
+          ? " [User_History_Context]·[Compressed_Memory]는 한 가지씩만 가볍게 반영할 수 있습니다."
+          : ""
+      }`
+    : sessionSummary && hasHistoryInsights
       ? `먼저 「점사 직후 맥락」을 한 문장으로 짚은 뒤, [User_History_Context]에 나온 과거 이야기 중 한 가지를 골라 따뜻하게 안부를 물으며 시작하세요. 이후 ${specKo} 톤으로 자연스럽게 이어가세요.`
       : sessionSummary
         ? `먼저 위 「점사 직후 맥락」을 한두 문장으로 짚으며 짧게 인사한 뒤, ${specKo} 톤으로 자연스럽게 이어가세요.`
-        : hasHistoryInsights
-          ? `[User_History_Context]를 참고해 재방문 인사 규칙에 따라 시작한 뒤, ${specKo} 톤으로 이어가세요.`
+        : hasHistoryInsights || hasCompressedMemory
+          ? `[User_History_Context]·[Compressed_Memory]를 참고해 재방문 인사 규칙에 따라 시작한 뒤, ${specKo} 톤으로 이어가세요.`
           : `짧게 인사한 뒤 ${specKo} 톤으로 부담 없는 질문 하나로 대화를 열어 주세요.`;
 
   const instructions = [
@@ -149,9 +181,12 @@ export async function POST(request: Request) {
     personaSnap ? `[페르소나 스냅샷 JSON]\n${personaSnap}` : "",
     manse_context ? `[사용자 사주·출생 맥락]\n${manse_context}` : "",
     fortuneBlock,
+    continuityBlock,
     historyBlock,
+    compressedMemoryBlock,
     hasHistoryInsights ? VOICE_REALTIME_RETENTION_BLOCK : "",
     VOICE_REALTIME_OPTIMIZATION_BLOCK,
+    streamShapeBlock,
     `[역할]\n당신은 연운의 음성 상담 안내자입니다. 주특기 분야는 「${specKo}」입니다.`,
     `[출력·말하기 규칙]\n- 한국어 구어체로만 응답합니다.\n- 한 번에 길게 늘어놓지 말고 호흡을 끊어 말합니다.\n- AI·대규모언어모델임을 밝히지 않습니다.\n- 자해·법률·의학 확진 등은 안전하게 거절·안내합니다.`,
     `[도구]\n- 필요할 때만 save_user_insight를 호출해 사용자가 말한 사실을 기록합니다. 호출 후에는 대화를 자연스럽게 이어 가며, 저장했다고 굳이 말하지 않습니다.`,
@@ -215,5 +250,6 @@ export async function POST(request: Request) {
     value,
     voice: voiceId,
     model: OPENAI_REALTIME_MODEL,
+    roll_secret: String((sess as { roll_secret?: string }).roll_secret ?? "").trim() || undefined,
   });
 }

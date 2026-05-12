@@ -121,6 +121,11 @@ export function VoiceCharacterPromptTtsFields({
       <div className="y-admin-tts-voice-and-preview">
         <select className="y-admin-tts-voice-select" name="tts_voice_id" value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
           <option value="">Realtime 보이스 선택</option>
+          {defaultVoiceId && !voices.some((v) => v.id === defaultVoiceId) ? (
+            <option value={defaultVoiceId}>
+              기존 DB 연결 유지(목록에 없음) — Realtime 보이스로 바꾼 뒤 저장하세요
+            </option>
+          ) : null}
           {voices.map((v) => (
             <option key={v.id} value={v.id}>
               {v.label}

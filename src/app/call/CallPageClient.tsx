@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { computeManseFromFormInput } from "@/lib/manse-ryeok";
+import { getOrCreateVoiceVisitorRef } from "@/lib/voice-visitor-ref";
 import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 import { VoiceLiveAudioRecorder } from "@/lib/voice-live/audio-recorder";
 
@@ -95,7 +96,7 @@ export default function CallPageClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         character_key: characterKey,
-        user_ref: "guest",
+        user_ref: getOrCreateVoiceVisitorRef(),
         ...(summaryForSession ? { summary: summaryForSession } : {}),
       }),
     })
