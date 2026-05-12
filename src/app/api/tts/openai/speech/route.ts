@@ -1,22 +1,14 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { isAdminTtsPreviewAuthorized } from "@/lib/admin-tts-preview-token";
 import { normalizeOpenAiRealtimeVoice } from "@/lib/openai-realtime-voices";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ADMIN_COOKIE = "yeonun_admin";
-
-async function requireAdminPreview(): Promise<boolean> {
-  if (!process.env.ADMIN_PASSWORD) return true;
-  const jar = await cookies();
-  return jar.get(ADMIN_COOKIE)?.value === "1";
-}
-
 /** 어드민 전용: OpenAI Speech API 미리듣기(Realtime 보이스 id) */
 export async function POST(request: Request) {
-  if (!(await requireAdminPreview())) {
+  if (!(await isAdminTtsPreviewAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

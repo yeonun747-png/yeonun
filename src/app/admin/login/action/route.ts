@@ -25,12 +25,14 @@ export async function POST(request: Request) {
 
   const jar = await cookies();
   const secure = requestIsHttps(request);
+  const domain = String(process.env.ADMIN_COOKIE_DOMAIN ?? "").trim() || undefined;
   jar.set(COOKIE_NAME, "1", {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
     secure,
     maxAge: 60 * 60 * 24 * 30,
+    ...(domain ? { domain } : {}),
   });
 
   return NextResponse.redirect(new URL("/admin", request.url), 303);

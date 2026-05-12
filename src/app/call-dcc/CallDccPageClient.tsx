@@ -35,6 +35,10 @@ function asCharacterKey(v: string | null): CharacterKey {
 
 const MOBILE_STT_WAVE_ACTIVATE_MIN = 0.04;
 
+/** 원격 TTS 스피커 출력 tail (response.done 과 로컬 재생 어긋남 보정) */
+const REMOTE_TTS_TAIL_ON = 0.014;
+const REMOTE_TTS_TAIL_OFF = 0.005;
+
 function formatMmSs(totalSec: number): string {
   const m = Math.floor(Math.max(0, totalSec) / 60);
   const s = Math.max(0, totalSec) % 60;
@@ -108,7 +112,8 @@ export default function CallDccPageClient() {
   const [fetchedVoiceExternalId, setFetchedVoiceExternalId] = useState<string | null>(null);
   const [micLevel, setMicLevel] = useState(0);
   const [ttsLevel, setTtsLevel] = useState(0);
-  const [ttsPlaying, setTtsPlaying] = useState(false);
+  /** 서버 턴(ref) 또는 로컬 스피커 출력(원격 트랙 레벨) — 파형·상태·STT 강조 동기화 */
+  const [ttsOutputActive, setTtsOutputActive] = useState(false);
   const [uiError, setUiError] = useState<string>("");
   const [muted, setMuted] = useState(false);
   const [activeLine, setActiveLine] = useState<"tts" | "stt">("tts");
@@ -130,7 +135,16 @@ export default function CallDccPageClient() {
   const rafRef = useRef<number | null>(null);
   const openingSentRef = useRef(false);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  /** 서버 이벤트 기준(응답 생성 구간). 로컬 재생과 어긋날 수 있음 → ttsOutputActive는 별도 합성 */
   const ttsPlayingRef = useRef(false);
+  /** 원격 RTP 오디오 레벨로 "아직 스피커에 소리가 남았는지" (response.done 이후 tail) */
+  const ttsRemoteAnalyserRef = useRef<AnalyserNode | null>(null);
+  const ttsRemoteFloatBufRef = useRef<Float32Array | null>(null);
+  const remoteTailAudibleRef = useRef(false);
+  const ttsOutputUiLastRef = useRef(false);
+  const disconnectRemoteTtsTapRef = useRef<(() => void) | null>(null);
+  /** tickMeter 마지막에 갱신 — DC 핸들러에서 STT 라인 스틸 방지 */
+  const ttsUiGateRef = useRef(false);
   const micFloatBufRef = useRef<Float32Array | null>(null);
   /** item_id → 누적 delta (completed 시 비움) */
   const userSttPartialByItemRef = useRef<Record<string, string>>({});
@@ -381,6 +395,10 @@ export default function CallDccPageClient() {
     if (!sessionId || !voiceExternalId) return;
     let cancelled = false;
     openingSentRef.current = false;
+    remoteTailAudibleRef.current = false;
+    ttsUiGateRef.current = false;
+    ttsOutputUiLastRef.current = false;
+    setTtsOutputActive(false);
 
     const tickMeter = () => {
       if (cancelled) return;
@@ -407,14 +425,72 @@ export default function CallDccPageClient() {
         const raw = peak * 1.85 + rms * 6.5;
         setMicLevel(Math.max(0, Math.min(1, Math.pow(raw, 0.72))));
       }
+
+      let remoteTts = 0;
+      const ra = ttsRemoteAnalyserRef.current;
+      if (ra) {
+        let rbuf = ttsRemoteFloatBufRef.current;
+        if (!rbuf || rbuf.length !== ra.fftSize) {
+          rbuf = new Float32Array(ra.fftSize);
+          ttsRemoteFloatBufRef.current = rbuf;
+        }
+        // @ts-expect-error AnalyserNode.getFloatTimeDomainData buffer typing mismatch
+        ra.getFloatTimeDomainData(rbuf);
+        let rpeak = 0;
+        let rsumSq = 0;
+        for (let i = 0; i < rbuf.length; i++) {
+          const s = rbuf[i];
+          const abs = Math.abs(s);
+          if (abs > rpeak) rpeak = abs;
+          rsumSq += s * s;
+        }
+        const rrms = Math.sqrt(rsumSq / rbuf.length);
+        const remoteRaw = rpeak * 1.85 + rrms * 6.5;
+        remoteTts = Math.max(0, Math.min(1, Math.pow(remoteRaw, 0.72)));
+      }
+
+      let tail = remoteTailAudibleRef.current;
+      if (remoteTts >= REMOTE_TTS_TAIL_ON) tail = true;
+      else if (remoteTts <= REMOTE_TTS_TAIL_OFF) tail = false;
+      remoteTailAudibleRef.current = tail;
+
+      const gate = ttsPlayingRef.current || tail;
+      ttsUiGateRef.current = gate;
+      if (gate !== ttsOutputUiLastRef.current) {
+        ttsOutputUiLastRef.current = gate;
+        setTtsOutputActive(gate);
+      }
+
       const fakeTts = ttsPlayingRef.current ? 0.35 + Math.sin(Date.now() / 210) * 0.12 : 0;
-      setTtsLevel(fakeTts);
+      const ttsBar = remoteTts > 0.003 ? Math.min(1, Math.max(remoteTts * 1.2, fakeTts * 0.35)) : fakeTts;
+      setTtsLevel(ttsBar);
+
       rafRef.current = requestAnimationFrame(tickMeter);
     };
 
     const run = async () => {
       try {
         setStatus("연결 중…");
+
+        const secretPayload = {
+          character_key: characterKey,
+          session_id: sessionId,
+          manse_context: buildManseContext(),
+        };
+        const secretResultPromise = fetch("/api/voice/openai-realtime/client-secret", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(secretPayload),
+        }).then(async (res) => ({
+          ok: res.ok,
+          json: (await res.json().catch(() => ({}))) as {
+            ok?: boolean;
+            value?: string;
+            error?: string;
+            details?: string;
+          },
+        }));
+
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false },
         });
@@ -448,17 +524,8 @@ export default function CallDccPageClient() {
         if (!audioTrack) throw new Error("마이크 트랙 없음");
         audioTrack.enabled = !mutedRef.current;
 
-        const secretRes = await fetch("/api/voice/openai-realtime/client-secret", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            character_key: characterKey,
-            session_id: sessionId,
-            manse_context: buildManseContext(),
-          }),
-        });
-        const secretJson = (await secretRes.json().catch(() => ({}))) as { ok?: boolean; value?: string; error?: string; details?: string };
-        if (!secretRes.ok || !secretJson.ok || !secretJson.value) {
+        const { ok: secretOk, json: secretJson } = await secretResultPromise;
+        if (!secretOk || !secretJson.ok || !secretJson.value) {
           throw new Error(secretJson.details || secretJson.error || "Realtime 토큰 발급 실패");
         }
         const EPHEMERAL_KEY = String(secretJson.value);
@@ -477,6 +544,43 @@ export default function CallDccPageClient() {
           remoteAudio.srcObject = ms;
           remoteAudio.muted = speakerMutedRef.current;
           void remoteAudio.play().catch(() => {});
+
+          const ctxTap = audioCtxRef.current;
+          if (!ctxTap || !ms.getAudioTracks().length) return;
+          try {
+            disconnectRemoteTtsTapRef.current?.();
+            disconnectRemoteTtsTapRef.current = null;
+            const src = ctxTap.createMediaStreamSource(ms);
+            const an = ctxTap.createAnalyser();
+            an.fftSize = 1024;
+            an.smoothingTimeConstant = 0.42;
+            const silent = ctxTap.createGain();
+            silent.gain.value = 0;
+            src.connect(an);
+            an.connect(silent);
+            silent.connect(ctxTap.destination);
+            ttsRemoteAnalyserRef.current = an;
+            disconnectRemoteTtsTapRef.current = () => {
+              try {
+                src.disconnect();
+              } catch {
+                // ignore
+              }
+              try {
+                an.disconnect();
+              } catch {
+                // ignore
+              }
+              try {
+                silent.disconnect();
+              } catch {
+                // ignore
+              }
+              ttsRemoteAnalyserRef.current = null;
+            };
+          } catch {
+            // ignore
+          }
         };
 
         pc.addTrack(audioTrack);
@@ -572,13 +676,11 @@ export default function CallDccPageClient() {
 
           if (ty === "response.created" || ty === "response.output_audio.started") {
             ttsPlayingRef.current = true;
-            setTtsPlaying(true);
             setActiveLine("tts");
           }
 
           if (ty === "response.done") {
             ttsPlayingRef.current = false;
-            setTtsPlaying(false);
             setStatus("듣는 중");
             const assistantText = extractAssistantFromResponseDone(msg);
             if (assistantText) void appendTurn("assistant", assistantText);
@@ -592,7 +694,7 @@ export default function CallDccPageClient() {
             if (delta) {
               userSttPartialByItemRef.current[id] = (userSttPartialByItemRef.current[id] ?? "") + delta;
               setLastUserText(userSttPartialByItemRef.current[id]);
-              setActiveLine("stt");
+              if (!ttsUiGateRef.current) setActiveLine("stt");
             }
           }
 
@@ -669,6 +771,16 @@ export default function CallDccPageClient() {
       }
       remoteAudioRef.current = null;
       ttsPlayingRef.current = false;
+      remoteTailAudibleRef.current = false;
+      ttsUiGateRef.current = false;
+      ttsOutputUiLastRef.current = false;
+      setTtsOutputActive(false);
+      try {
+        disconnectRemoteTtsTapRef.current?.();
+      } catch {
+        // ignore
+      }
+      disconnectRemoteTtsTapRef.current = null;
       try {
         micAnalyserRef.current?.disconnect();
       } catch {
@@ -729,7 +841,7 @@ export default function CallDccPageClient() {
             <h1 className="y-call-name">{meta.name}</h1>
             <div className="y-call-status">
               <span className="y-call-status-text">
-                {ttsPlaying ? `${meta.name}가 말하고 있어요` : rtcReady ? status : "연결 중…"}
+                {ttsOutputActive ? `${meta.name}가 말하고 있어요` : rtcReady ? status : "연결 중…"}
               </span>
               <span className="pulse-dots" aria-hidden="true">
                 <span />
@@ -741,7 +853,7 @@ export default function CallDccPageClient() {
 
           <div className="y-call-wave-dual" aria-label="듀얼 파형">
             <div
-              className={`y-wave-line tts ${activeLine === "tts" || ttsPlaying ? "active" : ""}`}
+              className={`y-wave-line tts ${activeLine === "tts" || ttsOutputActive ? "active" : ""}`}
               onClick={() => setActiveLine("tts")}
             >
               <div className="y-wave-tag">
@@ -766,7 +878,7 @@ export default function CallDccPageClient() {
               </div>
             </div>
             <div
-              className={`y-wave-line stt ${activeLine === "stt" || (!ttsPlaying && micLevel > MOBILE_STT_WAVE_ACTIVATE_MIN) ? "active" : ""}`}
+              className={`y-wave-line stt ${activeLine === "stt" || (!ttsOutputActive && micLevel > MOBILE_STT_WAVE_ACTIVATE_MIN) ? "active" : ""}`}
               onClick={() => setActiveLine("stt")}
             >
               <div className="y-wave-tag">

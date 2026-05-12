@@ -21,12 +21,14 @@ export function AdminCharacterModePromptEditor({
   row,
   defaultTitle,
   ttsVoiceOptions,
+  adminTtsPreviewToken,
 }: {
   character: Row;
   mode: "voice" | "fortune_text" | "chat_text";
   row?: Row;
   defaultTitle: string;
   ttsVoiceOptions?: TtsVoiceOption[];
+  adminTtsPreviewToken?: string | null;
 }) {
   const summary = mode === "voice" ? "음성 상담형" : mode === "fortune_text" ? "텍스트 점사형" : "텍스트 채팅형";
   const defaultVoiceId = row?.tts_voice_id != null ? text(row.tts_voice_id, "") : "";
@@ -81,7 +83,12 @@ export function AdminCharacterModePromptEditor({
         <textarea name="prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="캐릭터 프롬프트" />
         {mode === "voice" && ttsVoiceOptions ? (
           <div className="y-admin-voice-prompt-foot">
-            <VoiceCharacterPromptTtsFields voices={ttsVoiceOptions} defaultVoiceId={defaultVoiceId} isActiveDefault={String(row?.is_active ?? true)} />
+            <VoiceCharacterPromptTtsFields
+              voices={ttsVoiceOptions}
+              defaultVoiceId={defaultVoiceId}
+              isActiveDefault={String(row?.is_active ?? true)}
+              adminTtsPreviewToken={adminTtsPreviewToken}
+            />
             <button type="submit" disabled={busy}>
               {busy ? "저장 중…" : "프롬프트 저장"}
             </button>

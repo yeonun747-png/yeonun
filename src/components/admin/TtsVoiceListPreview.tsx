@@ -2,7 +2,18 @@
 
 import { useRef, useState } from "react";
 
-export function TtsVoiceListPreview({ externalId, provider = "cartesia" }: { externalId: string; provider?: string }) {
+import { ADMIN_TTS_PREVIEW_HEADER } from "@/lib/admin-tts-preview-constants";
+
+export function TtsVoiceListPreview({
+  externalId,
+  provider = "cartesia",
+  adminTtsPreviewToken,
+}: {
+  externalId: string;
+  provider?: string;
+  /** SSR에서 발급된 단기 토큰(쿠키가 fetch에 안 실리는 클라이언트 대비) */
+  adminTtsPreviewToken?: string | null;
+}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -34,7 +45,10 @@ export function TtsVoiceListPreview({ externalId, provider = "cartesia" }: { ext
       const res = await fetch(isOpenAi ? "/api/tts/openai/speech" : "/api/tts/cartesia/preview", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminTtsPreviewToken ? { [ADMIN_TTS_PREVIEW_HEADER]: adminTtsPreviewToken } : {}),
+        },
         body: JSON.stringify(
           isOpenAi
             ? { voice: externalId, input: "안녕하세요. 연운 음성 미리듣기입니다." }
@@ -43,7 +57,13 @@ export function TtsVoiceListPreview({ externalId, provider = "cartesia" }: { ext
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error || res.statusText);
+        const base = j.error || res.statusText;
+        if (res.status === 401) {
+          throw new Error(
+            `${base} — /admin/login 에서 이 기기에서도 로그인했는지 확인하세요. (세션 만료 시 새로고침)`,
+          );
+        }
+        throw new Error(base);
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

@@ -1,18 +1,12 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
+import { isAdminTtsPreviewAuthorized } from "@/lib/admin-tts-preview-token";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ADMIN_COOKIE = "yeonun_admin";
-
-async function requireAdminPreview(): Promise<boolean> {
-  if (!process.env.ADMIN_PASSWORD) return true;
-  const jar = await cookies();
-  return jar.get(ADMIN_COOKIE)?.value === "1";
-}
-
 export async function POST(request: Request) {
-  if (!(await requireAdminPreview())) {
+  if (!(await isAdminTtsPreviewAuthorized(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

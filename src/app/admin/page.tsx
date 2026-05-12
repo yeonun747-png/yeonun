@@ -1,5 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 
+import { createAdminTtsPreviewToken } from "@/lib/admin-tts-preview-token";
+
 import { AdminCharacterModePromptEditor } from "@/components/admin/AdminCharacterModePromptEditor";
 import { AdminServicePromptForm } from "@/components/admin/AdminServicePromptForm";
 import { AdminWorkspace } from "@/components/admin/AdminWorkspace";
@@ -112,6 +114,8 @@ export default async function AdminHomePage() {
       readRows("voice_sessions", "id,character_key,status,started_at,ended_at,duration_sec,cost_krw,summary", "started_at", 20),
       readRows("fortune_requests", "id,product_slug,status,model,created_at", "created_at", 20),
     ]);
+
+  const adminTtsPreviewToken = await createAdminTtsPreviewToken();
 
   const ttsVoiceOptionsActive: TtsVoiceOption[] = ttsVoices.rows
     .filter((r) => r.is_active !== false)
@@ -309,7 +313,7 @@ export default async function AdminHomePage() {
               row={servicePrompts.rows.find((p) => text(p.key) === "yeonun_common_system")}
             />
           </div>
-          <TtsVoicesRegistry data={ttsVoices} />
+          <TtsVoicesRegistry data={ttsVoices} adminTtsPreviewToken={adminTtsPreviewToken} />
           <CrudSection
             id="admin-character-voice-prompts"
             title="캐릭터별 프롬프트 — 음성 상담형"
@@ -327,6 +331,7 @@ export default async function AdminHomePage() {
                   row={row}
                   defaultTitle={`${text(c.name)} — 음성 상담형`}
                   ttsVoiceOptions={ttsVoiceOptionsActive}
+                  adminTtsPreviewToken={adminTtsPreviewToken}
                 />
               );
             })}
@@ -578,7 +583,13 @@ function PersonaEditor({ character, persona }: { character: Row; persona?: Row }
   );
 }
 
-function TtsVoicesRegistry({ data }: { data: { rows: Row[]; ready: boolean; error?: string } }) {
+function TtsVoicesRegistry({
+  data,
+  adminTtsPreviewToken,
+}: {
+  data: { rows: Row[]; ready: boolean; error?: string };
+  adminTtsPreviewToken?: string | null;
+}) {
   if (!data.ready) {
     return (
       <CrudSection id="admin-tts-voices" title="보이스 미리듣기">
@@ -599,7 +610,7 @@ function TtsVoicesRegistry({ data }: { data: { rows: Row[]; ready: boolean; erro
               등록된 OpenAI Realtime 보이스가 없습니다.
             </p>
           ) : (
-            openai.map((r) => <TtsVoiceEditor key={text(r.id)} row={r} />)
+            openai.map((r) => <TtsVoiceEditor key={text(r.id)} row={r} adminTtsPreviewToken={adminTtsPreviewToken} />)
           )}
         </div>
       </div>
@@ -607,7 +618,7 @@ function TtsVoicesRegistry({ data }: { data: { rows: Row[]; ready: boolean; erro
   );
 }
 
-function TtsVoiceEditor({ row }: { row: Row }) {
+function TtsVoiceEditor({ row, adminTtsPreviewToken }: { row: Row; adminTtsPreviewToken?: string | null }) {
   return (
     <details className="y-admin-editor mini" suppressHydrationWarning>
       <summary>
@@ -616,7 +627,11 @@ function TtsVoiceEditor({ row }: { row: Row }) {
           <em>sort {text(row.sort_order)}</em>
         </span>
         <span className="y-admin-tts-summary-actions">
-          <TtsVoiceListPreview externalId={text(row.external_id, "")} provider={text(row.provider, "cartesia")} />
+          <TtsVoiceListPreview
+            externalId={text(row.external_id, "")}
+            provider={text(row.provider, "cartesia")}
+            adminTtsPreviewToken={adminTtsPreviewToken}
+          />
           <form action="/admin/tts-voices/toggle-active" method="post">
             <input type="hidden" name="id" value={text(row.id, "")} />
             <input type="hidden" name="is_active" value={row.is_active === false ? "true" : "false"} />

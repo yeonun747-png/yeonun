@@ -2,16 +2,20 @@
 
 import { useMemo, useRef, useState } from "react";
 
+import { ADMIN_TTS_PREVIEW_HEADER } from "@/lib/admin-tts-preview-constants";
+
 export type TtsVoiceOption = { id: string; label: string; external_id: string; provider?: string };
 
 export function VoiceCharacterPromptTtsFields({
   voices,
   defaultVoiceId,
   isActiveDefault,
+  adminTtsPreviewToken,
 }: {
   voices: TtsVoiceOption[];
   defaultVoiceId: string;
   isActiveDefault: string;
+  adminTtsPreviewToken?: string | null;
 }) {
   const [voiceId, setVoiceId] = useState(defaultVoiceId);
   const [busy, setBusy] = useState(false);
@@ -49,7 +53,10 @@ export function VoiceCharacterPromptTtsFields({
       const res = await fetch(isOpenAi ? "/api/tts/openai/speech" : "/api/tts/cartesia/preview", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminTtsPreviewToken ? { [ADMIN_TTS_PREVIEW_HEADER]: adminTtsPreviewToken } : {}),
+        },
         body: JSON.stringify(
           isOpenAi
             ? { voice: externalId, input: "안녕하세요. 연운 음성 미리듣기입니다." }
@@ -58,7 +65,13 @@ export function VoiceCharacterPromptTtsFields({
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error || res.statusText);
+        const base = j.error || res.statusText;
+        if (res.status === 401) {
+          throw new Error(
+            `${base} — /admin/login 에서 이 기기에서도 로그인했는지 확인하세요. (세션 만료 시 새로고침)`,
+          );
+        }
+        throw new Error(base);
       }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

@@ -23,6 +23,45 @@ const CHARACTER_SPEC_KO: Record<string, string> = {
   un: "작명 · 택일 · 꿈해몽",
 };
 
+/** OPENAI_REALTIME_INTERRUPT_RESPONSE 미지정 시 true — 바지인(말로 끊기) 허용. 오탐만 줄이려면 env에 false */
+function envBool(raw: string | undefined, defaultValue: boolean): boolean {
+  const t = String(raw ?? "").trim().toLowerCase();
+  if (t === "true" || t === "1" || t === "yes" || t === "on") return true;
+  if (t === "false" || t === "0" || t === "no" || t === "off") return false;
+  return defaultValue;
+}
+
+/** Realtime audio.input: semantic VAD + (선택) 노이즈 감쇠로 VAD 오탐 완화 */
+function buildRealtimeAudioInput(): Record<string, unknown> {
+  const eagernessRaw = String(process.env.OPENAI_REALTIME_SEMANTIC_VAD_EAGERNESS ?? "").trim().toLowerCase();
+  const eagernessOk = new Set(["low", "medium", "high", "auto"]);
+  const eagerness = eagernessOk.has(eagernessRaw) ? eagernessRaw : "low";
+
+  const interrupt_response = envBool(process.env.OPENAI_REALTIME_INTERRUPT_RESPONSE, true);
+
+  const nrRaw = String(process.env.OPENAI_REALTIME_INPUT_NOISE_REDUCTION ?? "").trim().toLowerCase();
+  let noise_reduction: { type: "near_field" | "far_field" } | undefined;
+  if (nrRaw === "off" || nrRaw === "none" || nrRaw === "0") {
+    noise_reduction = undefined;
+  } else if (nrRaw === "near_field" || nrRaw === "far_field") {
+    noise_reduction = { type: nrRaw };
+  } else {
+    noise_reduction = { type: "far_field" };
+  }
+
+  const input: Record<string, unknown> = {
+    format: { type: "audio/pcm", rate: 24000 },
+    turn_detection: {
+      type: "semantic_vad",
+      eagerness,
+      interrupt_response,
+    },
+    transcription: { model: "gpt-4o-mini-transcribe", language: "ko" },
+  };
+  if (noise_reduction) input.noise_reduction = noise_reduction;
+  return input;
+}
+
 type Body = {
   character_key?: string;
   session_id?: string;
@@ -131,12 +170,7 @@ export async function POST(request: Request) {
       tool_choice: "auto",
       output_modalities: ["audio"],
       audio: {
-        input: {
-          format: { type: "audio/pcm", rate: 24000 },
-          turn_detection: { type: "semantic_vad" },
-          // 꺼 두면 클라이언트에 전사 이벤트가 오지 않음 → "내가 방금 한 말" 박스용
-          transcription: { model: "gpt-4o-mini-transcribe", language: "ko" },
-        },
+        input: buildRealtimeAudioInput(),
         output: {
           format: { type: "audio/pcm", rate: 24000 },
           voice: voiceId,
