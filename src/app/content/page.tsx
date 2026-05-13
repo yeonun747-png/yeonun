@@ -192,10 +192,6 @@ export default async function ContentPage({
           )}
         </div>
 
-        <Link className="yReviewMore" href={contentListHref("all", sort)} style={{ marginBottom: 20 }}>
-          전체 {total}개 보기 →
-        </Link>
-
         <div style={{ height: 80 }} />
       </main>
       <BottomNav />

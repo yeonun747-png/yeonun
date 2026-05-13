@@ -1,6 +1,5 @@
 type CharKey = "yeon" | "byeol" | "yeo" | "un";
 
-import Link from "next/link";
 import { SheetLink } from "@/components/SheetLink";
 
 const CHAR: Record<
@@ -164,9 +163,6 @@ export function CharacterCarousel() {
         <h2 className="ySectionTitle">
           <span className="hash">#</span> 오늘의 인연 안내자
         </h2>
-        <Link className="ySectionMore" href="/meet">
-          전체 보기
-        </Link>
       </div>
 
       <div className="yCarousel">

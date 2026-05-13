@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+import { SearchOverlayTrigger } from "@/components/search/SearchOverlay";
+
 export function TopNav() {
   const router = useRouter();
   const pathname = usePathname();
@@ -35,12 +37,7 @@ export function TopNav() {
         <Link className="yBtnLogin" href="/?modal=auth">
           로그인
         </Link>
-        <Link className="yBtnIcon" href="/search" aria-label="검색">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <circle cx="11" cy="11" r="7" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-        </Link>
+        <SearchOverlayTrigger />
       </div>
     </nav>
   );
