@@ -104,23 +104,6 @@ export function ChatConsultModal() {
 
   const refreshCredits = useCallback(() => setCredits(spendableTotalCredits()), []);
 
-  /** 입력 가능(readOnly 아님)일 때만 포커스 + 캐럿 — busy일 땐 blur로 캐럿 없음 */
-  const restoreInputCaret = useCallback(() => {
-    queueMicrotask(() => {
-      requestAnimationFrame(() => {
-        const el = taRef.current;
-        if (!el || el.disabled) return;
-        el.focus({ preventScroll: true });
-        try {
-          const n = el.value.length;
-          el.setSelectionRange(n, n);
-        } catch {
-          /* 일부 환경에서 빈 값 등에서 무시 */
-        }
-      });
-    });
-  }, []);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const syncCredits = () => setCredits(spendableTotalCredits());
@@ -457,11 +440,6 @@ export function ChatConsultModal() {
     resizeTa();
   }, [input]);
 
-  useLayoutEffect(() => {
-    if (shortBalance || typing) return;
-    restoreInputCaret();
-  }, [sessionId, shortBalance, typing, restoreInputCaret]);
-
   /** 긴 대화·스트리밍 시 스레드가 맨 아래를 따라가도록 */
   useLayoutEffect(() => {
     const el = threadRef.current;
@@ -511,7 +489,6 @@ export function ChatConsultModal() {
     };
     const asstId = uid();
     setInput("");
-    restoreInputCaret();
     setMessages((prev) => [...prev, userMsg]);
 
     const manse = buildManseContextString();
