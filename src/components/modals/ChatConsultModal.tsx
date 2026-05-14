@@ -189,11 +189,21 @@ export function ChatConsultModal() {
       initialHeight = window.innerHeight;
     };
 
-    const inputEl = taRef.current;
-    if (inputEl) {
-      inputEl.addEventListener("focus", handleFocus, { passive: true });
-      inputEl.addEventListener("blur", handleBlur, { passive: true });
-    }
+    let inputEl: HTMLTextAreaElement | HTMLInputElement | null = null;
+    const attach = () => {
+      const el =
+        composerRef.current?.querySelector<HTMLTextAreaElement>("textarea") ??
+        composerRef.current?.querySelector<HTMLInputElement>("input");
+      if (el && !inputEl) {
+        inputEl = el;
+        inputEl.addEventListener("focus", handleFocus, { passive: true });
+        inputEl.addEventListener("blur", handleBlur, { passive: true });
+      }
+    };
+    attach();
+    const attachRafId = window.requestAnimationFrame(() => {
+      if (!inputEl) attach();
+    });
 
     let onViewportChange: (() => void) | null = null;
     if (window.visualViewport) {
@@ -219,6 +229,7 @@ export function ChatConsultModal() {
         inputEl.removeEventListener("focus", handleFocus);
         inputEl.removeEventListener("blur", handleBlur);
       }
+      window.cancelAnimationFrame(attachRafId);
       if (focusRafId != null) window.cancelAnimationFrame(focusRafId);
     };
   }, []);
@@ -705,6 +716,8 @@ export function ChatConsultModal() {
           onMouseDown={(e) => e.stopPropagation()}
           style={{
             transform: keyboardHeight > 0 ? `translateY(-${keyboardHeight}px)` : "translateY(0)",
+            paddingBottom: keyboardHeight > 0 ? "6px" : "max(env(safe-area-inset-bottom, 0px), 12px)",
+            paddingTop: keyboardHeight > 0 ? "6px" : "10px",
           }}
         >
           <div className="y-chat-consult-foot-inner">
