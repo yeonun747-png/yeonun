@@ -91,6 +91,7 @@ export function ChatConsultModal() {
   const taRef = useRef<HTMLTextAreaElement | null>(null);
   const consultSheetRef = useRef<HTMLDivElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatConsultMessage[]>([]);
@@ -107,7 +108,7 @@ export function ChatConsultModal() {
     queueMicrotask(() => {
       requestAnimationFrame(() => {
         const el = taRef.current;
-        if (!el || el.disabled || el.readOnly) return;
+        if (!el || el.disabled) return;
         el.focus({ preventScroll: true });
         try {
           const n = el.value.length;
@@ -174,6 +175,7 @@ export function ChatConsultModal() {
       updateKeyboardHeight();
       const el = threadRef.current;
       if (el) el.scrollTop = el.scrollHeight;
+      threadEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
     };
 
     const handleBlur = () => {
@@ -429,19 +431,16 @@ export function ChatConsultModal() {
   }, [input]);
 
   useLayoutEffect(() => {
-    if (busy) {
-      taRef.current?.blur();
-      return;
-    }
     if (shortBalance || typing) return;
     restoreInputCaret();
-  }, [sessionId, shortBalance, busy, typing, restoreInputCaret]);
+  }, [sessionId, shortBalance, typing, restoreInputCaret]);
 
   /** 긴 대화·스트리밍 시 스레드가 맨 아래를 따라가도록 */
   useLayoutEffect(() => {
     const el = threadRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
+    threadEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
   }, [messages, typing, busy]);
 
   useEffect(() => {
@@ -449,6 +448,7 @@ export function ChatConsultModal() {
     if (!el) return;
     const run = () => {
       el.scrollTop = el.scrollHeight;
+      threadEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
     };
     const raf = window.requestAnimationFrame(() => {
       window.requestAnimationFrame(run);
@@ -484,6 +484,7 @@ export function ChatConsultModal() {
     };
     const asstId = uid();
     setInput("");
+    restoreInputCaret();
     setMessages((prev) => [...prev, userMsg]);
 
     const manse = buildManseContextString();
@@ -678,6 +679,13 @@ export function ChatConsultModal() {
               </div>
             </div>
           ) : null}
+          <div
+            ref={threadEndRef}
+            style={{
+              height: 1,
+              scrollMarginBottom: `${Math.max(0, keyboardHeight) + Math.max(0, composerHeight) + 12}px`,
+            }}
+          />
         </div>
 
         {streamError ? (
@@ -694,52 +702,53 @@ export function ChatConsultModal() {
         <footer
           ref={composerRef}
           className="y-chat-consult-foot"
+          onMouseDown={(e) => e.stopPropagation()}
           style={{
             transform: keyboardHeight > 0 ? `translateY(-${keyboardHeight}px)` : "translateY(0)",
-            paddingBottom: keyboardHeight > 0 ? "6px" : "max(env(safe-area-inset-bottom, 0px), 12px)",
-            paddingTop: keyboardHeight > 0 ? "6px" : "10px",
           }}
         >
-          {shortBalance ? (
-            <div className="y-chat-consult-low">
-              <p>
-                크레딧이 부족해요. {needMore.toLocaleString("ko-KR")} 크레딧이 필요해요.
-              </p>
-              <button type="button" className="y-chat-consult-charge-btn" onClick={openCharge}>
-                크레딧 충전하기
+          <div className="y-chat-consult-foot-inner">
+            {shortBalance ? (
+              <div className="y-chat-consult-low">
+                <p>
+                  크레딧이 부족해요. {needMore.toLocaleString("ko-KR")} 크레딧이 필요해요.
+                </p>
+                <button type="button" className="y-chat-consult-charge-btn" onClick={openCharge}>
+                  크레딧 충전하기
+                </button>
+              </div>
+            ) : null}
+            <div className="y-chat-consult-input-row">
+              <textarea
+                ref={taRef}
+                className="y-chat-consult-ta"
+                rows={1}
+                maxLength={4000}
+                placeholder="메시지를 입력하세요..."
+                value={input}
+                autoCorrect="off"
+                autoCapitalize="off"
+                autoComplete="off"
+                enterKeyHint="send"
+                disabled={shortBalance}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+              />
+              <button
+                type="button"
+                className="y-chat-consult-send"
+                aria-label="전송"
+                disabled={busy || shortBalance || !input.trim()}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  void send();
+                }}
+              >
+                <svg className="y-chat-consult-send-icon" viewBox="0 0 24 24" aria-hidden>
+                  <path fill="currentColor" d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
               </button>
             </div>
-          ) : null}
-          <div className="y-chat-consult-input-row">
-            <textarea
-              ref={taRef}
-              className="y-chat-consult-ta"
-              rows={1}
-              maxLength={4000}
-              placeholder="메시지를 입력하세요..."
-              value={input}
-              autoCorrect="off"
-              autoCapitalize="off"
-              autoComplete="off"
-              enterKeyHint="send"
-              readOnly={busy}
-              disabled={shortBalance}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-            />
-            <button
-              type="button"
-              className="y-chat-consult-send"
-              aria-label="전송"
-              disabled={busy || shortBalance || !input.trim()}
-              onClick={() => {
-                void send();
-              }}
-            >
-              <svg className="y-chat-consult-send-icon" viewBox="0 0 24 24" aria-hidden>
-                <path fill="currentColor" d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" />
-              </svg>
-            </button>
           </div>
         </footer>
       </div>
