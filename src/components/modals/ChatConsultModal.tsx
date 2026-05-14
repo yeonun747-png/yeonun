@@ -23,7 +23,6 @@ import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
 import { spendableTotalCredits, trySpendChatMessageCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
 import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
-import { useVisualViewportSheetInset } from "@/hooks/useVisualViewportSheetInset";
 
 const CHAR_NAME: Record<string, string> = {
   yeon: "연화",
@@ -80,23 +79,26 @@ export function ChatConsultModal() {
     return m[characterKey] ?? "緣";
   }, [characterKey]);
 
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(() => spendableTotalCredits());
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatConsultMessage[]>([]);
   const [input, setInput] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(72);
   const [busy, setBusy] = useState(false);
   const [typing, setTyping] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
-  const consultRootRef = useRef<HTMLDivElement | null>(null);
   const consultSheetRef = useRef<HTMLDivElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
-  useVisualViewportSheetInset(consultRootRef, consultSheetRef);
+  const composerRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef<ChatConsultMessage[]>([]);
   messagesRef.current = messages;
   /** LS에 아직 없는 신규 세션 껍데(첫 append 시 ensureSession으로 기록) */
   const pendingSessionRef = useRef<ChatConsultSession | null>(null);
+  const isInputFocusedRef = useRef(false);
+  const lastKeyboardHeightRef = useRef(0);
 
   const refreshCredits = useCallback(() => setCredits(spendableTotalCredits()), []);
 
@@ -118,27 +120,150 @@ export function ChatConsultModal() {
   }, []);
 
   useEffect(() => {
-    refreshCredits();
-    const on = () => refreshCredits();
+    if (typeof window === "undefined") return;
+    const syncCredits = () => setCredits(spendableTotalCredits());
+    const rafId = window.requestAnimationFrame(syncCredits);
+    const on = () => syncCredits();
     window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, on);
-    return () => window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, on);
-  }, [refreshCredits]);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, on);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (resumeId) {
-      pendingSessionRef.current = null;
-      const s = chatConsultGetSession(resumeId);
-      if (s && s.character_key === characterKey) {
-        setSessionId(s.id);
-        setMessages(s.messages);
-        return;
+
+    let initialHeight = window.innerHeight;
+    let focusRafId: number | null = null;
+
+    const calcKeyboardHeight = () => {
+      if (window.visualViewport) {
+        const viewport = window.visualViewport;
+        const viewportBottom = viewport.offsetTop + viewport.height;
+        const nextKeyboardHeight = window.innerHeight - viewportBottom;
+        return nextKeyboardHeight > 20 ? nextKeyboardHeight : 0;
       }
+      const heightDiff = initialHeight - window.innerHeight;
+      return heightDiff > 20 ? heightDiff : 0;
+    };
+
+    const updateKeyboardHeight = () => {
+      const next = calcKeyboardHeight();
+      if (Math.abs(next - lastKeyboardHeightRef.current) < 2) return;
+      lastKeyboardHeightRef.current = next;
+      setKeyboardHeight(next);
+    };
+
+    const handleFocus = () => {
+      isInputFocusedRef.current = true;
+      if (focusRafId != null) {
+        window.cancelAnimationFrame(focusRafId);
+        focusRafId = null;
+      }
+      const start = performance.now();
+      const tick = () => {
+        updateKeyboardHeight();
+        if (performance.now() - start < 600) {
+          focusRafId = window.requestAnimationFrame(tick);
+        } else {
+          focusRafId = null;
+        }
+      };
+      focusRafId = window.requestAnimationFrame(tick);
+      updateKeyboardHeight();
+      const el = threadRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    };
+
+    const handleBlur = () => {
+      isInputFocusedRef.current = false;
+      if (focusRafId != null) {
+        window.cancelAnimationFrame(focusRafId);
+        focusRafId = null;
+      }
+      lastKeyboardHeightRef.current = 0;
+      setKeyboardHeight(0);
+      initialHeight = window.innerHeight;
+    };
+
+    const inputEl = taRef.current;
+    if (inputEl) {
+      inputEl.addEventListener("focus", handleFocus, { passive: true });
+      inputEl.addEventListener("blur", handleBlur, { passive: true });
     }
-    const s = chatConsultNewSession(characterKey);
-    pendingSessionRef.current = s;
-    setSessionId(s.id);
-    setMessages(s.messages);
+
+    let onViewportChange: (() => void) | null = null;
+    if (window.visualViewport) {
+      onViewportChange = () => {
+        if (!isInputFocusedRef.current && lastKeyboardHeightRef.current === 0) return;
+        updateKeyboardHeight();
+      };
+      window.visualViewport.addEventListener("resize", onViewportChange, { passive: true });
+      window.visualViewport.addEventListener("scroll", onViewportChange, { passive: true });
+      updateKeyboardHeight();
+    } else {
+      window.addEventListener("resize", updateKeyboardHeight, { passive: true });
+    }
+
+    return () => {
+      if (window.visualViewport && onViewportChange) {
+        window.visualViewport.removeEventListener("resize", onViewportChange);
+        window.visualViewport.removeEventListener("scroll", onViewportChange);
+      } else {
+        window.removeEventListener("resize", updateKeyboardHeight);
+      }
+      if (inputEl) {
+        inputEl.removeEventListener("focus", handleFocus);
+        inputEl.removeEventListener("blur", handleBlur);
+      }
+      if (focusRafId != null) window.cancelAnimationFrame(focusRafId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const el = composerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const next = el.getBoundingClientRect().height;
+      setComposerHeight(Math.max(72, next));
+    };
+    update();
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => update());
+      ro.observe(el);
+    } else {
+      window.addEventListener("resize", update);
+    }
+
+    return () => {
+      if (ro) ro.disconnect();
+      else window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const rafId = window.requestAnimationFrame(() => {
+      if (resumeId) {
+        pendingSessionRef.current = null;
+        const s = chatConsultGetSession(resumeId);
+        if (s && s.character_key === characterKey) {
+          setSessionId(s.id);
+          setMessages(s.messages);
+          return;
+        }
+      }
+      const s = chatConsultNewSession(characterKey);
+      pendingSessionRef.current = s;
+      setSessionId(s.id);
+      setMessages(s.messages);
+    });
+    return () => window.cancelAnimationFrame(rafId);
   }, [characterKey, resumeId]);
 
   /** 신규 세션: Claude 첫 인사 스트림 — 저장 시 입장 크레딧 1회 차감(유저 메시지 없이 나가도 소진) */
@@ -319,6 +444,24 @@ export function ChatConsultModal() {
     el.scrollTop = el.scrollHeight;
   }, [messages, typing, busy]);
 
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!el) return;
+    const run = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    const raf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(run);
+    });
+    const t1 = window.setTimeout(run, 100);
+    const t2 = window.setTimeout(run, 350);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [keyboardHeight, composerHeight]);
+
   const openCharge = () => {
     close();
     router.push("/checkout/credit");
@@ -466,7 +609,6 @@ export function ChatConsultModal() {
   return (
     <YeonunSheetPortal>
     <div
-      ref={consultRootRef}
       className="y-modal open y-chat-consult-root"
       role="dialog"
       aria-modal="true"
@@ -495,7 +637,16 @@ export function ChatConsultModal() {
           </button>
         </header>
 
-        <div ref={threadRef} className="y-chat-consult-thread" role="log" aria-live="polite">
+        <div
+          ref={threadRef}
+          className="y-chat-consult-thread"
+          role="log"
+          aria-live="polite"
+          style={{
+            paddingBottom: `${Math.max(0, keyboardHeight) + Math.max(0, composerHeight) + 12}px`,
+            scrollPaddingBottom: `${Math.max(0, keyboardHeight) + Math.max(0, composerHeight) + 12}px`,
+          }}
+        >
           {messages.map((m) => {
             if (m.role === "system") {
               return (
@@ -529,9 +680,26 @@ export function ChatConsultModal() {
           ) : null}
         </div>
 
-        {streamError ? <div className="y-chat-consult-err">{streamError}</div> : null}
+        {streamError ? (
+          <div
+            className="y-chat-consult-err"
+            style={{
+              marginBottom: `${Math.max(0, keyboardHeight) + Math.max(0, composerHeight) + 8}px`,
+            }}
+          >
+            {streamError}
+          </div>
+        ) : null}
 
-        <footer className="y-chat-consult-foot">
+        <footer
+          ref={composerRef}
+          className="y-chat-consult-foot"
+          style={{
+            transform: keyboardHeight > 0 ? `translateY(-${keyboardHeight}px)` : "translateY(0)",
+            paddingBottom: keyboardHeight > 0 ? "6px" : "max(env(safe-area-inset-bottom, 0px), 12px)",
+            paddingTop: keyboardHeight > 0 ? "6px" : "10px",
+          }}
+        >
           {shortBalance ? (
             <div className="y-chat-consult-low">
               <p>
@@ -550,6 +718,10 @@ export function ChatConsultModal() {
               maxLength={4000}
               placeholder="메시지를 입력하세요..."
               value={input}
+              autoCorrect="off"
+              autoCapitalize="off"
+              autoComplete="off"
+              enterKeyHint="send"
               readOnly={busy}
               disabled={shortBalance}
               onChange={(e) => setInput(e.target.value)}

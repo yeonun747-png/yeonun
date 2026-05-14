@@ -1353,6 +1353,9 @@ ul {
   display: none;
   align-items: flex-end;
   justify-content: center;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  overflow-x: clip;
   animation: yModalFade 0.2s ease;
 }
 .y-modal.open {
@@ -1371,7 +1374,7 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
 }
 .y-modal-sheet {
   background: var(--y-bg);
-  width: 100%;
+  width: min(100%, 480px);
   max-width: 480px;
   max-height: 92vh;
   border-radius: 24px 24px 0 0;
@@ -2391,6 +2394,7 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 .y-chat-consult-head {
   flex-shrink: 0;
@@ -2398,6 +2402,7 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   align-items: center;
   gap: 12px;
   padding: 10px 16px 12px;
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
   border-bottom: 0.5px solid var(--y-line-2);
 }
 .y-chat-consult-avatar {
@@ -2452,6 +2457,7 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -2540,10 +2546,15 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   color: #c62828;
 }
 .y-chat-consult-foot {
-  flex-shrink: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
   border-top: 0.5px solid var(--y-line-2);
   padding: 10px 12px 16px;
   background: var(--y-card-2);
+  transition: transform 0.18s ease, padding 0.18s ease;
 }
 .y-chat-consult-low {
   margin-bottom: 10px;
