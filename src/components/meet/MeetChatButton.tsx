@@ -2,7 +2,7 @@
 
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { readAuthStubLoggedIn, YEONUN_AUTH_STUB_EVENT } from "@/lib/auth-stub";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 type Props = {
@@ -12,7 +12,7 @@ type Props = {
 };
 
 function useLoggedInClient() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(() => readAuthStubLoggedIn());
 
   const refresh = useCallback(async () => {
     if (readAuthStubLoggedIn()) {
@@ -25,9 +25,14 @@ function useLoggedInClient() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const rafId = window.requestAnimationFrame(() => {
+      void refresh();
+    });
     window.addEventListener(YEONUN_AUTH_STUB_EVENT, refresh);
-    return () => window.removeEventListener(YEONUN_AUTH_STUB_EVENT, refresh);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener(YEONUN_AUTH_STUB_EVENT, refresh);
+    };
   }, [refresh]);
 
   return loggedIn;
@@ -36,11 +41,13 @@ function useLoggedInClient() {
 export function MeetChatButton({ characterKey, className, children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const sp = useSearchParams();
   const loggedIn = useLoggedInClient();
 
+  const buildNextParams = () =>
+    new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+
   const openChat = () => {
-    const next = new URLSearchParams(sp.toString());
+    const next = buildNextParams();
     next.set("modal", "chat_consult");
     next.set("character_key", characterKey);
     next.delete("chat_session");
@@ -48,7 +55,7 @@ export function MeetChatButton({ characterKey, className, children }: Props) {
   };
 
   const openAuthThenChat = () => {
-    const next = new URLSearchParams(sp.toString());
+    const next = buildNextParams();
     next.set("modal", "auth");
     next.set("after_auth", `chat:${characterKey}`);
     router.push(`${pathname}?${next.toString()}`);

@@ -6,7 +6,6 @@ import { MeetCallButton } from "@/components/meet/MeetCallButton";
 import { MeetChatButton } from "@/components/meet/MeetChatButton";
 import { getCharacters } from "@/lib/data/characters";
 import Link from "next/link";
-import { Suspense } from "react";
 
 const PRESETS = [
   "그 사람과 다시 만날 수 있을까요",
@@ -84,39 +83,20 @@ export default async function MeetPage() {
                     </svg>
                     음성상담
                   </MeetCallButton>
-                  <Suspense
-                    fallback={
-                      <button type="button" className="y-meet-chat-btn" disabled>
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                        </svg>
-                        채팅상담
-                      </button>
-                    }
-                  >
-                    <MeetChatButton className="y-meet-chat-btn" characterKey={c.key}>
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                      </svg>
-                      채팅상담
-                    </MeetChatButton>
-                  </Suspense>
+                  <MeetChatButton className="y-meet-chat-btn" characterKey={c.key}>
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                    </svg>
+                    채팅상담
+                  </MeetChatButton>
                   <SheetLink className="y-meet-detail-btn y-meet-detail-btn--full" href={`/characters/${c.key}?sheet=1&from=meet`} scroll={false}>
                     자세히 보기
                   </SheetLink>
