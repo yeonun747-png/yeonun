@@ -2559,7 +2559,7 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   padding-right: calc(env(safe-area-inset-right, 0px) + 16px);
   border-top: 0.5px solid var(--y-line-2);
   background: var(--y-card-2);
-  transition: transform 0.18s ease, padding 0.18s ease;
+  will-change: transform;
 }
 .y-chat-consult-foot-inner {
   width: 100%;

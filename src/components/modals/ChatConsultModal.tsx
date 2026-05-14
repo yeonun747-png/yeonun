@@ -448,25 +448,6 @@ export function ChatConsultModal() {
     threadEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
   }, [messages, typing, busy]);
 
-  useEffect(() => {
-    const el = threadRef.current;
-    if (!el) return;
-    const run = () => {
-      el.scrollTop = el.scrollHeight;
-      threadEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-    };
-    const raf = window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(run);
-    });
-    const t1 = window.setTimeout(run, 100);
-    const t2 = window.setTimeout(run, 350);
-    return () => {
-      window.cancelAnimationFrame(raf);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [keyboardHeight, composerHeight]);
-
   const openCharge = () => {
     close();
     router.push("/checkout/credit");
