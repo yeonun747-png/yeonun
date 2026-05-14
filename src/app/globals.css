@@ -2291,6 +2291,8 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .y-meet-chat-btn svg {
   width: 14px;
