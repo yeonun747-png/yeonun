@@ -180,10 +180,6 @@ export default function MyPage() {
           <Link href="/legal/privacy" className="y-my-foot-link">
             개인정보처리방침
           </Link>
-          <span style={{ color: "var(--y-line-2)" }}>·</span>
-          <Link href="/legal/refund" className="y-my-foot-link">
-            환불정책
-          </Link>
           <div className="y-my-version">연운 v1.0.0 (2026.04.26)</div>
         </div>
 

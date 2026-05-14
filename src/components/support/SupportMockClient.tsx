@@ -44,10 +44,6 @@ export function SupportMockClient() {
             결제는 어떻게 진행되나요?
             <span>›</span>
           </MySheetLink>
-          <MySheetLink href={`/legal/refund?${SUP_Q}`} className="y-support-faq-item">
-            환불 정책은 어떻게 되나요?
-            <span>›</span>
-          </MySheetLink>
           <MySheetLink href={`/checkout/credit?${SUP_Q}`} className="y-support-faq-item">
             음성 크레딧은 어떻게 사용하나요?
             <span>›</span>

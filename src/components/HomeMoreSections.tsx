@@ -781,9 +781,6 @@ export async function HomeMoreSections() {
               <li>
                 <Link href="/legal/privacy">개인정보처리방침</Link>
               </li>
-              <li>
-                <Link href="/legal/refund">환불정책</Link>
-              </li>
             </ul>
           </div>
         </div>

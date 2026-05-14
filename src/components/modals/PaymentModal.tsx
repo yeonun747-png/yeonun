@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -17,6 +18,7 @@ import { readAuthStubLoggedIn } from "@/lib/auth-stub";
 import { firstChargeTotalCredits } from "@/lib/credit-policy";
 import { appendStubPayment } from "@/lib/payments-history-stub";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
 
 export function PaymentModal() {
   const { close } = useModalControls();
@@ -60,6 +62,24 @@ export function PaymentModal() {
   );
 
   const payLabel = `${price.toLocaleString("ko-KR")}원 결제하기`;
+  const currentHref = useMemo(() => {
+    const qs = sp.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, sp]);
+  const legalTermsHref = useMemo(
+    () => ({
+      pathname: "/legal/terms",
+      query: { back: currentHref, history: "1" },
+    }),
+    [currentHref],
+  );
+  const legalPrivacyHref = useMemo(
+    () => ({
+      pathname: "/legal/privacy",
+      query: { back: currentHref, history: "1" },
+    }),
+    [currentHref],
+  );
 
   const checkout = async () => {
     if (status === "loading") return;
@@ -269,13 +289,33 @@ export function PaymentModal() {
             <div className="y-pay-terms-row checked">
               <div className="y-pay-terms-check">✓</div>
               <div className="text">
-                [필수] <a href="/legal/terms">결제 약관</a> 동의
+                [필수]{" "}
+                <Link
+                  href={legalTermsHref}
+                  scroll={false}
+                  onClick={() => {
+                    rememberSheetBackdropScrollY();
+                  }}
+                >
+                  이용약관
+                </Link>{" "}
+                동의
               </div>
             </div>
             <div className="y-pay-terms-row checked">
               <div className="y-pay-terms-check">✓</div>
               <div className="text">
-                [필수] <a href="/legal/terms">전자상거래 약관</a> 동의
+                [필수]{" "}
+                <Link
+                  href={legalPrivacyHref}
+                  scroll={false}
+                  onClick={() => {
+                    rememberSheetBackdropScrollY();
+                  }}
+                >
+                  개인정보처리방침
+                </Link>{" "}
+                동의
               </div>
             </div>
           </div>

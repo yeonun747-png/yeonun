@@ -6532,8 +6532,17 @@ button.y-dw-listen:disabled {
 }
 .y-my-foot-link {
   font-size: 11px;
-  color: var(--y-mute);
-  text-decoration: none;
+  color: var(--y-rose);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  font-weight: 500;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+.y-my-foot-link:hover,
+.y-my-foot-link:focus-visible {
+  color: var(--y-rose-deep);
+  text-decoration-color: var(--y-rose-deep);
 }
 .y-my-version {
   margin-top: 10px;
@@ -6886,6 +6895,15 @@ button.y-dw-listen:disabled {
 .y-pay-terms-row a {
   color: var(--y-rose);
   text-decoration: underline;
+}
+.y-pay-terms-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--y-rose);
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
 }
 .y-pay-foot {
   position: sticky;
@@ -13347,4 +13365,93 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   background: var(--y-rose-soft);
   border-color: var(--y-rose-mid);
   color: var(--y-rose-deep);
+}
+
+.y-legal-doc {
+  color: var(--y-ink);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.y-legal-doc > div + div {
+  margin-top: 28px;
+}
+
+.y-legal-doc h3 {
+  margin: 0 0 12px;
+  font-family: "Noto Serif KR", serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--y-ink);
+}
+
+.y-legal-doc h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--y-ink);
+}
+
+.y-legal-doc p {
+  margin: 0 0 8px;
+}
+
+.y-legal-doc ol,
+.y-legal-doc ul {
+  margin: 0 0 10px 18px;
+  padding-left: 14px;
+}
+
+.y-legal-doc ol {
+  list-style: decimal;
+}
+
+.y-legal-doc ul {
+  list-style: disc;
+}
+
+.y-legal-doc li + li {
+  margin-top: 4px;
+}
+
+.y-legal-doc ol ol,
+.y-legal-doc ol ul,
+.y-legal-doc ul ol,
+.y-legal-doc ul ul {
+  margin-top: 8px;
+}
+
+.y-legal-doc table {
+  width: 100%;
+  margin: 12px 0;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: #fff;
+}
+
+.y-legal-doc th,
+.y-legal-doc td {
+  border: 1px solid var(--y-line-2);
+  padding: 10px 12px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.y-legal-doc thead th {
+  background: var(--y-card-2);
+  font-weight: 700;
+}
+
+.y-legal-doc-note {
+  padding: 12px 14px;
+  border: 1px solid #eadfa8;
+  border-radius: 12px;
+  background: #fff8dc;
+}
+
+.y-legal-doc-footnote {
+  padding-top: 14px;
+  border-top: 1px solid var(--y-line);
+  color: var(--y-mute);
+  font-size: 12px;
 }
