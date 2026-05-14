@@ -17,11 +17,19 @@ let lockedScrollY = 0;
  * 바텀업 시트를 body에 포털하여 .yeonunPage overflow 등으로 backdrop-filter가 깨지지 않게 함.
  * (마이탭 만세력 상세와 동일하게 뒤 화면이 블러·딤으로 보이도록)
  */
-export function YeonunSheetPortal({ children }: { children: ReactNode }) {
-  const [target, setTarget] = useState<HTMLElement | null>(null);
+export function YeonunSheetPortal({
+  children,
+  lockScroll = true,
+}: {
+  children: ReactNode;
+  lockScroll?: boolean;
+}) {
+  const [target] = useState<HTMLElement | null>(() => (typeof document !== "undefined" ? document.body : null));
 
   useLayoutEffect(() => {
-    setTarget(document.body);
+    if (!lockScroll) {
+      return;
+    }
     bodyScrollLockDepth += 1;
     if (bodyScrollLockDepth === 1) {
       lockedScrollY = window.scrollY;
@@ -43,6 +51,9 @@ export function YeonunSheetPortal({ children }: { children: ReactNode }) {
       document.body.style.width = "100%";
     }
     return () => {
+      if (!lockScroll) {
+        return;
+      }
       bodyScrollLockDepth -= 1;
       if (bodyScrollLockDepth === 0) {
         document.body.style.overflow = bodyOverflowBeforeLock;
@@ -55,7 +66,7 @@ export function YeonunSheetPortal({ children }: { children: ReactNode }) {
         window.scrollTo(0, lockedScrollY);
       }
     };
-  }, []);
+  }, [lockScroll]);
 
   if (!target) return <>{children}</>;
   return createPortal(children, target);

@@ -100,6 +100,7 @@ export function ChatConsultModal() {
   const pendingSessionRef = useRef<ChatConsultSession | null>(null);
   const isInputFocusedRef = useRef(false);
   const lastKeyboardHeightRef = useRef(0);
+  const baselineViewportHeightRef = useRef(0);
 
   const refreshCredits = useCallback(() => setCredits(spendableTotalCredits()), []);
 
@@ -135,17 +136,27 @@ export function ChatConsultModal() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    let initialHeight = window.innerHeight;
+    const readLayoutViewportHeight = () => {
+      const vv = window.visualViewport;
+      return Math.max(window.innerHeight, vv ? vv.offsetTop + vv.height : 0);
+    };
+
+    let initialHeight = readLayoutViewportHeight();
+    baselineViewportHeightRef.current = initialHeight;
     let focusRafId: number | null = null;
 
     const calcKeyboardHeight = () => {
+      const baseline = Math.max(baselineViewportHeightRef.current, initialHeight);
       if (window.visualViewport) {
         const viewport = window.visualViewport;
         const viewportBottom = viewport.offsetTop + viewport.height;
-        const nextKeyboardHeight = window.innerHeight - viewportBottom;
+        const nextKeyboardHeight = Math.max(
+          baseline - viewportBottom,
+          initialHeight - window.innerHeight,
+        );
         return nextKeyboardHeight > 20 ? nextKeyboardHeight : 0;
       }
-      const heightDiff = initialHeight - window.innerHeight;
+      const heightDiff = baseline - window.innerHeight;
       return heightDiff > 20 ? heightDiff : 0;
     };
 
@@ -158,6 +169,10 @@ export function ChatConsultModal() {
 
     const handleFocus = () => {
       isInputFocusedRef.current = true;
+      baselineViewportHeightRef.current = Math.max(
+        baselineViewportHeightRef.current,
+        readLayoutViewportHeight(),
+      );
       if (focusRafId != null) {
         window.cancelAnimationFrame(focusRafId);
         focusRafId = null;
@@ -165,7 +180,7 @@ export function ChatConsultModal() {
       const start = performance.now();
       const tick = () => {
         updateKeyboardHeight();
-        if (performance.now() - start < 600) {
+        if (performance.now() - start < 1200) {
           focusRafId = window.requestAnimationFrame(tick);
         } else {
           focusRafId = null;
@@ -186,7 +201,8 @@ export function ChatConsultModal() {
       }
       lastKeyboardHeightRef.current = 0;
       setKeyboardHeight(0);
-      initialHeight = window.innerHeight;
+      initialHeight = readLayoutViewportHeight();
+      baselineViewportHeightRef.current = initialHeight;
     };
 
     let inputEl: HTMLTextAreaElement | HTMLInputElement | null = null;
@@ -619,7 +635,7 @@ export function ChatConsultModal() {
   };
 
   return (
-    <YeonunSheetPortal>
+    <YeonunSheetPortal lockScroll={false}>
     <div
       className="y-modal open y-chat-consult-root"
       role="dialog"
