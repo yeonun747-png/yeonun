@@ -5,8 +5,11 @@ import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
 import { buildClaudeFortunePromptPieces } from "@/lib/fortune-claude-payload";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+/** `chat-stream-menus`와 동일 — 긴 단일 HTML 스트림이 플랫폼 기본 제한에서 잘리지 않도록 */
+export const maxDuration = 300;
 
 type ChatStreamBody = {
   product_slug?: string;

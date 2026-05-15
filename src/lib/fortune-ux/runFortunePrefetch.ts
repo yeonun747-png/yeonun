@@ -67,6 +67,8 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
   let claudeStreamStarted = false;
   let sectionsDoneEvent = false;
   let claudeDoneEvent = false;
+  /** pump 한 번 시작할 때마다 false로 초기화 — EOF 보정은 오류 스트림에 적용하지 않음 */
+  let pumpSawError = false;
 
   const flush = (complete: boolean) => {
     const payload: FortunePrefetchV1 = {
@@ -86,7 +88,10 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
   };
 
   const applyEv = (ev: FortuneStreamEvt) => {
-    if (ev.type === "error") return;
+    if (ev.type === "error") {
+      pumpSawError = true;
+      return;
+    }
     if (ev.type === "toc") {
       toc = ev.sections;
       toc_groups = ev.toc_groups?.length ? ev.toc_groups : null;
@@ -150,10 +155,14 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
         claudeStreamHtml = String(o.html ?? "");
         flush(true);
       }
+      if (typ === "error") {
+        pumpSawError = true;
+      }
     }
   };
 
   async function pumpSseBody(reader: ReadableStreamDefaultReader<Uint8Array>, mode: PumpMode): Promise<void> {
+    pumpSawError = false;
     const dec = new TextDecoder();
     let buf = "";
     const pump = async (): Promise<void> => {
@@ -191,10 +200,24 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
   if (menuStreamOk && res.body) {
     await pumpSseBody(res.body.getReader(), "sections");
     /**
-     * 스트림이 끊겼을 때 `done` 이벤트 없이 종료되면 complete 로 두면 안 됨.
-     * (이전: flush(doneIdx.size > 0) → section_end 가 하나라도 있으면 완료 처리 → 마지막 소메뉴 전에도 나가기 활성화)
-     * 모달 FortuneStreamModal 은 동일 상황에서 interrupted + 오류 문구로 처리한다.
+     * 업스트림이 마지막 `done` 없이 연결만 닫는 경우가 있어, TOC 길이만큼 본문이 모두 채워졌으면 완료로 기록한다.
+     * (빈 섹션이 하나라도 있으면 여전히 미완료)
      */
+    if (!sectionsDoneEvent && !signal.aborted && !pumpSawError && toc.length > 0) {
+      const n = toc.length;
+      let allFilled = true;
+      for (let i = 0; i < n; i++) {
+        if (!String(sectionHtml[i] ?? "").trim()) {
+          allFilled = false;
+          break;
+        }
+      }
+      if (allFilled) {
+        sectionsDoneEvent = true;
+        doneIdx = new Set(Array.from({ length: n }, (_, i) => i));
+        flush(true);
+      }
+    }
     if (!sectionsDoneEvent && !signal.aborted) flush(false);
     return;
   }
@@ -230,5 +253,16 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
 
   if (!res.ok || !res.body) return;
   await pumpSseBody(res.body.getReader(), "claude_html_stream");
-  if (!claudeDoneEvent && !signal.aborted) flush(false);
+  if (!claudeDoneEvent && !signal.aborted && !pumpSawError) {
+    const html = claudeStreamHtml.trim();
+    if (html.length >= 80 && claudeStreamStarted) {
+      claudeDoneEvent = true;
+      claudeStreamHtml = html;
+      flush(true);
+    } else {
+      flush(false);
+    }
+  } else if (!claudeDoneEvent && !signal.aborted) {
+    flush(false);
+  }
 }

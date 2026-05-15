@@ -116,6 +116,10 @@ export function FortuneStreamModal() {
   }>(null);
   const [promptPreviewError, setPromptPreviewError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** `chat-stream-menus` 섹션 모드: TOC 소메뉴 개수 — EOF 시 `done` 프레임 누락 보정용 */
+  const menuSectionCountRef = useRef(0);
+  /** pump 중 명시적 `error` SSE — 누락된 `done`만 보정하고 오류 스트림은 완료로 바꾸지 않음 */
+  const fortunePumpSawErrorRef = useRef(false);
   const sectionHtmlRef = useRef<Record<number, string>>({});
   const librarySaveStartedRef = useRef(false);
   const [librarySaved, setLibrarySaved] = useState(false);
@@ -158,6 +162,8 @@ export function FortuneStreamModal() {
       let buf = "";
       let sectionsDoneEvent = false;
       let claudeDoneEvent = false;
+
+      fortunePumpSawErrorRef.current = false;
 
       const flushClaudeHtmlStreamBlock = (block: string) => {
         const ensureClaudeHtmlStreamStarted = () => {
@@ -221,6 +227,7 @@ export function FortuneStreamModal() {
             setPhase("done");
           }
           if (typ === "error") {
+            fortunePumpSawErrorRef.current = true;
             setStreamError(String(o.error ?? o.message ?? "스트림 오류"));
           }
         }
@@ -228,10 +235,12 @@ export function FortuneStreamModal() {
 
       const applyEv = (ev: FortuneStreamEvt) => {
         if (ev.type === "error") {
+          fortunePumpSawErrorRef.current = true;
           setStreamError(ev.message ?? "스트림 오류가 발생했습니다.");
           return;
         }
         if (ev.type === "toc") {
+          menuSectionCountRef.current = ev.sections.length;
           setToc(ev.sections);
           setTocGroups(ev.toc_groups?.length ? ev.toc_groups : null);
           setPhase("toc_typing");
@@ -294,6 +303,51 @@ export function FortuneStreamModal() {
         await pump();
       };
       await pump();
+
+      /**
+       * 업스트림/프록시가 마지막 `{"type":"done"}` 없이 연결만 닫는 경우가 있어,
+       * 본문이 이미 전 구간 채워졌으면 정상 완료로 간주한다.
+       */
+      if (!ac.signal.aborted && !fortunePumpSawErrorRef.current) {
+        if (mode === "sections" && !sectionsDoneEvent) {
+          const n = menuSectionCountRef.current;
+          if (n > 0) {
+            const sec = sectionHtmlRef.current;
+            let allFilled = true;
+            for (let i = 0; i < n; i++) {
+              if (!String(sec[i] ?? "").trim()) {
+                allFilled = false;
+                break;
+              }
+            }
+            if (allFilled) {
+              sectionsDoneEvent = true;
+              const approx = countApproxChars(sec);
+              setFinalChars(Math.max(approx, 1));
+              setDoneIdx(new Set(Array.from({ length: n }, (_, i) => i)));
+              setActiveIdx(-1);
+              setPhase("done");
+            }
+          }
+        }
+        if (mode === "claude_html_stream" && !claudeDoneEvent) {
+          const html = (claudeStreamHtmlAccRef.current || "").trim();
+          if (
+            html.length >= 80 &&
+            (claudeStreamStartedRef.current || claudeFirstChunkSeenRef.current)
+          ) {
+            claudeDoneEvent = true;
+            claudeStreamHtmlAccRef.current = html;
+            setClaudeStreamHtml(html);
+            const nc = countApproxCharsFromHtml(html);
+            setFinalChars(Math.max(nc, 1));
+            const len = demoTocSections(profile).length;
+            setDoneIdx(new Set(Array.from({ length: len }, (_, i) => i)));
+            setPhase("done");
+          }
+        }
+      }
+
       return { sectionsDoneEvent, claudeDoneEvent };
     },
     [profile],
@@ -312,6 +366,8 @@ export function FortuneStreamModal() {
     setTocGroups(null);
     setSectionHtml({});
     sectionHtmlRef.current = {};
+    menuSectionCountRef.current = 0;
+    fortunePumpSawErrorRef.current = false;
     setActiveIdx(-1);
     setDoneIdx(new Set());
     setFinalChars(null);
