@@ -452,6 +452,7 @@ export function FortunePage({
 
   const onPaid = (orderNo: string | null) => {
     setPendingOrderNo(orderNo);
+    abortRef.current?.abort();
     const p = readFortunePrefetch(product.slug) || prefetch;
     const next = fortuneResultFromPrefetch(p, profile, orderNo, true);
     if (next) {

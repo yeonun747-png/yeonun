@@ -52,14 +52,38 @@ function normalizeHtmlBasics(html) {
   return out;
 }
 
+function verifyFortuneStreamToken(token) {
+  const crypto = require("crypto");
+  const secret = String(process.env.CLOUDWAYS_PROXY_SECRET || "").trim();
+  if (!secret || !token) return false;
+  const parts = String(token).trim().split(".");
+  if (parts.length !== 2) return false;
+  const [payloadB64, sig] = parts;
+  const expected = crypto.createHmac("sha256", secret).update(payloadB64).digest("base64url");
+  try {
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+  } catch {
+    return false;
+  }
+  try {
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
+    return typeof payload.exp === "number" && Date.now() <= payload.exp;
+  } catch {
+    return false;
+  }
+}
+
 function requireProxySecret(req, res, next) {
   const secret = String(process.env.CLOUDWAYS_PROXY_SECRET || "").trim();
   if (!secret) return next();
   const auth = String(req.headers.authorization || "");
-  if (auth !== `Bearer ${secret}`) {
-    return res.status(401).json({ error: "Unauthorized" });
+  const bearer = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (bearer === secret || verifyFortuneStreamToken(bearer)) {
+    return next();
   }
-  return next();
+  return res.status(401).json({ error: "Unauthorized" });
 }
 
 /** @param {unknown} raw */

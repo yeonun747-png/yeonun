@@ -2386,6 +2386,11 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   letter-spacing: 0.02em;
 }
 
+.y-meet-guest-top {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
 /* ===== 채팅 상담 모달 ===== */
 /* 세로 꽉 참(위 여백 없음), 상단 직각 — 높이 토글 없이 깜빡임 방지 */
 .y-chat-consult-root .y-chat-consult-sheet {
@@ -2595,6 +2600,9 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   min-height: 44px;
   max-height: 88px;
   resize: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   border-radius: 22px;
   border: 0.5px solid rgba(26, 24, 21, 0.08);
   padding: 10px 16px;
@@ -2605,6 +2613,11 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   color: var(--y-ink);
   user-select: text;
   caret-color: var(--y-ink);
+}
+.y-chat-consult-ta::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
 }
 .y-chat-consult-ta::placeholder {
   color: #9a958c;
@@ -3487,6 +3500,43 @@ button.y-dw-listen:disabled {
 }
 
 /* ===== My (마이) 화면 - 목업 CSS 일부 이식 ===== */
+.y-my-profile-head {
+  margin: 16px 20px 12px;
+  padding: 16px 18px;
+  background: var(--y-card);
+  border-radius: 14px;
+  border: 0.5px solid var(--y-line);
+}
+.y-my-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.y-my-profile-provider {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--y-card-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--y-line-2);
+}
+.y-my-profile-text {
+  min-width: 0;
+}
+.y-my-profile-name {
+  font-family: "Noto Serif KR", serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--y-ink);
+}
+.y-my-profile-email {
+  font-size: 12px;
+  color: var(--y-mute);
+  word-break: break-all;
+}
 .y-my-guest-card {
   margin: 16px 20px 0;
   background: var(--y-ink);
@@ -6618,10 +6668,14 @@ button.y-dw-listen:disabled {
 }
 .y-social-btn {
   width: 100%;
-  padding: 14px 18px;
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 0 18px;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
+  line-height: 1;
   cursor: pointer;
   font-family: inherit;
   display: flex;
@@ -6638,6 +6692,14 @@ button.y-dw-listen:disabled {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+.y-social-btn .icon svg,
+.y-social-btn .icon img {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  object-fit: contain;
 }
 .y-social-btn.kakao {
   background: #fee500;
@@ -7880,6 +7942,11 @@ button.y-dw-listen:disabled {
 .y-call-meter-info .free {
   color: var(--y-rose);
   font-weight: 600;
+}
+.y-call-meter-guest-hint {
+  margin-top: 4px;
+  color: rgba(245, 218, 224, 0.55);
+  font-weight: 500;
 }
 .y-call-ctrl.speaker-muted {
   opacity: 0.55;

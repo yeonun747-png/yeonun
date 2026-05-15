@@ -4,18 +4,15 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
-import { readAuthStubLoggedIn, YEONUN_AUTH_STUB_EVENT } from "@/lib/auth-stub";
+import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import type { AttendanceRewardKind } from "@/lib/attendance-rewards";
 import { rewardModalBodyKo, rewardModalTitleKo } from "@/lib/attendance-rewards";
-import { syncLocalAttendanceStub } from "@/lib/attendance-local-stub";
 import { applyAttendanceCreditReward } from "@/lib/mission-rewards";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 type SyncPayload = {
   ok: true;
   todayKst: string;
-  /** 체험 로그인(auth-stub)만 있고 Supabase 세션 없음 → 로컬 출석 */
-  isLocalStub?: boolean;
   attendedToday: boolean;
   streak: number;
   cycle: number;
@@ -80,40 +77,21 @@ export function TodayAttendanceClient() {
 
   const sync = useCallback(async () => {
     const sb = supabaseBrowser();
-    const stub = readAuthStubLoggedIn();
     if (!sb) {
-      setLoggedIn(stub);
+      setLoggedIn(false);
       setLoading(false);
-      if (stub) {
-        const seq = ++syncSeqRef.current;
-        const p = syncLocalAttendanceStub(new Date());
-        if (seq !== syncSeqRef.current) return;
-        setData({ ...p });
-        applyCompletionUi({ ...p }, "local_stub");
-      }
+      setData(null);
       return;
     }
+
     const {
       data: { session },
     } = await sb.auth.getSession();
 
     if (!session?.access_token) {
-      if (stub) {
-        setLoggedIn(true);
-        setLoading(true);
-        const seq = ++syncSeqRef.current;
-        try {
-          const p = syncLocalAttendanceStub(new Date());
-          if (seq !== syncSeqRef.current) return;
-          setData({ ...p });
-          applyCompletionUi({ ...p }, "local_stub");
-        } finally {
-          if (seq === syncSeqRef.current) setLoading(false);
-        }
-        return;
-      }
       setLoggedIn(false);
       setLoading(false);
+      setData(null);
       return;
     }
 
@@ -155,8 +133,8 @@ export function TodayAttendanceClient() {
 
   useEffect(() => {
     const onStub = () => void sync();
-    window.addEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
-    return () => window.removeEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
+    window.addEventListener(YEONUN_AUTH_SESSION_CHANGED, onStub);
+    return () => window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onStub);
   }, [sync]);
 
   useEffect(() => {
@@ -247,9 +225,6 @@ export function TodayAttendanceClient() {
           <div className="y-att-reward">
             <p className="y-att-reward-main">{data.cycleRewardLine}</p>
             <p className="y-att-reward-sub">하루라도 빠지면 1일부터 다시 시작 · 사이클마다 보상이 바뀝니다</p>
-            {data.isLocalStub ? (
-              <p className="y-att-reward-sub y-att-reward-stub-note">체험 로그인: 출석은 이 기기에만 저장돼요</p>
-            ) : null}
           </div>
         </>
       )}

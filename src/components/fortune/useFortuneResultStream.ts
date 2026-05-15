@@ -46,11 +46,22 @@ export function useFortuneResultStream(args: {
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const runKeyRef = useRef("");
+  const phaseRef = useRef<FortuneResultStreamPhase>("idle");
+  const onPatchRef = useRef(onPatch);
+
+  onPatchRef.current = onPatch;
+
+  const setPhaseTracked = useCallback((next: FortuneResultStreamPhase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  }, []);
 
   const start = useCallback(() => {
     if (!enabled || !productSlug.trim()) return;
     const runKey = `${productSlug}:${profile}:${orderNo ?? ""}`;
-    if (runKeyRef.current === runKey && (phase === "streaming" || phase === "done")) return;
+    if (runKeyRef.current === runKey && (phaseRef.current === "streaming" || phaseRef.current === "done")) {
+      return;
+    }
     runKeyRef.current = runKey;
     setError(null);
 
@@ -58,14 +69,14 @@ export function useFortuneResultStream(args: {
     const cachedResult = fortuneResultFromPrefetch(cached, profile, orderNo, true);
     if (cachedResult?.complete) {
       setResult(cachedResult);
-      setPhase("done");
+      setPhaseTracked("done");
       return;
     }
 
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
-    setPhase("streaming");
+    setPhaseTracked("streaming");
     setResult(null);
 
     void runFortunePrefetch({
@@ -76,12 +87,11 @@ export function useFortuneResultStream(args: {
       orderNo,
       signal: ac.signal,
       onPatch: (prefetch) => {
-        onPatch?.(prefetch);
+        onPatchRef.current?.(prefetch);
         const next = fortuneResultFromPrefetch(prefetch, profile, orderNo, true);
         if (next) {
           setResult(next);
-          setPhase(next.complete ? "done" : "streaming");
-          if (next.complete) return;
+          setPhaseTracked(next.complete ? "done" : "streaming");
         }
       },
     })
@@ -91,23 +101,35 @@ export function useFortuneResultStream(args: {
         const finalResult = fortuneResultFromPrefetch(finalCached, profile, orderNo);
         if (finalResult) {
           setResult(finalResult);
-          setPhase("done");
+          setPhaseTracked("done");
           return;
         }
         setError("풀이 스트림이 완료되지 않았습니다. 다시 불러와 주세요.");
-        setPhase("error");
+        setPhaseTracked("error");
       })
       .catch((e) => {
-      if (ac.signal.aborted) return;
-      setError(e instanceof Error ? e.message : "풀이 스트림 연결에 실패했습니다.");
-      setPhase("error");
-    });
-  }, [characterKey, enabled, onPatch, orderNo, phase, productSlug, profile, title]);
+        if (ac.signal.aborted) return;
+        setError(e instanceof Error ? e.message : "풀이 스트림 연결에 실패했습니다.");
+        setPhaseTracked("error");
+      });
+  }, [characterKey, enabled, orderNo, productSlug, profile, setPhaseTracked, title]);
 
   useEffect(() => {
-    if (enabled) start();
-    return () => abortRef.current?.abort();
+    if (!enabled) {
+      phaseRef.current = "idle";
+      return;
+    }
+    start();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [enabled, start]);
 
-  return { phase, result, error, start };
+  const retry = useCallback(() => {
+    runKeyRef.current = "";
+    phaseRef.current = "idle";
+    start();
+  }, [start]);
+
+  return { phase, result, error, start: retry };
 }

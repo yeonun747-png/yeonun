@@ -5,11 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import Link from "next/link";
 
 import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
-import {
-  readAuthStubLoggedIn,
-  YEONUN_AUTH_STUB_EVENT,
-  YEONUN_AUTH_STUB_KEY,
-} from "@/lib/auth-stub";
+import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { formatKstDateKey, getKstParts } from "@/lib/datetime/kst";
 import { markMissionFactM04ReadNow } from "@/lib/mission-reconcile";
 import { buildDailyWordShareText } from "@/lib/today-daily-words-share";
@@ -20,9 +16,9 @@ import {
   touchCartesiaCharacterLineCache,
   warmCartesiaAudioContext,
 } from "@/lib/tts/cartesiaWebPlayer";
+import { YEONUN_SAJU_UPDATED_EVENT } from "@/lib/saju-events";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-const SAJU_UPDATED = "yeonun:saju-updated";
 /** KST 날짜 + 사주 키별로 4인 한마디를 localStorage에 보관 */
 const DAILY_WORDS_CACHE_PREFIX = "yeonun:today-daily-words:v1:";
 
@@ -130,13 +126,12 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
     let cancelled = false;
 
     const refreshLoggedIn = () => {
-      const stub = readAuthStubLoggedIn();
       if (!supabase) {
-        setAuthed(stub);
+        setAuthed(false);
         return;
       }
       void supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!cancelled) setAuthed(!!session?.user || stub);
+        if (!cancelled) setAuthed(!!session?.user);
       });
     };
 
@@ -148,26 +143,25 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
         })
       : { data: { subscription: { unsubscribe: () => {} } } };
 
-    const onStub = () => refreshLoggedIn();
-    window.addEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
+    const onAuthCtx = () => refreshLoggedIn();
+    window.addEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuthCtx);
 
     const onSaju = () => {
       setHasSaju(readHasValidSaju());
       setSajuNonce((n) => n + 1);
     };
-    window.addEventListener(SAJU_UPDATED, onSaju);
+    window.addEventListener(YEONUN_SAJU_UPDATED_EVENT, onSaju);
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === __YEONUN_SAJU_STORAGE_KEY__) onSaju();
-      if (e.key === YEONUN_AUTH_STUB_KEY) refreshLoggedIn();
     };
     window.addEventListener("storage", onStorage);
 
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
-      window.removeEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
-      window.removeEventListener(SAJU_UPDATED, onSaju);
+      window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuthCtx);
+      window.removeEventListener(YEONUN_SAJU_UPDATED_EVENT, onSaju);
       window.removeEventListener("storage", onStorage);
     };
   }, []);

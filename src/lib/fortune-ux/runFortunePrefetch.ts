@@ -15,6 +15,7 @@ import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo"
 import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
 import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
+import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 
 type PumpMode = "claude_html_stream" | "sections";
 
@@ -187,12 +188,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     await pump();
   }
 
-  let res = await fetch("/api/fortune/chat-stream-menus", {
-    method: "POST",
-    headers: streamHeaders,
-    body: JSON.stringify(streamBody),
-    signal,
-  });
+  let res = await fetchFortuneMenuStream(streamBody, signal);
 
   const menuStreamOk =
     res.ok && res.body && (res.headers.get("content-type") ?? "").toLowerCase().includes("text/event-stream");
@@ -205,6 +201,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
      */
     if (!sectionsDoneEvent && !signal.aborted && !pumpSawError && toc.length > 0) {
       const n = toc.length;
+      const allSectionEnds = doneIdx.size >= n;
       let allFilled = true;
       for (let i = 0; i < n; i++) {
         if (!String(sectionHtml[i] ?? "").trim()) {
@@ -212,7 +209,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
           break;
         }
       }
-      if (allFilled) {
+      if (allSectionEnds || allFilled) {
         sectionsDoneEvent = true;
         doneIdx = new Set(Array.from({ length: n }, (_, i) => i));
         flush(true);

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import "./globals.css";
+import { YeonunAuthProvider } from "@/components/auth/YeonunAuthProvider";
 import { ModalLayer } from "@/components/ModalLayer";
 import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
@@ -49,12 +50,14 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <PrimaryTabScrollClient />
-        {children}
-        <YeonunToastHost />
-        <Suspense fallback={null}>
-          <ModalLayer />
-        </Suspense>
+        <YeonunAuthProvider>
+          <PrimaryTabScrollClient />
+          {children}
+          <YeonunToastHost />
+          <Suspense fallback={null}>
+            <ModalLayer />
+          </Suspense>
+        </YeonunAuthProvider>
       </body>
     </html>
   );

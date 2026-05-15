@@ -4,10 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  readAuthStubLoggedIn,
-  YEONUN_AUTH_STUB_EVENT,
-} from "@/lib/auth-stub";
-import {
   deleteDailyNoteById,
   type DailyNoteCategory,
   type DailyNoteEntry,
@@ -17,6 +13,8 @@ import {
   upsertDailyNote,
 } from "@/lib/daily-notes-catalog";
 import { formatKstDateKey } from "@/lib/datetime/kst";
+import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 import { DailyRecordChipGlyph, type DailyChipKey } from "@/components/today/DailyRecordChipGlyph";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
@@ -115,12 +113,35 @@ export function TodayDailyRecordClient() {
   const [editingPastKst, setEditingPastKst] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  const syncAuth = useCallback(() => setAuthed(readAuthStubLoggedIn()), []);
+  const syncAuth = useCallback(async () => {
+    const sb = supabaseBrowser();
+    if (!sb) {
+      setAuthed(false);
+      return;
+    }
+    const {
+      data: { session },
+    } = await sb.auth.getSession();
+    setAuthed(!!session?.access_token);
+  }, []);
 
   useEffect(() => {
-    syncAuth();
-    window.addEventListener(YEONUN_AUTH_STUB_EVENT, syncAuth);
-    return () => window.removeEventListener(YEONUN_AUTH_STUB_EVENT, syncAuth);
+    void syncAuth();
+    const onAuth = () => void syncAuth();
+    window.addEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuth);
+    const sb = supabaseBrowser();
+    if (!sb) {
+      return () => {
+        window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuth);
+      };
+    }
+    const {
+      data: { subscription },
+    } = sb.auth.onAuthStateChange(() => void syncAuth());
+    return () => {
+      window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuth);
+      subscription.unsubscribe();
+    };
   }, [syncAuth]);
 
   useEffect(() => {

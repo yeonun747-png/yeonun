@@ -20,7 +20,7 @@ import {
 import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { formatUserManseFromYeonunSajuJson } from "@/lib/fortune-manse-context";
 import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
-import { spendableTotalCredits, trySpendChatMessageCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
+import { spendableTotalCredits, ensureConsultTrialCreditsIfEligible, trySpendChatMessageCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
 import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
 
@@ -106,6 +106,7 @@ export function ChatConsultModal() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    ensureConsultTrialCreditsIfEligible();
     const syncCredits = () => setCredits(spendableTotalCredits());
     const rafId = window.requestAnimationFrame(syncCredits);
     const on = () => syncCredits();

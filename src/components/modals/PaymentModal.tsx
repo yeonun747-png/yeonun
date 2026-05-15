@@ -14,7 +14,6 @@ import {
   spendCreditsForOrder,
   YEONUN_CREDIT_UPDATE_EVENT,
 } from "@/lib/credit-balance-local";
-import { readAuthStubLoggedIn } from "@/lib/auth-stub";
 import { firstChargeTotalCredits } from "@/lib/credit-policy";
 import { appendStubPayment } from "@/lib/payments-history-stub";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -87,10 +86,13 @@ export function PaymentModal() {
     setStatus("loading");
     setMessage("");
     try {
+      const sb = supabaseBrowser();
+      const session = sb ? (await sb.auth.getSession()).data.session : null;
+
       if (method === "credit" && !isCreditTopup) {
         const spent = spendCreditsForOrder(price);
         if (spent < price) throw new Error("크레딧이 부족합니다.");
-        if (readAuthStubLoggedIn()) {
+        if (session?.access_token) {
           appendStubPayment({
             productSlug: product,
             title,
@@ -110,8 +112,6 @@ export function PaymentModal() {
         return;
       }
 
-      const sb = supabaseBrowser();
-      const session = sb ? (await sb.auth.getSession()).data.session : null;
       const userRef = session?.user?.id ?? "guest";
 
       const res = await fetch("/api/checkout", {
@@ -131,7 +131,7 @@ export function PaymentModal() {
       if (!res.ok || !data?.success) throw new Error(data?.error || "결제 요청 저장 실패");
       setStatus("idle");
 
-      if (readAuthStubLoggedIn()) {
+      if (session?.access_token) {
         appendStubPayment({
           productSlug: product,
           title,

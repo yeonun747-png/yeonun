@@ -6,6 +6,10 @@ import { LS_VOICE_BALANCE_SEC, LS_VOICE_FREE_REMAINING_SEC, readVoiceBalanceSecC
 
 const LS_WALLET = "yeonun_credit_wallet_v1";
 const LS_MIGRATED = "yeonun_credit_wallet_migrated_v1";
+/** 기기당 상담 무료체험(1170) 1회 지급 완료 여부 */
+const LS_CONSULT_TRIAL_DEVICE = "yeonun_consult_trial_device_v1";
+/** 배포 전후 구분 — 이미 지갑이 있던 브라우저는 체험 중복 지급 안 함 */
+const LS_CONSULT_TRIAL_LEGACY_GATE = "yeonun_consult_trial_legacy_gate_v1";
 
 export const YEONUN_CREDIT_UPDATE_EVENT = "yeonun:credit-update";
 
@@ -55,6 +59,13 @@ function migrateFromLegacyVoiceIfNeeded(): void {
   if (typeof window === "undefined") return;
   try {
     if (localStorage.getItem(LS_MIGRATED) === "1") return;
+    const vbRaw = localStorage.getItem(LS_VOICE_BALANCE_SEC);
+    const vfRaw = localStorage.getItem(LS_VOICE_FREE_REMAINING_SEC);
+    /** 구버전 음성 초가 실제로 저장된 적 없으면 기본값으로 크레딧 지갑을 만들지 않음(상담 최초 이용 시 체험 지급) */
+    if (vbRaw === null && vfRaw === null) {
+      localStorage.setItem(LS_MIGRATED, "1");
+      return;
+    }
     const vb = readVoiceBalanceSecClient();
     const vf = readVoiceFreeRemainingSecClient();
     const paidFromLegacy = Math.round(Math.max(0, vb - vf) * 6.5);
@@ -68,8 +79,39 @@ function migrateFromLegacyVoiceIfNeeded(): void {
     if (w.paid === 0 && w.free === 0) w.free = CREDIT_FREE_TRIAL_GRANT;
     writeWallet(w);
     localStorage.setItem(LS_MIGRATED, "1");
+    localStorage.setItem(LS_CONSULT_TRIAL_DEVICE, "1");
   } catch {
     /* ignore */
+  }
+}
+
+/** 이미 지갑 파일이 있던 기기(구버전 자동 무료 지급 포함) — 최초 상담 보상 중복 방지 */
+function runConsultTrialLegacyInstallGateOnce(): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (localStorage.getItem(LS_CONSULT_TRIAL_LEGACY_GATE) === "1") return;
+    localStorage.setItem(LS_CONSULT_TRIAL_LEGACY_GATE, "1");
+    if (localStorage.getItem(LS_WALLET) !== null) {
+      localStorage.setItem(LS_CONSULT_TRIAL_DEVICE, "1");
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 음성·채팅 상담 공통 — 기기당 최초 1회 무료 체험 크레딧.
+ * @returns 이번 호출에서 신규 지급했으면 true
+ */
+export function ensureConsultTrialCreditsIfEligible(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (localStorage.getItem(LS_CONSULT_TRIAL_DEVICE) === "1") return false;
+    applyBonusCredits(CREDIT_FREE_TRIAL_GRANT);
+    localStorage.setItem(LS_CONSULT_TRIAL_DEVICE, "1");
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -86,12 +128,13 @@ export function readWallet(): Wallet {
   if (typeof window === "undefined") {
     return {
       paid: 0,
-      free: CREDIT_FREE_TRIAL_GRANT,
+      free: 0,
       freeExpiresAtMs: defaultFreeExpiry(),
       firstPurchaseDone: false,
     };
   }
   migrateFromLegacyVoiceIfNeeded();
+  runConsultTrialLegacyInstallGateOnce();
   const w = readWalletRaw();
   if (w) {
     let free = w.free;
@@ -100,7 +143,7 @@ export function readWallet(): Wallet {
   }
   const init: Wallet = {
     paid: 0,
-    free: CREDIT_FREE_TRIAL_GRANT,
+    free: 0,
     freeExpiresAtMs: defaultFreeExpiry(),
     firstPurchaseDone: false,
   };

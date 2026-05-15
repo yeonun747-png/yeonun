@@ -5,12 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { MyPaymentApiRow, MyPaymentsPayload } from "@/app/api/my/payments/route";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
-import { readAuthStubLoggedIn, YEONUN_AUTH_STUB_EVENT } from "@/lib/auth-stub";
-import {
-  readStubPaymentHistory,
-  YEONUN_STUB_PAYMENTS_EVENT,
-  type StubPaymentRow,
-} from "@/lib/payments-history-stub";
+import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 type PayDetail = {
@@ -87,39 +82,6 @@ function monthLabelFromKey(key: string): string {
   return `${y}년 ${monthIndex + 1}월`;
 }
 
-function stubRowsToApi(rows: StubPaymentRow[]): MyPaymentApiRow[] {
-  return rows.map((s) => ({
-    kind: "payment",
-    id: s.id,
-    orderId: `stub-${s.id}`,
-    orderNo: "체험",
-    productSlug: s.productSlug,
-    title: s.title,
-    paidAt: s.paidAt,
-    method: s.method,
-    amountKrw: s.amountKrw,
-    paymentStatus: "paid",
-  }));
-}
-
-function computeTotalsFromPaymentRows(rows: MyPaymentApiRow[]) {
-  const now = new Date();
-  const y0 = now.getFullYear();
-  const m0 = now.getMonth();
-  let yearTotalKrw = 0;
-  let monthTotalKrw = 0;
-  for (const r of rows) {
-    if (r.kind !== "payment") continue;
-    const d = new Date(r.paidAt ?? 0);
-    if (!Number.isFinite(d.getTime())) continue;
-    const amt = r.amountKrw;
-    if (amt < 0) continue;
-    if (d.getFullYear() === y0) yearTotalKrw += amt;
-    if (d.getFullYear() === y0 && d.getMonth() === m0) monthTotalKrw += amt;
-  }
-  return { yearTotalKrw, monthTotalKrw };
-}
-
 function apiRowToPayRow(r: MyPaymentApiRow): PayRow {
   const refund = r.kind === "refund" || r.amountKrw < 0;
   const iso = r.paidAt ?? "";
@@ -171,27 +133,11 @@ export function MyPaymentsPageClient() {
   const [monthTotal, setMonthTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fromStub, setFromStub] = useState(false);
-
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     const sb = supabaseBrowser();
     const session = sb ? (await sb.auth.getSession()).data.session : null;
-
-    if (!session?.access_token && readAuthStubLoggedIn()) {
-      const raw = readStubPaymentHistory();
-      const mapped = stubRowsToApi(raw);
-      const totals = computeTotalsFromPaymentRows(mapped);
-      setFromStub(true);
-      setApiRows(mapped);
-      setYearTotal(totals.yearTotalKrw);
-      setMonthTotal(totals.monthTotalKrw);
-      setLoading(false);
-      return;
-    }
-
-    setFromStub(false);
 
     if (!session?.access_token) {
       setLoading(false);
@@ -230,11 +176,9 @@ export function MyPaymentsPageClient() {
 
   useEffect(() => {
     const onRefresh = () => void load();
-    window.addEventListener(YEONUN_AUTH_STUB_EVENT, onRefresh);
-    window.addEventListener(YEONUN_STUB_PAYMENTS_EVENT, onRefresh);
+    window.addEventListener(YEONUN_AUTH_SESSION_CHANGED, onRefresh);
     return () => {
-      window.removeEventListener(YEONUN_AUTH_STUB_EVENT, onRefresh);
-      window.removeEventListener(YEONUN_STUB_PAYMENTS_EVENT, onRefresh);
+      window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onRefresh);
     };
   }, [load]);
 
@@ -324,11 +268,7 @@ export function MyPaymentsPageClient() {
                     ))}
                   </section>
                 ))}
-                <p className="y-pay-history-foot">
-                  {fromStub
-                    ? "체험 로그인: 내역은 이 기기(브라우저)에만 저장됩니다."
-                    : "최근 12개월 기준 · 환불은 별도 표기될 수 있습니다"}
-                </p>
+                <p className="y-pay-history-foot">최근 12개월 기준 · 환불은 별도 표기될 수 있습니다</p>
               </>
             ) : null}
             <div style={{ height: 40 }} />

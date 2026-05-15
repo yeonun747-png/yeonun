@@ -3,9 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  readAuthStubLoggedIn,
-} from "@/lib/auth-stub";
-import {
   appendStubPayment,
 } from "@/lib/payments-history-stub";
 import {
@@ -74,10 +71,13 @@ export function Step6Preview({
     setStatus("loading");
     setMessage("");
     try {
+      const sb = supabaseBrowser();
+      const session = sb ? (await sb.auth.getSession()).data.session : null;
+
       if (payMethod === "credit") {
         const spent = spendCreditsForOrder(product.price_krw);
         if (spent < product.price_krw) throw new Error("크레딧이 부족합니다.");
-        if (readAuthStubLoggedIn()) {
+        if (session?.access_token) {
           appendStubPayment({
             productSlug: product.slug,
             title: product.title,
@@ -90,8 +90,6 @@ export function Step6Preview({
         return;
       }
 
-      const sb = supabaseBrowser();
-      const session = sb ? (await sb.auth.getSession()).data.session : null;
       const userRef = session?.user?.id ?? "guest";
       const res = await fetch("/api/checkout", {
         method: "POST",
@@ -106,7 +104,7 @@ export function Step6Preview({
       });
       const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string; order?: { order_no?: string } };
       if (!res.ok || !data.success) throw new Error(data.error || "결제 요청 저장 실패");
-      if (readAuthStubLoggedIn()) {
+      if (session?.access_token) {
         appendStubPayment({
           productSlug: product.slug,
           title: product.title,

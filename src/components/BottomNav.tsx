@@ -9,12 +9,14 @@ import {
   tabKeyFromBottomHref,
 } from "@/components/PrimaryTabScrollClient";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
+import { useYeonunMember } from "@/components/auth/YeonunAuthProvider";
 
 const PRIMARY_ROUTES = ["/meet", "/today", "/content", "/my"];
 
 export function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const member = useYeonunMember();
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -186,6 +188,13 @@ export function BottomNav() {
         onPointerEnter={() => router.prefetch("/my")}
         onFocus={() => router.prefetch("/my")}
         onClick={(e) => {
+          if (!member) {
+            e.preventDefault();
+            const qs = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+            qs.set("modal", "auth");
+            router.replace(`${pathname}?${qs.toString()}`, { scroll: false });
+            return;
+          }
           if (pathname === "/my") {
             e.preventDefault();
             try {

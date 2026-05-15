@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { readAuthStubLoggedIn, YEONUN_AUTH_STUB_EVENT } from "@/lib/auth-stub";
+import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { CREDIT_PACKAGES } from "@/lib/credit-policy";
 import { readWallet, spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -32,11 +32,9 @@ export function MyCreditOverviewSection() {
   const refreshCredits = useCallback(() => setBalanceTick((t) => t + 1), []);
 
   const refreshGuest = useCallback(async () => {
-    const stub = readAuthStubLoggedIn();
     const sb = supabaseBrowser();
     const session = sb ? (await sb.auth.getSession()).data.session : null;
-    const loggedIn = Boolean(session?.access_token) || stub;
-    setGuest(!loggedIn);
+    setGuest(!session?.access_token);
   }, []);
 
   useEffect(() => {
@@ -44,17 +42,17 @@ export function MyCreditOverviewSection() {
   }, [refreshGuest]);
 
   useEffect(() => {
-    const onStub = () => void refreshGuest();
+    const onAuth = () => void refreshGuest();
     const onVis = () => {
       if (document.visibilityState === "visible") void refreshGuest();
     };
-    window.addEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
+    window.addEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuth);
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("pageshow", refreshGuest);
     const onCredit = () => refreshCredits();
     window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
     return () => {
-      window.removeEventListener(YEONUN_AUTH_STUB_EVENT, onStub);
+      window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuth);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("pageshow", refreshGuest);
       window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);

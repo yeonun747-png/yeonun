@@ -10,14 +10,18 @@ import { extractRealtimeFunctionCallsFromResponseDone } from "@/lib/openai-realt
 import { extractRealtimeResponseUsage } from "@/lib/voice-realtime-response-usage";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
 import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
-import { YEONUN_CREDIT_UPDATE_EVENT, readWallet } from "@/lib/credit-balance-local";
+import { YEONUN_CREDIT_UPDATE_EVENT, readWallet, spendCreditsForOrder, ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import {
   CREDIT_FREE_TRIAL_GRANT,
   CREDIT_VOICE_PER_MINUTE,
+  CREDIT_VOICE_PER_SECOND,
 } from "@/lib/credit-policy";
 import { clearVoiceManseMeta, readVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 import { getOrCreateVoiceVisitorRef } from "@/lib/voice-visitor-ref";
+import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { rollMaxAssistantResponses, rollWallMs } from "@/lib/voice-roll-triggers";
+import { supabaseBrowser } from "@/lib/supabase/client";
+import { DEFAULT_FREE_TRIAL_SEC } from "@/lib/voice-balance-local";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -35,17 +39,27 @@ function asCharacterKey(v: string | null): CharacterKey {
   return "yeon";
 }
 
-const MOBILE_STT_WAVE_ACTIVATE_MIN = 0.04;
+const MOBILE_STT_WAVE_ACTIVATE_MIN = 0.06;
 
 /** 원격 TTS 스피커 출력 tail (response.done 과 로컬 재생 어긋남 보정) */
 const REMOTE_TTS_TAIL_ON = 0.014;
 const REMOTE_TTS_TAIL_OFF = 0.005;
+
+/** 마이크·캐릭터(TTS) 원격 오디오 미터 동일 스케일 */
+function waveMeterLevelFromPeakRms(peak: number, rms: number): number {
+  const combined = peak * 1.85 + rms * 6.5;
+  const attenuated = combined * 0.38;
+  return Math.max(0, Math.min(1, Math.pow(attenuated, 0.78)));
+}
 
 function formatMmSs(totalSec: number): string {
   const m = Math.floor(Math.max(0, totalSec) / 60);
   const s = Math.max(0, totalSec) % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
+
+/** 크레딧 미터용 스냅샷(통화 시작 시점 지갑) */
+type WalletSnap = { free: number; paid: number; freeExpiresAtMs: number };
 
 function buildVoiceCreditLines(): { line1: string; line2: string } {
   const wallet = readWallet();
@@ -63,7 +77,50 @@ function buildVoiceCreditLines(): { line1: string; line2: string } {
   } else {
     line1 = `잔여 ${(wallet.free + wallet.paid).toLocaleString("ko-KR")} 크레딧`;
   }
-  return { line1, line2: `이후 분당 ${CREDIT_VOICE_PER_MINUTE} 크레딧` };
+  return { line1, line2: `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧` };
+}
+
+/** 통화 중 — 통화 시작 시점 스냅샷 + 경과 초 기준 (비회원도 로컬 지갑 차감과 동일하게 누적 표시) */
+function buildVoiceMeterSessionLines(opts: {
+  meterElapsedWallSec: number;
+  snapshot: WalletSnap;
+}): { line1: string; line2: string } {
+  const sessionCreditsRaw = Math.max(0, Math.floor(opts.meterElapsedWallSec * CREDIT_VOICE_PER_SECOND));
+
+  const now = Date.now();
+  const snapFreeExpired = opts.snapshot.freeExpiresAtMs < now;
+  const snapFreeRem = snapFreeExpired ? 0 : Math.max(0, opts.snapshot.free);
+  const snapPaidRem = Math.max(0, opts.snapshot.paid);
+  const snapTotal = snapFreeRem + snapPaidRem;
+
+  const owedDisplay = Math.min(sessionCreditsRaw, snapTotal);
+  const takeFree = Math.min(snapFreeRem, owedDisplay);
+  const takePaid = owedDisplay - takeFree;
+
+  if (!snapFreeExpired && (snapFreeRem > 0 || takeFree > 0 || sessionCreditsRaw === 0)) {
+    const grantUsedDisplay = CREDIT_FREE_TRIAL_GRANT - snapFreeRem + takeFree;
+    const cappedGrantUsed = Math.min(CREDIT_FREE_TRIAL_GRANT, grantUsedDisplay);
+    let line2 = `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`;
+    if (takePaid > 0) {
+      line2 = `충전 크레딧 ${takePaid.toLocaleString("ko-KR")} 사용 · ${line2}`;
+    }
+    return {
+      line1: `무료 ${CREDIT_FREE_TRIAL_GRANT.toLocaleString("ko-KR")} 크레딧 중 ${cappedGrantUsed.toLocaleString("ko-KR")} 사용`,
+      line2,
+    };
+  }
+
+  if (snapPaidRem > 0) {
+    return {
+      line1: `충전 크레딧 ${snapPaidRem.toLocaleString("ko-KR")} 중 ${takePaid.toLocaleString("ko-KR")} 사용`,
+      line2: `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`,
+    };
+  }
+
+  return {
+    line1: `이번 통화 약 ${owedDisplay.toLocaleString("ko-KR")} 크레딧`,
+    line2: `분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`,
+  };
 }
 
 function extractAssistantFromResponseDone(ev: unknown): string {
@@ -121,7 +178,12 @@ export default function CallDccPageClient() {
   const [activeLine, setActiveLine] = useState<"tts" | "stt">("tts");
   const [rtcReady, setRtcReady] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
-  const [creditLine, setCreditLine] = useState(() => buildVoiceCreditLines());
+  /** 크레딧 미터: 세션 시작 벽시계 기준 경과(롤로 표시 타이머가 리셋돼도 유지) */
+  const [meterElapsedWallSec, setMeterElapsedWallSec] = useState(0);
+  /** 음성 세션 생성 후 미터 앵커·과금 플래그 확정 시 인터벌 재시작용 */
+  const [meterAnchorBump, setMeterAnchorBump] = useState(0);
+  /** 지갑 변경 시 통화 외 미터 문구 갱신 */
+  const [creditRev, setCreditRev] = useState(0);
   const [speakerMuted, setSpeakerMuted] = useState(false);
 
   const sessionIdRef = useRef<string | null>(null);
@@ -158,12 +220,43 @@ export default function CallDccPageClient() {
   const responseCreatedAtRef = useRef<number | null>(null);
   /** response.done usage — 누적/스냅샷 혼용 대비해 직전 값 대비 델타만 서버에 보냄 */
   const lastUsageSnapshotRef = useRef({ in: 0, out: 0, tot: 0 });
+  /** 비회원 무료 3분 도달 시 한 번만 종료 */
+  const guestCapDoneRef = useRef(false);
+  /** 세션 롤 등으로 상담 표시 시간이 리셋돼도, 무료 한도·크레딧 미터는 첫 통화 시작 시점부터 누적 */
+  const voiceMeterWallStartMsRef = useRef<number | null>(null);
+  /** 통화 시작 시점 로컬 지갑(회원 과금·표시 상한) */
+  const billingWalletSnapshotRef = useRef<WalletSnap | null>(null);
 
   const voiceExternalId = voiceOverride || fetchedVoiceExternalId || null;
+
+  /** 로그인 없이 시작한 경우에만 통화 시간 상한 적용 */
+  const [guestCapActive, setGuestCapActive] = useState(false);
 
   useEffect(() => {
     mutedRef.current = muted;
   }, [muted]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      const sb = supabaseBrowser();
+      if (!sb) {
+        if (!cancelled) setGuestCapActive(true);
+        return;
+      }
+      const {
+        data: { session },
+      } = await sb.auth.getSession();
+      if (!cancelled) setGuestCapActive(!session?.access_token);
+    };
+    void sync();
+    const onAuth = () => void sync();
+    window.addEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuth);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuth);
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -178,7 +271,23 @@ export default function CallDccPageClient() {
   }, [sessionId]);
 
   useEffect(() => {
-    const on = () => setCreditLine(buildVoiceCreditLines());
+    if (!sessionId) {
+      setMeterElapsedWallSec(0);
+      return;
+    }
+    if (voiceMeterWallStartMsRef.current == null) return;
+    const tick = () => {
+      const t = voiceMeterWallStartMsRef.current;
+      if (!t) return;
+      setMeterElapsedWallSec(Math.max(0, Math.floor((Date.now() - t) / 1000)));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [sessionId, meterAnchorBump]);
+
+  useEffect(() => {
+    const on = () => setCreditRev((n) => n + 1);
     window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, on);
     return () => window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, on);
   }, []);
@@ -205,12 +314,34 @@ export default function CallDccPageClient() {
     }
   }, [fromFortuneNav]);
 
+  const creditLine = useMemo(() => {
+    if (
+      !sessionId ||
+      voiceMeterWallStartMsRef.current == null ||
+      billingWalletSnapshotRef.current == null
+    ) {
+      return buildVoiceCreditLines();
+    }
+    return buildVoiceMeterSessionLines({
+      meterElapsedWallSec,
+      snapshot: billingWalletSnapshotRef.current,
+    });
+  }, [sessionId, meterElapsedWallSec, creditRev]);
+
   const finalizeVoiceSession = useCallback(async () => {
     const id = sessionIdRef.current;
     if (!id || endPostedRef.current) return;
     endPostedRef.current = true;
+    const wallMs = voiceMeterWallStartMsRef.current;
     const started = sessionStartMsRef.current;
-    const duration_sec = started ? Math.max(0, Math.round((Date.now() - started) / 1000)) : 0;
+    const wallDurationSec = wallMs
+      ? Math.max(0, Math.round((Date.now() - wallMs) / 1000))
+      : started
+        ? Math.max(0, Math.round((Date.now() - started) / 1000))
+        : 0;
+
+    const owedCredits = Math.floor(wallDurationSec * CREDIT_VOICE_PER_SECOND);
+
     try {
       if (typeof window !== "undefined") {
         try {
@@ -228,10 +359,15 @@ export default function CallDccPageClient() {
       await fetch(`/api/voice/sessions/${id}/end`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ duration_sec, cost_krw: 0 }),
+        body: JSON.stringify({ duration_sec: wallDurationSec, cost_krw: 0 }),
       });
     } catch {
       // ignore
+    } finally {
+      /** 회원·비회원 공통: 로컬 체험/충전 크레딧에서 통화 시간만큼 차감(미차감 시 재입장 시 1170부터 다시 표시됨) */
+      if (typeof window !== "undefined" && owedCredits > 0) {
+        spendCreditsForOrder(owedCredits);
+      }
     }
     clearVoiceManseMeta();
   }, [characterKey]);
@@ -241,6 +377,28 @@ export default function CallDccPageClient() {
       void finalizeVoiceSession();
     };
   }, [finalizeVoiceSession]);
+
+  /** 비회원: 무료 3분 경과 시 통화 종료 후 로그인 유도 */
+  useEffect(() => {
+    if (!guestCapActive || !sessionId || voiceMeterWallStartMsRef.current == null) return;
+    const wallElapsedSec = Math.floor((Date.now() - voiceMeterWallStartMsRef.current) / 1000);
+    if (wallElapsedSec < DEFAULT_FREE_TRIAL_SEC) return;
+    if (guestCapDoneRef.current) return;
+    guestCapDoneRef.current = true;
+    try {
+      pcRef.current?.close();
+    } catch {
+      // ignore
+    }
+    setStatus("종료");
+    setUiError("비회원 무료 시간(3분)이 끝났습니다. 이어서 이용하려면 로그인해 주세요.");
+    void (async () => {
+      await finalizeVoiceSession();
+      router.replace(
+        `/meet?modal=auth&after_auth=${encodeURIComponent(`call:${characterKey}`)}`,
+      );
+    })();
+  }, [guestCapActive, sessionId, meterElapsedWallSec, finalizeVoiceSession, router, characterKey]);
 
   const ensureAudioRunning = async (ctx: AudioContext) => {
     try {
@@ -375,7 +533,7 @@ export default function CallDccPageClient() {
       }),
     })
       .then((r) => r.json())
-      .then((data) => {
+      .then(async (data) => {
         if (cancelled) return;
         if (typeof data?.session?.id === "string" && data.session.id.trim()) {
           const sid = data.session.id.trim();
@@ -383,6 +541,16 @@ export default function CallDccPageClient() {
           endPostedRef.current = false;
           sessionIdRef.current = sid;
           setElapsedSec(0);
+          ensureConsultTrialCreditsIfEligible();
+          voiceMeterWallStartMsRef.current = Date.now();
+          const w = readWallet();
+          billingWalletSnapshotRef.current = {
+            free: w.free,
+            paid: w.paid,
+            freeExpiresAtMs: w.freeExpiresAtMs,
+          };
+          if (cancelled) return;
+          setMeterAnchorBump((x) => x + 1);
           setSessionId(sid);
           const rs = (data.session as { roll_secret?: string }).roll_secret;
           if (typeof rs === "string" && rs.trim()) rollSecretRef.current = rs.trim();
@@ -435,9 +603,7 @@ export default function CallDccPageClient() {
           sumSq += s * s;
         }
         const rms = Math.sqrt(sumSq / buf.length);
-        // 피크+ RMS 조합(로컬 모니터링은 에코캔슬 등으로 RMS만으로는 너무 작을 때가 많음)
-        const raw = peak * 1.85 + rms * 6.5;
-        setMicLevel(Math.max(0, Math.min(1, Math.pow(raw, 0.72))));
+        setMicLevel(waveMeterLevelFromPeakRms(peak, rms));
       }
 
       let remoteTts = 0;
@@ -459,8 +625,7 @@ export default function CallDccPageClient() {
           rsumSq += s * s;
         }
         const rrms = Math.sqrt(rsumSq / rbuf.length);
-        const remoteRaw = rpeak * 1.85 + rrms * 6.5;
-        remoteTts = Math.max(0, Math.min(1, Math.pow(remoteRaw, 0.72)));
+        remoteTts = waveMeterLevelFromPeakRms(rpeak, rrms);
       }
 
       let tail = remoteTailAudibleRef.current;
@@ -476,7 +641,7 @@ export default function CallDccPageClient() {
       }
 
       const fakeTts = ttsPlayingRef.current ? 0.35 + Math.sin(Date.now() / 210) * 0.12 : 0;
-      const ttsBar = remoteTts > 0.003 ? Math.min(1, Math.max(remoteTts * 1.2, fakeTts * 0.35)) : fakeTts;
+      const ttsBar = remoteTts > 0.003 ? Math.min(1, Math.max(remoteTts, fakeTts * 0.35)) : fakeTts;
       setTtsLevel(ttsBar);
 
       rafRef.current = requestAnimationFrame(tickMeter);
@@ -978,7 +1143,8 @@ export default function CallDccPageClient() {
               <div className="y-wave-bars">
                 {bars.map((i) => {
                   const spread = 0.42 + (((i * 3 + 2) % 8) / 11);
-                  const h = 8 + Math.round(ttsLevel * 36 * spread);
+                  const ttsWave = Math.min(1, ttsLevel * 0.88);
+                  const h = 8 + Math.round(ttsWave * 36 * spread);
                   return (
                     <div
                       key={`t${i}`}
@@ -1003,7 +1169,7 @@ export default function CallDccPageClient() {
               <div className="y-wave-bars">
                 {bars.map((i) => {
                   const spread = 0.42 + (((i * 5 + 1) % 8) / 11);
-                  const micWave = Math.min(1, micLevel * 1.35);
+                  const micWave = Math.min(1, micLevel * 0.88);
                   const h = 8 + Math.round(micWave * 36 * spread);
                   return (
                     <div
@@ -1037,6 +1203,9 @@ export default function CallDccPageClient() {
             <div className="y-call-meter-info">
               <div className="free">{creditLine.line1}</div>
               <div>{creditLine.line2}</div>
+              {guestCapActive ? (
+                <div className="y-call-meter-guest-hint">비회원 · 무료 최대 {DEFAULT_FREE_TRIAL_SEC / 60}분</div>
+              ) : null}
             </div>
           </div>
 

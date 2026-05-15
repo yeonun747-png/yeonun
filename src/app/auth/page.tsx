@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 
-import { setAuthStubLoggedIn } from "@/lib/auth-stub";
+import { SocialLoginSection } from "@/components/auth/SocialLoginSection";
 
 type Step = "login" | "birth" | "time" | "gender";
 
@@ -36,11 +36,6 @@ export default function AuthPage() {
     return { bars: ["done", "done", "current"], label: "STEP 3 / 3 · 성별" } as const;
   }, [step]);
 
-  function onSocialDevLogin() {
-    setAuthStubLoggedIn();
-    setStep("birth");
-  }
-
   return (
     <div className="yeonunPage">
       <main>
@@ -71,27 +66,9 @@ export default function AuthPage() {
               <div className="y-auth-sub">3초 만에 시작하기</div>
             </div>
 
-            <div className="y-auth-social">
-              <button className="y-social-btn kakao" type="button" onClick={onSocialDevLogin}>
-                <span className="icon" aria-hidden="true">
-                  K
-                </span>
-                카카오로 시작하기
-                <span className="recommend">3초</span>
-              </button>
-              <button className="y-social-btn naver" type="button" onClick={onSocialDevLogin}>
-                <span className="icon" aria-hidden="true">
-                  N
-                </span>
-                네이버로 시작하기
-              </button>
-              <button className="y-social-btn google" type="button" onClick={onSocialDevLogin}>
-                <span className="icon" aria-hidden="true">
-                  G
-                </span>
-                Google로 시작하기
-              </button>
-            </div>
+            <Suspense fallback={null}>
+              <SocialLoginSection />
+            </Suspense>
 
             <div className="y-auth-email-spacer" aria-hidden="true" />
 

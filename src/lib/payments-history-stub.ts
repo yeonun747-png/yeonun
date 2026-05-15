@@ -1,7 +1,6 @@
 /**
- * 체험 로그인(auth-stub) 전용 결제 내역 — Supabase·PG 연동 전까지 로컬에만 저장.
+ * 결제 내역 PG 연동 전 로컬 목업 저장 (로그인 사용자 공통 키).
  */
-import { readAuthStubLoggedIn } from "@/lib/auth-stub";
 
 export const YEONUN_STUB_PAYMENTS_KEY = "yeonun_payment_history_stub_v1";
 export const YEONUN_STUB_PAYMENTS_EVENT = "yeonun:stub-payments-updated";
@@ -50,7 +49,6 @@ export function appendStubPayment(
   entry: Omit<StubPaymentRow, "id" | "paidAt"> & { paidAt?: string },
 ): void {
   if (typeof window === "undefined") return;
-  if (!readAuthStubLoggedIn()) return;
 
   try {
     const row: StubPaymentRow = {

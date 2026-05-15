@@ -24,6 +24,7 @@ import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo"
 import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
 import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
+import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 
 /** 음성 무료 잔여(초). 없으면 첫 방문 시 충분히 크게 두고, 0이면 충전 유도 */
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
@@ -121,6 +122,7 @@ export function FortuneStreamModal() {
   /** pump 중 명시적 `error` SSE — 누락된 `done`만 보정하고 오류 스트림은 완료로 바꾸지 않음 */
   const fortunePumpSawErrorRef = useRef(false);
   const sectionHtmlRef = useRef<Record<number, string>>({});
+  const doneIdxRef = useRef<Set<number>>(new Set());
   const librarySaveStartedRef = useRef(false);
   const [librarySaved, setLibrarySaved] = useState(false);
   const [librarySaveError, setLibrarySaveError] = useState<string | null>(null);
@@ -264,7 +266,11 @@ export function FortuneStreamModal() {
           });
         }
         if (ev.type === "section_end") {
-          setDoneIdx((prev) => new Set(prev).add(ev.index));
+          setDoneIdx((prev) => {
+            const next = new Set(prev).add(ev.index);
+            doneIdxRef.current = next;
+            return next;
+          });
           setActiveIdx(-1);
         }
         if (ev.type === "done") {
@@ -313,6 +319,7 @@ export function FortuneStreamModal() {
           const n = menuSectionCountRef.current;
           if (n > 0) {
             const sec = sectionHtmlRef.current;
+            const allSectionEnds = doneIdxRef.current.size >= n;
             let allFilled = true;
             for (let i = 0; i < n; i++) {
               if (!String(sec[i] ?? "").trim()) {
@@ -320,7 +327,7 @@ export function FortuneStreamModal() {
                 break;
               }
             }
-            if (allFilled) {
+            if (allSectionEnds || allFilled) {
               sectionsDoneEvent = true;
               const approx = countApproxChars(sec);
               setFinalChars(Math.max(approx, 1));
@@ -370,6 +377,7 @@ export function FortuneStreamModal() {
     fortunePumpSawErrorRef.current = false;
     setActiveIdx(-1);
     setDoneIdx(new Set());
+    doneIdxRef.current = new Set();
     setFinalChars(null);
     setStreamError(null);
     setClaudeStreamMode(false);
@@ -408,12 +416,7 @@ export function FortuneStreamModal() {
         ...(fortune_extra_context ? { fortune_extra_context } : {}),
       };
 
-      let res = await fetch("/api/fortune/chat-stream-menus", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify(streamBody),
-        signal: ac.signal,
-      });
+      let res = await fetchFortuneMenuStream(streamBody, ac.signal);
 
       const menuStreamOk =
         res.ok &&
