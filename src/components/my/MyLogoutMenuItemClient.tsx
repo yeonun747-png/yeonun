@@ -20,9 +20,9 @@ export function MyLogoutMenuItemClient() {
     >
       <div className="y-my-menu-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24">
-          <path d="M10 17l5-5-5-5v10z" />
-          <path d="M14 12H3" />
-          <path d="M21 3v18" />
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+          <polyline points="16 17 21 12 16 7" />
+          <line x1="21" y1="12" x2="9" y2="12" />
         </svg>
       </div>
       <div className="y-my-menu-text">

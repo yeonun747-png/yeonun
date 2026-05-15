@@ -11,7 +11,7 @@ export function YeonunToastHost() {
       const m = typeof d?.message === "string" ? d.message : "";
       if (!m) return;
       setMsg(m);
-      window.setTimeout(() => setMsg(null), 2600);
+      window.setTimeout(() => setMsg(null), 2400);
     };
     window.addEventListener("yeonun:toast", onToast);
     return () => window.removeEventListener("yeonun:toast", onToast);

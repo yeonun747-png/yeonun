@@ -39,7 +39,7 @@ export function TodayAttendanceClient() {
   const [rewardOpen, setRewardOpen] = useState(false);
   const rewardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const syncSeqRef = useRef(0);
+  const syncAbortRef = useRef<AbortController | null>(null);
 
   const completionUiKey = (userId: string, todayKst: string) => `yeonun_att_7ui_${userId}_${todayKst}`;
 
@@ -76,6 +76,10 @@ export function TodayAttendanceClient() {
   }, []);
 
   const sync = useCallback(async () => {
+    syncAbortRef.current?.abort();
+    const ac = new AbortController();
+    syncAbortRef.current = ac;
+
     const sb = supabaseBrowser();
     if (!sb) {
       setLoggedIn(false);
@@ -87,6 +91,7 @@ export function TodayAttendanceClient() {
     const {
       data: { session },
     } = await sb.auth.getSession();
+    if (ac.signal.aborted) return;
 
     if (!session?.access_token) {
       setLoggedIn(false);
@@ -97,7 +102,6 @@ export function TodayAttendanceClient() {
 
     setLoggedIn(true);
     setLoading(true);
-    const seq = ++syncSeqRef.current;
     const userId = session.user.id;
     try {
       const res = await fetch("/api/today/attendance/sync", {
@@ -107,9 +111,10 @@ export function TodayAttendanceClient() {
           "Content-Type": "application/json",
         },
         body: "{}",
+        signal: ac.signal,
       });
       const raw: unknown = await res.json();
-      if (seq !== syncSeqRef.current) return;
+      if (ac.signal.aborted) return;
       if (!raw || typeof raw !== "object" || !("ok" in raw) || (raw as { ok?: unknown }).ok !== true) {
         setData(null);
         return;
@@ -117,8 +122,11 @@ export function TodayAttendanceClient() {
       const p = raw as SyncPayload;
       setData(p);
       applyCompletionUi(p, userId);
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      setData(null);
     } finally {
-      if (seq === syncSeqRef.current) setLoading(false);
+      if (!ac.signal.aborted) setLoading(false);
     }
   }, [applyCompletionUi]);
 
@@ -152,6 +160,7 @@ export function TodayAttendanceClient() {
     return () => {
       if (rewardTimerRef.current) clearTimeout(rewardTimerRef.current);
       if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+      syncAbortRef.current?.abort();
     };
   }, []);
 

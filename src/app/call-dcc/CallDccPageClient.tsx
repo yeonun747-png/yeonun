@@ -97,10 +97,26 @@ function buildVoiceMeterSessionLines(opts: {
   const takeFree = Math.min(snapFreeRem, owedDisplay);
   const takePaid = owedDisplay - takeFree;
 
+  const line2Base = `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`;
+
+  /** 무료 버킷이 체험 지급(1170)을 넘는 경우(미션 등) — "1170 중 X" 식이 음수로 깨짐 */
+  if (!snapFreeExpired && snapFreeRem > CREDIT_FREE_TRIAL_GRANT) {
+    let line2 = line2Base;
+    if (takePaid > 0) {
+      line2 = `충전 크레딧 ${takePaid.toLocaleString("ko-KR")} 사용 · ${line2}`;
+    } else if (takeFree > 0) {
+      line2 = `이번 통화 약 ${takeFree.toLocaleString("ko-KR")} 크레딧 사용 · ${line2}`;
+    }
+    return {
+      line1: `무료·보너스 크레딧 ${snapFreeRem.toLocaleString("ko-KR")} 잔여`,
+      line2,
+    };
+  }
+
   if (!snapFreeExpired && (snapFreeRem > 0 || takeFree > 0 || sessionCreditsRaw === 0)) {
     const grantUsedDisplay = CREDIT_FREE_TRIAL_GRANT - snapFreeRem + takeFree;
-    const cappedGrantUsed = Math.min(CREDIT_FREE_TRIAL_GRANT, grantUsedDisplay);
-    let line2 = `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`;
+    const cappedGrantUsed = Math.min(CREDIT_FREE_TRIAL_GRANT, Math.max(0, grantUsedDisplay));
+    let line2 = line2Base;
     if (takePaid > 0) {
       line2 = `충전 크레딧 ${takePaid.toLocaleString("ko-KR")} 사용 · ${line2}`;
     }

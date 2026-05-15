@@ -11,8 +11,24 @@ function readBrowserSupabaseConfig(): { url: string; anonKey: string } | null {
   return { url, anonKey };
 }
 
+const BROWSER_SINGLETON_KEY = "__yeonun_supabase_browser_v1__" as const;
+
+/**
+ * 동일 탭에서 **단일** Supabase 클라이언트(= 단일 GoTrueClient).
+ * 매 호출마다 `createClient` 하면 같은 storage 키로 여러 GoTrue 인스턴스가 생겨
+ * 경고·락 경합·출석 sync 등 `getSession` 지연이 날 수 있음.
+ */
 export function supabaseBrowser(): SupabaseClient | null {
+  if (typeof window === "undefined") return null;
   const cfg = readBrowserSupabaseConfig();
-  if (!cfg) return null;
-  return createClient(cfg.url, cfg.anonKey);
+  const w = window as unknown as Record<string, SupabaseClient | null | undefined>;
+  if (!cfg) {
+    w[BROWSER_SINGLETON_KEY] = null;
+    return null;
+  }
+  const hit = w[BROWSER_SINGLETON_KEY];
+  if (hit) return hit;
+  const client = createClient(cfg.url, cfg.anonKey);
+  w[BROWSER_SINGLETON_KEY] = client;
+  return client;
 }

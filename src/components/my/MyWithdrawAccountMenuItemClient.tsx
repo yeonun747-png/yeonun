@@ -12,7 +12,7 @@ export function MyWithdrawAccountMenuItemClient() {
   return (
     <button
       type="button"
-      className="y-my-menu-item"
+      className="y-my-menu-item y-my-menu-item--danger"
       onClick={() => void onWithdraw()}
       aria-label="회원 탈퇴"
     >

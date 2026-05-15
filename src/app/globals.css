@@ -6145,28 +6145,39 @@ button.y-dw-listen:disabled {
   text-align: center;
 }
 
-/* 전역 토스트 (yeonun:toast) — 뷰포트(세이프 영역 안) 정중앙 */
+@keyframes yToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 전역 토스트 (yeonun:toast) — 목업 v19: 하단 네비 위 pill */
 .y-toast-host {
   position: fixed;
-  inset: 0;
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
-    env(safe-area-inset-left, 0px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  left: 50%;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
   z-index: 9999;
+  max-width: min(440px, calc(100vw - 32px));
   pointer-events: none;
 }
 .y-toast-bubble {
-  background: rgba(30, 28, 32, 0.92);
-  color: #fff;
-  font-size: 12px;
-  padding: 10px 18px;
-  border-radius: 12px;
-  max-width: min(340px, calc(100vw - 40px));
+  background: rgba(26, 24, 21, 0.92);
+  color: #f5dae0;
+  font-size: 12.5px;
+  font-weight: 500;
+  padding: 12px 20px;
+  border-radius: 100px;
   text-align: center;
   line-height: 1.45;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  animation: yToastIn 0.25s ease;
 }
 
 /* ===== Today: 오늘의 기록 (y-daily-record-*) ===== */
@@ -6514,50 +6525,61 @@ button.y-dw-listen:disabled {
   color: var(--y-mute);
   margin-top: 4px;
 }
+/* 마이 메뉴 — yeonun_v19.html (메뉴 리스트 블록)과 동일 */
 .y-my-menu-section {
-  margin: 14px 20px;
+  margin: 8px 20px 16px;
   background: white;
   border: 0.5px solid var(--y-line);
   border-radius: 14px;
   overflow: hidden;
 }
 .y-my-menu-section-title {
-  padding: 14px 16px;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  color: var(--y-rose);
+  padding: 14px 18px 8px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--y-mute);
   text-transform: uppercase;
-  font-weight: 700;
-  background: var(--y-card-2);
+  font-weight: 600;
 }
 .y-my-menu-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 14px;
+  padding: 14px 18px;
   border-top: 0.5px solid var(--y-line);
   cursor: pointer;
   text-decoration: none;
   color: inherit;
 }
 .y-my-menu-item:first-of-type {
-  border-top: 0;
+  border-top: 0.5px solid var(--y-line);
+}
+button.y-my-menu-item {
+  width: 100%;
+  max-width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
+  border-top: 0.5px solid var(--y-line);
+  margin: 0;
+  font: inherit;
+  text-align: left;
 }
 .y-my-menu-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: var(--y-card-2);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--y-ink);
-  border: 0.5px solid var(--y-line);
+  color: var(--y-mute);
 }
 .y-my-menu-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.5;
@@ -6569,10 +6591,10 @@ button.y-dw-listen:disabled {
   min-width: 0;
 }
 .y-my-menu-name {
-  font-size: 12.5px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--y-ink);
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 .y-my-menu-desc {
   font-size: 10.5px;
@@ -6581,16 +6603,22 @@ button.y-dw-listen:disabled {
 }
 .y-my-menu-badge {
   font-size: 10px;
-  font-weight: 800;
-  padding: 4px 8px;
-  border-radius: 999px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 100px;
   background: var(--y-rose);
   color: white;
+  flex-shrink: 0;
   margin-left: 6px;
 }
 .y-my-menu-arrow {
-  font-size: 18px;
+  font-size: 14px;
   color: var(--y-mute-2);
+  flex-shrink: 0;
+}
+.y-my-menu-item--danger .y-my-menu-name {
+  color: var(--y-rose-deep);
+  font-weight: 600;
 }
 .y-my-foot {
   margin: 10px 20px 0;
@@ -6626,6 +6654,37 @@ button.y-dw-listen:disabled {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+/* /auth/complete — 성공 시 짧은 토큰 교환 구간(문구 없이 스피너만) */
+.y-auth-complete {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--y-bg);
+}
+.y-auth-complete-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--y-line);
+  border-top-color: var(--y-rose);
+  border-radius: 50%;
+  animation: yAuthCompleteSpin 0.65s linear infinite;
+}
+@keyframes yAuthCompleteSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.y-auth-complete-msg {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--y-mute);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 320px;
+  margin: 0 auto;
 }
 
 .y-auth-hero {

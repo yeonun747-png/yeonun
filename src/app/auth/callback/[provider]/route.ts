@@ -54,7 +54,8 @@ export async function GET(
 
     const complete = new URL("/auth/complete", requestBase(request));
     complete.searchParams.set("token", exchange);
-    complete.searchParams.set("returnTo", result.isNewUser ? returnTo : "/");
+    complete.searchParams.set("returnTo", result.isNewUser ? returnTo : "/my");
+    complete.searchParams.set("provider", provider);
     if (result.isNewUser) complete.searchParams.set("onboard", "1");
 
     const res = NextResponse.redirect(complete);

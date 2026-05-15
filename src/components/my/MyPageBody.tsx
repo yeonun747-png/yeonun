@@ -189,6 +189,7 @@ export function MyPageBody() {
                   <div className="y-my-menu-desc">2026 신년 이벤트 외 3건</div>
                 </div>
                 <span className="y-my-menu-badge">3</span>
+                <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
               <MySheetLink className="y-my-menu-item" href="/support">
                 <div className="y-my-menu-icon" aria-hidden="true">
