@@ -42,7 +42,6 @@ export function SocialLoginButtons({ className }: Props) {
           <SocialProviderIcon provider="kakao" />
         </span>
         카카오로 시작하기
-        <span className="recommend">3초</span>
       </button>
       <button className="y-social-btn naver" type="button" onClick={() => startOAuth("naver", returnTo)}>
         <span className="icon">

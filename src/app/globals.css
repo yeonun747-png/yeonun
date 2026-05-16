@@ -6930,17 +6930,6 @@ button.y-my-menu-item {
   color: #1a1815;
   border: 0.5px solid var(--y-line-2);
 }
-.y-social-btn .recommend {
-  position: absolute;
-  right: 16px;
-  background: var(--y-rose);
-  color: white;
-  font-size: 9px;
-  padding: 3px 8px;
-  border-radius: 100px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
 .y-auth-divider {
   text-align: center;
   margin: 8px 24px 16px;
