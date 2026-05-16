@@ -117,6 +117,7 @@ export function buildClaudeFortunePromptPieces(input: {
     input.restrictions.trim(),
     "",
     "출력은 한국어 HTML만 사용합니다. 마크다운 코드 펜스(```)로 감싸지 마세요.",
+    "본문 글자는 한글·한자·필요한 영문·숫자·일반 구두점만 씁니다. 키릴·아랍·태국어 등 다른 문자 체계·외국어 표기는 절대 넣지 마세요.",
     "각 소제목은 반드시 다음 구조를 사용합니다:",
     '<div class="subtitle-section"><h3 class="subtitle-title">소제목 텍스트</h3><div class="subtitle-content">…</div></div>',
     "문단은 <p> 또는 <br> 로 구분합니다.",
@@ -166,6 +167,7 @@ export function buildFortuneMenuCachedSystemPlainText(input: { role_prompt: stri
     input.restrictions.trim(),
     "",
     "출력은 한국어 HTML만 사용합니다. 마크다운 코드 펜스(```)로 감싸지 마세요.",
+    "본문 글자는 한글·한자·필요한 영문·숫자·일반 구두점만 씁니다. 키릴·아랍·태국어 등 다른 문자 체계·외국어 표기는 절대 넣지 마세요.",
     "각 응답마다 사용자 메시지에 적힌 소제목·해석 지침에 맞춰 subtitle-section 한 블록만 출력합니다.",
     "구조: <div class=\"subtitle-section\"><h3 class=\"subtitle-title\">…</h3><div class=\"subtitle-content\">…</div></div>",
     "문단은 <p> 또는 <br> 로 구분합니다.",
@@ -193,6 +195,7 @@ export function buildFortuneMenuSectionUserMessage(input: {
       ? "위 해석 지침에 적힌 분량·글자 수·범위가 있으면 그것을 우선합니다. 지침과 다른 고정 분량 규칙은 무시합니다."
       : "",
     "반드시 한국어 HTML만 출력하세요. 마크다운 코드 펜스(```)는 사용하지 마세요.",
+    "한글·한자·필요한 영문·숫자만 쓰고, 키릴·아랍 등 다른 문자 체계는 절대 넣지 마세요.",
     "반드시 다음 구조 한 덩어리만 출력합니다(앞뒤에 다른 소제목·서론을 붙이지 마세요):",
     `<div class="subtitle-section"><h3 class="subtitle-title">${input.subtitle_title}</h3><div class="subtitle-content">…본문…</div></div>`,
     "문단은 <p> 또는 <br> 로 구분합니다.",

@@ -72,6 +72,20 @@ export function formatKstMonthDayDot(date: Date = new Date()): string {
   return `${pad2(month)}.${pad2(day)}`;
 }
 
+/** 저장·상담 시각 (예: 오후 3:45) — 보관함 상세 헤더 `timeStyle: short` 와 동일 */
+export function formatKstTimeAmPm(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("ko-KR", {
+      timeZone: KST_IANA,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date(iso));
+  } catch {
+    return "";
+  }
+}
+
 /**
  * 사주 명식(만세력) 텍스트와 함께 API로 넘길 KST 문단.
  * 만세력 본문이 비어 있으면 KST만 반환(상담 시각 고지).

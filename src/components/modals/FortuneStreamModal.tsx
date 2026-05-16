@@ -16,6 +16,10 @@ import { FortuneStreamSectionMedia } from "@/components/modals/FortuneStreamSect
 import { FortuneVoiceConsultDock } from "@/components/modals/FortuneVoiceConsultDock";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import {
+  fixFortuneFullHtmlIfNeeded,
+  scheduleFortuneSectionForeignFix,
+} from "@/lib/fortune-section-foreign-fix";
+import {
   mainTitleDuplicatedAsFirstSubtitleH3,
   splitHtmlAfterFirstSubtitleH3Close,
 } from "@/lib/fortune-section-html-split";
@@ -230,6 +234,12 @@ export function FortuneStreamModal() {
             const html = String(o.html ?? "");
             claudeStreamHtmlAccRef.current = html;
             setClaudeStreamHtml(html);
+            void fixFortuneFullHtmlIfNeeded(html).then((fixed) => {
+              if (fixed !== html) {
+                claudeStreamHtmlAccRef.current = fixed;
+                setClaudeStreamHtml(fixed);
+              }
+            });
             const n = countApproxCharsFromHtml(html);
             setFinalChars(Math.max(n, 1));
             const len = demoTocSections(profile).length;
@@ -241,6 +251,20 @@ export function FortuneStreamModal() {
             setStreamError(String(o.error ?? o.message ?? "스트림 오류"));
           }
         }
+      };
+
+      const scheduleSectionFix = (index: number) => {
+        scheduleFortuneSectionForeignFix(
+          index,
+          () => sectionHtmlRef.current[index] ?? "",
+          (i, html) => {
+            setSectionHtml((prev) => {
+              const next = { ...prev, [i]: html };
+              sectionHtmlRef.current = next;
+              return next;
+            });
+          },
+        );
       };
 
       const applyEv = (ev: FortuneStreamEvt) => {
@@ -272,6 +296,7 @@ export function FortuneStreamModal() {
             sectionHtmlRef.current = next;
             return next;
           });
+          scheduleSectionFix(ev.index);
         }
         if (ev.type === "section_end") {
           setDoneIdx((prev) => {
@@ -280,11 +305,15 @@ export function FortuneStreamModal() {
             return next;
           });
           setActiveIdx(-1);
+          scheduleSectionFix(ev.index);
         }
         if (ev.type === "done") {
           sectionsDoneEvent = true;
           setFinalChars(ev.charCount);
           setPhase("done");
+          for (const k of Object.keys(sectionHtmlRef.current)) {
+            scheduleSectionFix(Number(k));
+          }
         }
       };
 

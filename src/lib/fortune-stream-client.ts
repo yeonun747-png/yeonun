@@ -1,5 +1,6 @@
 /** 점사 결과 모달과 `/api/fortune/stream`(Cloudways 프록시) 간 SSE 계약 */
 
+import { applyFortuneForeignGlossary } from "@/lib/fortune-html-script-sanitize";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 
 export type FortuneTocItem = {
@@ -110,14 +111,14 @@ export function normalizeFortuneSsePayload(raw: unknown): FortuneStreamEvt[] {
 
   if (type === "chunk") {
     const index = Number(o.index ?? o.section_index ?? 0);
-    const html = String(o.html ?? o.delta ?? o.text ?? "");
+    const html = applyFortuneForeignGlossary(String(o.html ?? o.delta ?? o.text ?? ""));
     if (!html) return [];
     return [{ type: "chunk", index, html }];
   }
 
   if (type === "section_replace") {
     const index = Number(o.index ?? o.section_index ?? 0);
-    const html = String(o.html ?? "");
+    const html = applyFortuneForeignGlossary(String(o.html ?? ""));
     return [{ type: "section_replace", index, html }];
   }
 

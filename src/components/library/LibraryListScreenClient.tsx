@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { MyFortuneListSnapshot } from "@/hooks/useMyShelfListsPreload";
 import { LIBRARY_CHARACTER_FILTER_ORDER } from "@/lib/library-character-filters";
 import type { LibraryListItemVm } from "@/lib/library-list-vm";
+import { fortuneSnapshotWithCache } from "@/lib/my-shelf-lists-cache";
 
 import { LibraryListSheet } from "./LibraryListSheet";
 
@@ -44,15 +45,17 @@ export function LibraryListScreenClient({
   backHref?: string;
   fortuneSnapshot: MyFortuneListSnapshot;
 }) {
-  const [items, setItems] = useState<LibraryListItemVm[]>(() => fortuneSnapshot.items);
-  const [loadError, setLoadError] = useState<string | null>(() => fortuneSnapshot.loadError);
-  const [loaded, setLoaded] = useState(() => fortuneSnapshot.settled);
+  const initial = fortuneSnapshotWithCache(fortuneSnapshot);
+  const [items, setItems] = useState<LibraryListItemVm[]>(() => initial.items);
+  const [loadError, setLoadError] = useState<string | null>(() => initial.loadError);
+  const [loaded, setLoaded] = useState(() => initial.settled);
 
   useEffect(() => {
-    setItems(fortuneSnapshot.items);
-    setLoadError(fortuneSnapshot.loadError);
-    setLoaded(fortuneSnapshot.settled);
-  }, [fortuneSnapshot.items, fortuneSnapshot.loadError, fortuneSnapshot.settled]);
+    const next = fortuneSnapshotWithCache(fortuneSnapshot);
+    setItems(next.items);
+    setLoadError(next.loadError);
+    setLoaded(next.settled);
+  }, [fortuneSnapshot]);
 
   const [filter, setFilter] = useState<FilterKey>("all");
 
@@ -125,7 +128,11 @@ export function LibraryListScreenClient({
                     <span className={`y-lib-mock-kicker ${kickerClass(item.characterKey)}`}>{item.productLine}</span>
                     <span className="y-lib-mock-title">{item.title}</span>
                     <span className="y-lib-mock-meta">
-                      {item.dateYmd} {item.visibleChars.toLocaleString("ko-KR")}자
+                      <span className="y-lib-mock-meta-datetime">
+                        <span>{item.dateYmd}</span>
+                        {item.timeLabel ? <span className="y-lib-mock-meta-time">{item.timeLabel}</span> : null}
+                      </span>
+                      <span className="y-lib-mock-meta-chars">{item.visibleChars.toLocaleString("ko-KR")}자</span>
                     </span>
                   </div>
                   {item.badge.kind === "expired" ? (

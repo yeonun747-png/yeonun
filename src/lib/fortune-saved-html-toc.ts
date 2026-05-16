@@ -1,3 +1,4 @@
+import { applyFortuneForeignGlossary } from "@/lib/fortune-html-script-sanitize";
 import type { FortuneTocItem } from "@/lib/fortune-stream-client";
 import { normFortunePlainTextForCompare } from "@/lib/fortune-section-html-split";
 
@@ -201,7 +202,8 @@ function stripTrailingMainKickerParagraphOnly(html: string): string {
  * 보관함 이어 붙인 HTML을 `splitJoinedLibraryHtmlToSectionHtml`에 넣기 전에 한 번 정리한다.
  */
 export function sanitizeFortuneJoinedHtmlForLibraryReplay(html: string): string {
-  let s = stripOrphanMainKickerBetweenClosingDivsBeforeSubtitleSection(html);
+  let s = applyFortuneForeignGlossary(String(html ?? ""));
+  s = stripOrphanMainKickerBetweenClosingDivsBeforeSubtitleSection(s);
   s = stripDuplicateMainKickerBeforeSubtitleWhenH3Matches(s);
   return s;
 }

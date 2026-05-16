@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -8,6 +8,8 @@ import { FortuneResultSectionChunks, enrichTocWithMenuMedia } from "@/components
 import { FortuneVoiceConsultDock } from "@/components/modals/FortuneVoiceConsultDock";
 import type { Product } from "@/lib/data/content";
 import { flattenTocGroupsToFlatItems } from "@/lib/library-toc-snapshot";
+import { fixForeignScriptInFortuneHtmlAsync } from "@/lib/fortune-foreign-script-fix";
+import { hasForeignScriptInFortuneText } from "@/lib/fortune-html-script-sanitize";
 import {
   injectMainKickersFromTocIfApplicable,
   sanitizeFortuneJoinedHtmlForLibraryReplay,
@@ -146,10 +148,24 @@ export function LibraryFortuneReplay(props: {
     [tocFlatForInject, product],
   );
 
-  const displayHtml = useMemo(() => {
+  const displayHtmlBase = useMemo(() => {
     const injected = injectMainKickersFromTocIfApplicable(html, tocForBody.length ? tocForBody : null);
     return sanitizeFortuneJoinedHtmlForLibraryReplay(injected);
   }, [html, tocForBody]);
+
+  const [displayHtml, setDisplayHtml] = useState(displayHtmlBase);
+
+  useEffect(() => {
+    setDisplayHtml(displayHtmlBase);
+    if (!hasForeignScriptInFortuneText(displayHtmlBase)) return;
+    let cancelled = false;
+    void fixForeignScriptInFortuneHtmlAsync(displayHtmlBase).then((fixed) => {
+      if (!cancelled && fixed !== displayHtmlBase) setDisplayHtml(fixed);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [displayHtmlBase]);
 
   const sectionHtmlReplay = useMemo(() => {
     if (!tocForBody.length) return null;

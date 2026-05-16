@@ -9751,9 +9751,29 @@ button.y-fs-act-consult:disabled {
   overflow: hidden;
 }
 .y-lib-mock-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 12px;
   color: var(--y-mute);
   font-weight: 500;
+}
+.y-lib-mock-meta-datetime {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.y-lib-mock-meta-time {
+  color: var(--y-mute-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.y-lib-mock-meta-chars {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .y-lib-mock-badge {
   flex-shrink: 0;
@@ -12497,6 +12517,72 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   margin: 10px 0 0;
   font-size: 24px;
   line-height: 1.35;
+}
+
+.y-fortune-v2-result-part-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(24, 20, 15, 0.08);
+}
+.y-fortune-v2-result-part-nav--bottom {
+  margin: 12px 0 8px;
+  padding: 12px 0 4px;
+  border-bottom: none;
+  border-top: 1px solid rgba(24, 20, 15, 0.08);
+}
+.y-fortune-v2-result-part-arrow {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 8px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.y-fortune-v2-result-part-arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.y-fortune-v2-result-part-pills {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.y-fortune-v2-result-part-pill {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 100px;
+  border: 1px solid rgba(24, 20, 15, 0.12);
+  background: var(--y-card-2, #fff);
+  color: var(--y-mute);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.y-fortune-v2-result-part-pill.is-active {
+  border-color: var(--rose);
+  background: var(--rL);
+  color: var(--rose);
+}
+.y-fortune-v2-result-part-pill.is-ready:not(.is-active) {
+  color: var(--ink2);
+  border-color: rgba(201, 64, 96, 0.25);
+}
+.y-fortune-v2-result-part-pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .y-fortune-v2-result-html {

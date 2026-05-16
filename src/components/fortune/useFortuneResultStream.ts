@@ -24,6 +24,7 @@ export function fortuneResultFromPrefetch(
     toc: prefetch.toc.length ? prefetch.toc : demoTocSections(profile),
     tocGroups: prefetch.toc_groups,
     sectionHtml: prefetch.sectionHtml,
+    doneIdx: [...prefetch.doneIdx],
     claudeHtml: prefetch.claudeStreamHtml,
     claudeMode: prefetch.claudeStreamMode,
     complete: prefetch.complete,

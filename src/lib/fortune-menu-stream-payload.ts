@@ -99,6 +99,7 @@ export async function buildFortuneMenuCloudwaysBody(
   const restrictions = [
     "제공된 만세력·명식 텍스트에 없는 생년·띠·출생지·임의 사실을 지어내지 마세요.",
     "HTML만 출력하고, 요청된 `subtitle-section` 구조를 따르세요.",
+    "본문은 한글·한자·필요한 영문·숫자만 사용하고, 키릴·아랍·태국어 등 다른 문자 체계는 절대 넣지 마세요.",
   ].join(" ");
 
   const user_info = normUser(body.user_info);

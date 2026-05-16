@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import type { MyVoiceListSnapshot, VoiceHistoryGroupedBlock } from "@/hooks/useMyShelfListsPreload";
+import { voiceSnapshotWithCache } from "@/lib/my-shelf-lists-cache";
 import { VOICE_CALL_ARCHIVE_LIST_DAYS } from "@/lib/voice-call-history-public";
 
 import { CallHistorySheet } from "./CallHistorySheet";
@@ -53,15 +54,17 @@ function VoiceListSkeleton() {
 }
 
 export function CallHistoryClient({ voiceSnapshot }: { voiceSnapshot: MyVoiceListSnapshot }) {
-  const [grouped, setGrouped] = useState<VoiceHistoryGroupedBlock[]>(() => voiceSnapshot.grouped);
-  const [loadError, setLoadError] = useState<string | null>(() => voiceSnapshot.loadError);
-  const [loaded, setLoaded] = useState(() => voiceSnapshot.settled);
+  const initial = voiceSnapshotWithCache(voiceSnapshot);
+  const [grouped, setGrouped] = useState<VoiceHistoryGroupedBlock[]>(() => initial.grouped);
+  const [loadError, setLoadError] = useState<string | null>(() => initial.loadError);
+  const [loaded, setLoaded] = useState(() => initial.settled);
 
   useEffect(() => {
-    setGrouped(voiceSnapshot.grouped);
-    setLoadError(voiceSnapshot.loadError);
-    setLoaded(voiceSnapshot.settled);
-  }, [voiceSnapshot.grouped, voiceSnapshot.loadError, voiceSnapshot.settled]);
+    const next = voiceSnapshotWithCache(voiceSnapshot);
+    setGrouped(next.grouped);
+    setLoadError(next.loadError);
+    setLoaded(next.settled);
+  }, [voiceSnapshot]);
 
   const showSkeleton = !loadError && !loaded;
   const empty = loaded && !loadError && grouped.every((g) => g.rows.length === 0);

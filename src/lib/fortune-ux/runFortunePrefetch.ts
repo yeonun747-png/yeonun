@@ -4,6 +4,11 @@ import { partnerInfoFromPartnerStorage, readUserInfoFromYeonunSajuV1 } from "@/l
 import { buildFortuneManseContext } from "@/lib/fortune-manse-context";
 import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
 import { readFortunePrefetch, writeFortunePrefetch } from "@/lib/fortune-prefetch-storage";
+import { applyFortuneForeignGlossary } from "@/lib/fortune-html-script-sanitize";
+import {
+  fixFortuneFullHtmlIfNeeded,
+  scheduleFortuneSectionForeignFix,
+} from "@/lib/fortune-section-foreign-fix";
 import {
   normalizeFortuneSsePayload,
   parseFortuneSseBlock,
@@ -107,6 +112,17 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     }
   }
 
+  const scheduleSectionFix = (index: number) => {
+    scheduleFortuneSectionForeignFix(
+      index,
+      () => sectionHtml[index] ?? "",
+      (i, html) => {
+        sectionHtml = { ...sectionHtml, [i]: html };
+        flush(false);
+      },
+    );
+  };
+
   const applyEv = (ev: FortuneStreamEvt) => {
     if (ev.type === "error") {
       pumpSawError = true;
@@ -124,13 +140,18 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     if (ev.type === "section_replace") {
       sectionHtml = { ...sectionHtml, [ev.index]: ev.html };
       flush(false);
+      scheduleSectionFix(ev.index);
     }
     if (ev.type === "section_end") {
       doneIdx = new Set(doneIdx).add(ev.index);
       flush(false);
+      scheduleSectionFix(ev.index);
     }
     if (ev.type === "done") {
       sectionsDoneEvent = true;
+      for (const k of Object.keys(sectionHtml)) {
+        scheduleSectionFix(Number(k));
+      }
       flush(true);
     }
   };
@@ -163,16 +184,22 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
           claudeStreamMode = true;
           toc = demoTocSections(profile);
         }
-        claudeStreamHtml += String(o.text);
+        claudeStreamHtml += applyFortuneForeignGlossary(String(o.text));
         flush(false);
       }
       if (typ === "partial_done" && typeof o.html === "string") {
-        claudeStreamHtml = String(o.html);
+        claudeStreamHtml = applyFortuneForeignGlossary(String(o.html));
         flush(false);
       }
       if (typ === "done") {
         claudeDoneEvent = true;
-        claudeStreamHtml = String(o.html ?? "");
+        claudeStreamHtml = applyFortuneForeignGlossary(String(o.html ?? ""));
+        void fixFortuneFullHtmlIfNeeded(claudeStreamHtml).then((fixed) => {
+          if (fixed !== claudeStreamHtml) {
+            claudeStreamHtml = fixed;
+            flush(true);
+          }
+        });
         flush(true);
       }
       if (typ === "error") {

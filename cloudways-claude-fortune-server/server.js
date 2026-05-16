@@ -156,6 +156,19 @@ function resolveClaudeParams(reqBody) {
   return { model, maxTokens, temperature };
 }
 
+/** 메뉴 단일 패스(마커 샤딩) — reunionf82와 동일 65536. temperature는 `resolveClaudeParams`(기본 0.7) 유지 */
+function resolveMenuSinglePassMaxOutputTokens() {
+  const fromEnv = Number(
+    process.env.FORTUNE_MENU_SINGLE_PASS_MAX_OUTPUT_TOKENS ??
+      process.env.FORTUNE_SINGLE_PASS_MAX_OUTPUT ??
+      0,
+  );
+  if (Number.isFinite(fromEnv) && fromEnv > 0) {
+    return Math.min(65_536, Math.max(4096, Math.floor(fromEnv)));
+  }
+  return 65_536;
+}
+
 async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, ttftCtx) {
   const { model, maxTokens, temperature } = resolveClaudeParams(reqBody);
   const claudeBody = {
@@ -536,6 +549,7 @@ function createGeminiMenuSingleStreamSharder(writeSse, nSections, startIdx = 0) 
   }
 
   function finalize(upstreamErr) {
+    const missingIndices = [];
     if (upstreamErr) {
       writeSse({ type: "error", message: upstreamErr });
     }
@@ -555,13 +569,14 @@ function createGeminiMenuSingleStreamSharder(writeSse, nSections, startIdx = 0) 
       bodyStart = 0;
     }
     while (idx < endIdx) {
+      missingIndices.push(idx);
       writeSse({ type: "section_start", index: idx });
       writeSse({ type: "section_replace", index: idx, html: errHtml(idx) });
       totalChars += 40;
       writeSse({ type: "section_end", index: idx });
       idx += 1;
     }
-    return Math.max(totalChars, 120);
+    return { charCount: Math.max(totalChars, 120), missingIndices };
   }
 
   return { push, finalize };
@@ -688,8 +703,8 @@ async function geminiRunMenuSinglePassStream({
   sectionIndexOffset = 0,
   signal,
 }) {
-  const { maxTokens, temperature } = resolveClaudeParams(reqBody);
-  const singleCap = Math.min(65_536, Math.max(maxTokens, menuSectionCount * 4000 + 8192));
+  const { temperature } = resolveClaudeParams(reqBody);
+  const singleCap = resolveMenuSinglePassMaxOutputTokens();
   const streamBody = {
     contents: [{ role: "user", parts: [{ text: String(combinedUser) }] }],
     generationConfig: {
@@ -706,15 +721,163 @@ async function geminiRunMenuSinglePassStream({
     signal,
   );
   const finalizeUpstream = signal?.aborted ? null : streamError;
-  const charCount = sharder.finalize(finalizeUpstream);
-  return { streamError, charCount };
+  const fin = sharder.finalize(finalizeUpstream);
+  return { streamError, charCount: fin.charCount, missingIndices: fin.missingIndices };
 }
 
-/** 메뉴 단일 패스(마커 샤딩)용 max_tokens 상향 */
-function fortuneMenuSinglePassReqBody(reqBody, sectionCount) {
-  const { maxTokens } = resolveClaudeParams(reqBody);
-  const singleCap = Math.min(65_536, Math.max(maxTokens, sectionCount * 4000 + 8192));
-  return { ...reqBody, max_tokens: singleCap };
+/** 30구간·5만자급: 단일 패스 출력 한도(약 65k 토큰) 초과 시 후반 마커 누락 방지 */
+function fortuneMenuSinglePassBatchSize(sectionCount) {
+  const fromEnv = Number(
+    process.env.FORTUNE_MENU_SINGLE_PASS_BATCH_SIZE ?? process.env.GEMINI_MENU_SINGLE_PASS_BATCH_SIZE ?? 0,
+  );
+  if (Number.isFinite(fromEnv) && fromEnv > 0) {
+    return Math.min(sectionCount, Math.max(1, Math.floor(fromEnv)));
+  }
+  if (sectionCount <= 14) return sectionCount;
+  return 10;
+}
+
+/**
+ * 마커 단일 패스 실패 구간을 소제목별 1회 스트림으로 재시도.
+ * @returns {Promise<number>} 추가 반영 글자 수
+ */
+async function retryMenuSectionsIndividually({
+  indices,
+  menuSections,
+  menuCachedSystem,
+  useGemini,
+  apiKey,
+  geminiModel,
+  anthropicKey,
+  reqBody,
+  writeSse,
+  geminiMenuCacheName,
+}) {
+  if (!indices?.length) return 0;
+  let added = 0;
+  const usesCachedArray = Array.isArray(menuCachedSystem) && menuCachedSystem.length > 0;
+  for (const i of indices) {
+    const sec = menuSections[i];
+    const user = String(sec?.user ?? "").trim();
+    const subtitleTitle = String(sec?.subtitle_title ?? "").trim() || `섹션 ${i + 1}`;
+    const system =
+      usesCachedArray && menuCachedSystem.length > 0 ? menuCachedSystem : sec?.system;
+    const systemOk =
+      (typeof system === "string" && system.trim().length > 0) ||
+      (Array.isArray(system) && system.length > 0);
+    if (!systemOk || !user) continue;
+    console.warn(`[fortune-menu-section-retry] index=${i} title=${subtitleTitle.slice(0, 40)}`);
+    writeSse({ type: "section_start", index: i });
+    try {
+      let html = "";
+      let streamError = null;
+      if (useGemini) {
+        const r = await geminiStreamSectionHtml(
+          apiKey,
+          geminiModel,
+          system,
+          user,
+          reqBody,
+          { onTextDelta: (delta) => writeSse({ type: "chunk", index: i, html: delta }) },
+          { cachedContent: geminiMenuCacheName && usesCachedArray ? geminiMenuCacheName : null },
+        );
+        html = r.html;
+        streamError = r.streamError;
+      } else {
+        const claudeRes = await anthropicMessagesStreamResponse(anthropicKey, reqBody, system, user, null);
+        const cacheLogOnceRef = { logged: false };
+        const r = await readClaudeSseToHtml(claudeRes.body.getReader(), {
+          onTextDelta: (delta) => writeSse({ type: "chunk", index: i, html: delta }),
+          cacheLogOnceRef,
+        });
+        html = r.html;
+        streamError = r.streamError;
+      }
+      if (streamError) writeSse({ type: "error", message: streamError });
+      const safe =
+        normalizeHtmlBasics(stripCodeFences(html)).trim() ||
+        `<div class="subtitle-section"><h3 class="subtitle-title">${subtitleTitle}</h3><div class="subtitle-content"><p>응답이 비었습니다.</p></div></div>`;
+      writeSse({ type: "section_replace", index: i, html: safe });
+      added += Math.max(countHangulChars(safe), 1);
+    } catch (e) {
+      writeSse({
+        type: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+    writeSse({ type: "section_end", index: i });
+  }
+  return added;
+}
+
+async function geminiRunMenuSinglePassStreamBatched(opts) {
+  const { menuSections, sectionIndexOffset = 0, signal, ...rest } = opts;
+  const batchSize = fortuneMenuSinglePassBatchSize(menuSections.length);
+  if (batchSize >= menuSections.length) {
+    return geminiRunMenuSinglePassStream({ ...rest, menuSectionCount: menuSections.length, sectionIndexOffset, combinedUser: buildGeminiMenuSinglePassUserTextOffset(menuSections, sectionIndexOffset), signal });
+  }
+  let totalChars = 0;
+  let streamError = null;
+  const allMissing = [];
+  console.log(
+    `[gemini-menu-single-batch] sections=${menuSections.length} batch_size=${batchSize} offset=${sectionIndexOffset}`,
+  );
+  for (let b = 0; b < menuSections.length; b += batchSize) {
+    if (signal?.aborted) break;
+    const slice = menuSections.slice(b, b + batchSize);
+    const off = sectionIndexOffset + b;
+    const res = await geminiRunMenuSinglePassStream({
+      ...rest,
+      combinedUser: buildGeminiMenuSinglePassUserTextOffset(slice, off),
+      menuSectionCount: slice.length,
+      sectionIndexOffset: off,
+      signal,
+    });
+    totalChars += res.charCount;
+    if (res.streamError) streamError = res.streamError;
+    if (res.missingIndices?.length) allMissing.push(...res.missingIndices);
+  }
+  return { streamError, charCount: totalChars, missingIndices: allMissing };
+}
+
+async function claudeRunMenuSinglePassStreamBatched(opts) {
+  const { menuSections, menuCachedSystem, sectionIndexOffset = 0, ...rest } = opts;
+  const batchSize = fortuneMenuSinglePassBatchSize(menuSections.length);
+  if (batchSize >= menuSections.length) {
+    return claudeRunMenuSinglePassStream({
+      ...rest,
+      menuCachedSystem,
+      combinedUser: buildGeminiMenuSinglePassUserTextOffset(menuSections, sectionIndexOffset),
+      menuSectionCount: menuSections.length,
+      sectionIndexOffset,
+    });
+  }
+  let totalChars = 0;
+  let streamError = null;
+  const allMissing = [];
+  console.log(
+    `[claude-menu-single-batch] sections=${menuSections.length} batch_size=${batchSize} offset=${sectionIndexOffset}`,
+  );
+  for (let b = 0; b < menuSections.length; b += batchSize) {
+    const slice = menuSections.slice(b, b + batchSize);
+    const off = sectionIndexOffset + b;
+    const res = await claudeRunMenuSinglePassStream({
+      ...rest,
+      menuCachedSystem,
+      combinedUser: buildGeminiMenuSinglePassUserTextOffset(slice, off),
+      menuSectionCount: slice.length,
+      sectionIndexOffset: off,
+    });
+    totalChars += res.charCount;
+    if (res.streamError) streamError = res.streamError;
+    if (res.missingIndices?.length) allMissing.push(...res.missingIndices);
+  }
+  return { streamError, charCount: totalChars, missingIndices: allMissing };
+}
+
+/** 메뉴 단일 패스(마커 샤딩)용 max_tokens — Claude도 65536 */
+function fortuneMenuSinglePassReqBody(reqBody) {
+  return { ...reqBody, max_tokens: resolveMenuSinglePassMaxOutputTokens() };
 }
 
 /**
@@ -730,7 +893,7 @@ async function claudeRunMenuSinglePassStream({
   writeSse,
   sectionIndexOffset = 0,
 }) {
-  const bodyForPass = fortuneMenuSinglePassReqBody(reqBody, menuSectionCount);
+  const bodyForPass = fortuneMenuSinglePassReqBody(reqBody);
   const sharder = createGeminiMenuSingleStreamSharder(writeSse, menuSectionCount, sectionIndexOffset);
   const claudeRes = await anthropicMessagesStreamResponse(
     anthropicKey,
@@ -744,8 +907,8 @@ async function claudeRunMenuSinglePassStream({
     onTextDelta: (d) => sharder.push(d),
     cacheLogOnceRef,
   });
-  const charCount = sharder.finalize(streamError);
-  return { streamError, charCount };
+  const fin = sharder.finalize(streamError);
+  return { streamError, charCount: fin.charCount, missingIndices: fin.missingIndices };
 }
 
 /**
@@ -964,18 +1127,30 @@ app.post("/chat", requireProxySecret, async (req, res) => {
         if (geminiSingle) {
           if (allUsersOk && systemTextSingle.length > 0 && geminiKey) {
             console.log(`[gemini-menu-single] one-shot sections=${menuSections.length}`);
-            const combinedUser = buildGeminiMenuSinglePassUserText(menuSections);
-            const singleRes = await geminiRunMenuSinglePassStream({
+            const singleRes = await geminiRunMenuSinglePassStreamBatched({
               apiKey: geminiKey,
               model: menuModel,
               systemText: systemTextSingle,
-              combinedUser,
-              menuSectionCount: menuSections.length,
+              menuSections,
               reqBody: req.body,
               writeSse,
               sectionIndexOffset: 0,
             });
             totalChars = singleRes.charCount;
+            if (singleRes.missingIndices?.length) {
+              totalChars += await retryMenuSectionsIndividually({
+                indices: singleRes.missingIndices,
+                menuSections,
+                menuCachedSystem,
+                useGemini: true,
+                apiKey: geminiKey,
+                geminiModel: menuModel,
+                anthropicKey,
+                reqBody: req.body,
+                writeSse,
+                geminiMenuCacheName: null,
+              });
+            }
             didGeminiSingle = true;
           }
         }
@@ -1125,34 +1300,61 @@ app.post("/chat", requireProxySecret, async (req, res) => {
         if (!allUsersOk || !cachedSysOk || !systemTextSingle.length) {
           await runLegacyMenuStream();
         } else {
-          let headRes = await claudeRunMenuSinglePassStream({
+          let headRes = await claudeRunMenuSinglePassStreamBatched({
             anthropicKey,
             menuCachedSystem,
-            combinedUser: buildGeminiMenuSinglePassUserText(menuSections),
-            menuSectionCount: n,
+            menuSections,
             reqBody: req.body,
             writeSse,
             sectionIndexOffset: 0,
           }).catch((e) => ({
             streamError: e instanceof Error ? e.message : String(e),
             charCount: 0,
+            missingIndices: [],
           }));
           if (headRes.streamError && geminiKey) {
             console.warn(`[fortune-menu] claude_only fallback_gemini err=${String(headRes.streamError).slice(0, 400)}`);
-            const gr = await geminiRunMenuSinglePassStream({
+            const gr = await geminiRunMenuSinglePassStreamBatched({
               apiKey: geminiKey,
               model: modelGeminiMenu,
               systemText: systemTextSingle,
-              combinedUser: buildGeminiMenuSinglePassUserText(menuSections),
-              menuSectionCount: n,
+              menuSections,
               reqBody: req.body,
               writeSse,
               sectionIndexOffset: 0,
             });
             totalChars = gr.charCount;
+            if (gr.missingIndices?.length) {
+              totalChars += await retryMenuSectionsIndividually({
+                indices: gr.missingIndices,
+                menuSections,
+                menuCachedSystem,
+                useGemini: true,
+                apiKey: geminiKey,
+                geminiModel: modelGeminiMenu,
+                anthropicKey,
+                reqBody: req.body,
+                writeSse,
+                geminiMenuCacheName: null,
+              });
+            }
             if (gr.streamError) writeSse({ type: "error", message: gr.streamError });
           } else {
             totalChars = headRes.charCount;
+            if (headRes.missingIndices?.length) {
+              totalChars += await retryMenuSectionsIndividually({
+                indices: headRes.missingIndices,
+                menuSections,
+                menuCachedSystem,
+                useGemini: false,
+                apiKey: geminiKey,
+                geminiModel: modelGeminiMenu,
+                anthropicKey,
+                reqBody: req.body,
+                writeSse,
+                geminiMenuCacheName: null,
+              });
+            }
             if (headRes.streamError) writeSse({ type: "error", message: headRes.streamError });
           }
         }
@@ -1162,46 +1364,59 @@ app.post("/chat", requireProxySecret, async (req, res) => {
         if (!allUsersOk || !cachedSysOk || !systemTextSingle.length) {
           await runLegacyMenuStream();
         } else if (!geminiKey || split >= n) {
-          const cr = await claudeRunMenuSinglePassStream({
+          const cr = await claudeRunMenuSinglePassStreamBatched({
             anthropicKey,
             menuCachedSystem,
-            combinedUser: buildGeminiMenuSinglePassUserText(menuSections),
-            menuSectionCount: n,
+            menuSections,
             reqBody: req.body,
             writeSse,
             sectionIndexOffset: 0,
           }).catch((e) => ({
             streamError: e instanceof Error ? e.message : String(e),
             charCount: 0,
+            missingIndices: [],
           }));
           totalChars = cr.charCount;
+          if (cr.missingIndices?.length) {
+            totalChars += await retryMenuSectionsIndividually({
+              indices: cr.missingIndices,
+              menuSections,
+              menuCachedSystem,
+              useGemini: false,
+              apiKey: geminiKey,
+              geminiModel: modelGeminiMenu,
+              anthropicKey,
+              reqBody: req.body,
+              writeSse,
+              geminiMenuCacheName: null,
+            });
+          }
           if (cr.streamError) writeSse({ type: "error", message: cr.streamError });
         } else {
           const rest = menuSections.slice(split);
           const gemAc = new AbortController();
-          const gemP = geminiRunMenuSinglePassStream({
+          const gemP = geminiRunMenuSinglePassStreamBatched({
             apiKey: geminiKey,
             model: modelGeminiMenu,
             systemText: systemTextSingle,
-            combinedUser: buildGeminiMenuSinglePassUserTextOffset(rest, split),
-            menuSectionCount: rest.length,
+            menuSections: rest,
             reqBody: req.body,
             writeSse,
             sectionIndexOffset: split,
             signal: gemAc.signal,
           });
 
-          let headRes = await claudeRunMenuSinglePassStream({
+          let headRes = await claudeRunMenuSinglePassStreamBatched({
             anthropicKey,
             menuCachedSystem,
-            combinedUser: buildGeminiMenuSinglePassUserTextOffset(menuSections.slice(0, split), 0),
-            menuSectionCount: split,
+            menuSections: menuSections.slice(0, split),
             reqBody: req.body,
             writeSse,
             sectionIndexOffset: 0,
           }).catch((e) => ({
             streamError: e instanceof Error ? e.message : String(e),
             charCount: 0,
+            missingIndices: [],
           }));
 
           if (headRes.streamError) {
@@ -1209,17 +1424,30 @@ app.post("/chat", requireProxySecret, async (req, res) => {
             await gemP.catch(() => {});
             if (geminiKey) {
               console.warn(`[hybrid] claude_head_fail_full_gemini err=${String(headRes.streamError).slice(0, 400)}`);
-              const fullG = await geminiRunMenuSinglePassStream({
+              const fullG = await geminiRunMenuSinglePassStreamBatched({
                 apiKey: geminiKey,
                 model: modelGeminiMenu,
                 systemText: systemTextSingle,
-                combinedUser: buildGeminiMenuSinglePassUserText(menuSections),
-                menuSectionCount: n,
+                menuSections,
                 reqBody: req.body,
                 writeSse,
                 sectionIndexOffset: 0,
               });
               totalChars = fullG.charCount;
+              if (fullG.missingIndices?.length) {
+                totalChars += await retryMenuSectionsIndividually({
+                  indices: fullG.missingIndices,
+                  menuSections,
+                  menuCachedSystem,
+                  useGemini: true,
+                  apiKey: geminiKey,
+                  geminiModel: modelGeminiMenu,
+                  anthropicKey,
+                  reqBody: req.body,
+                  writeSse,
+                  geminiMenuCacheName: null,
+                });
+              }
               if (fullG.streamError) writeSse({ type: "error", message: fullG.streamError });
             } else {
               writeSse({ type: "error", message: headRes.streamError });
@@ -1227,30 +1455,76 @@ app.post("/chat", requireProxySecret, async (req, res) => {
             }
           } else {
             totalChars += headRes.charCount;
+            if (headRes.missingIndices?.length) {
+              totalChars += await retryMenuSectionsIndividually({
+                indices: headRes.missingIndices,
+                menuSections,
+                menuCachedSystem,
+                useGemini: false,
+                apiKey: geminiKey,
+                geminiModel: modelGeminiMenu,
+                anthropicKey,
+                reqBody: req.body,
+                writeSse,
+                geminiMenuCacheName: null,
+              });
+            }
             let gOut;
             try {
               gOut = await gemP;
             } catch (ge) {
-              gOut = { streamError: ge instanceof Error ? ge.message : String(ge), charCount: 0 };
+              gOut = {
+                streamError: ge instanceof Error ? ge.message : String(ge),
+                charCount: 0,
+                missingIndices: [],
+              };
             }
             if (gOut.streamError) {
               console.warn(`[hybrid] gemini_tail_fail_claude_tail err=${String(gOut.streamError).slice(0, 400)}`);
-              const tail = await claudeRunMenuSinglePassStream({
+              const tail = await claudeRunMenuSinglePassStreamBatched({
                 anthropicKey,
                 menuCachedSystem,
-                combinedUser: buildGeminiMenuSinglePassUserTextOffset(rest, split),
-                menuSectionCount: rest.length,
+                menuSections: rest,
                 reqBody: req.body,
                 writeSse,
                 sectionIndexOffset: split,
               }).catch((e) => ({
                 streamError: e instanceof Error ? e.message : String(e),
                 charCount: 0,
+                missingIndices: [],
               }));
               totalChars += tail.charCount;
+              if (tail.missingIndices?.length) {
+                totalChars += await retryMenuSectionsIndividually({
+                  indices: tail.missingIndices,
+                  menuSections,
+                  menuCachedSystem,
+                  useGemini: false,
+                  apiKey: geminiKey,
+                  geminiModel: modelGeminiMenu,
+                  anthropicKey,
+                  reqBody: req.body,
+                  writeSse,
+                  geminiMenuCacheName: null,
+                });
+              }
               if (tail.streamError) writeSse({ type: "error", message: tail.streamError });
             } else {
               totalChars += gOut.charCount;
+              if (gOut.missingIndices?.length) {
+                totalChars += await retryMenuSectionsIndividually({
+                  indices: gOut.missingIndices,
+                  menuSections,
+                  menuCachedSystem,
+                  useGemini: true,
+                  apiKey: geminiKey,
+                  geminiModel: modelGeminiMenu,
+                  anthropicKey,
+                  reqBody: req.body,
+                  writeSse,
+                  geminiMenuCacheName: null,
+                });
+              }
             }
           }
         }

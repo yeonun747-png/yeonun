@@ -1,3 +1,4 @@
+import { formatKstTimeAmPm } from "@/lib/datetime/kst";
 import {
   normalizeLibraryCharacterKey,
   type LibraryCharacterFilterKey,
@@ -13,6 +14,8 @@ export type LibraryListItemVm = {
   title: string;
   /** KST 기준 YYYY.MM.DD */
   dateYmd: string;
+  /** KST 기준 시각 (예: 오후 3:45) — 상세 헤더 저장 시각과 동일 */
+  timeLabel: string;
   visibleChars: number;
   badge: { kind: "days"; left: number } | { kind: "expired" };
 };
@@ -68,6 +71,7 @@ export function buildLibraryListItemVm(
     productLine: `${charLabel} · ${productTitle}`,
     title,
     dateYmd: formatKstDateYmdDots(when),
+    timeLabel: formatKstTimeAmPm(when),
     visibleChars: row.visible_char_count,
     badge: retentionBadge(when),
   };

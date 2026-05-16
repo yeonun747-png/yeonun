@@ -26,6 +26,8 @@ export type FortuneResultState = {
   toc: FortuneTocItem[];
   tocGroups: FortuneTocMainGroup[] | null;
   sectionHtml: Record<number, string>;
+  /** 섹션별 section_end 수신 인덱스 — PART 완료 판정용 */
+  doneIdx: number[];
   claudeHtml: string;
   claudeMode: boolean;
   complete: boolean;

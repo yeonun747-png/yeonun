@@ -12,11 +12,13 @@ Vercel의 함수 한도를 넘기는 **긴 단일 스트림**은 Cloudways에서
 | `GEMINI_API_KEY` 또는 `GOOGLE_AI_API_KEY` | 조건부 | 메뉴 점사에서 `gemini-2.5-pro` 등 Gemini 모델 사용 시 필수 |
 | `GEMINI_MENU_CACHE_TTL` | 아니오 | 섹션 루프 모드에서만: `cachedContents` TTL(기본 `600s`) |
 | `GEMINI_MENU_SINGLE_STREAM` | 아니오 | Gemini 메뉴: 기본 `1` = 한 번의 stream + 마커 샤딩(reunionf82 유사). `0` = 소제목별 순차 요청 + 캐시 |
+| `FORTUNE_MENU_SINGLE_PASS_BATCH_SIZE` | 아니오 | 15구간 초과 시 단일 패스를 몇 구간씩 나눌지(기본 **10**). 30구간·5만자 상품 후반 `섹션 N` 실패 방지 |
 | `PORT` | 아니오 | 기본 `3000` |
 | `CLOUDWAYS_PROXY_SECRET` | 아니오 | 설정 시 `Authorization: Bearer …` 일치 요청만 허용 |
 | `FORTUNE_CLOUDWAYS_MODEL` | 아니오 | 기본 `claude-sonnet-4-6` (만남 음성과 동일 계열) |
-| `FORTUNE_MAX_OUTPUT_TOKENS` | 아니오 | 기본 `16384` |
-| `FORTUNE_TEMPERATURE` | 아니오 | 기본 `0.7` |
+| `FORTUNE_MAX_OUTPUT_TOKENS` | 아니오 | **섹션별 루프** 기본 `16384` (hard cap `FORTUNE_MAX_TOKENS_HARD_CAP` 기본 24000) |
+| `FORTUNE_TEMPERATURE` | 아니오 | 기본 `0.7` (단일 패스·섹션 루프 공통) |
+| `FORTUNE_MENU_SINGLE_PASS_MAX_OUTPUT_TOKENS` | 아니오 | **단일 패스(마커 샤딩)** 출력 상한. 기본 **65536** (reunionf82와 동일). temperature는 0.7 유지 |
 
 ## 요청 본문 (`POST /chat`)
 
@@ -37,9 +39,11 @@ Vercel의 함수 한도를 넘기는 **긴 단일 스트림**은 Cloudways에서
 
 본문에 `fortune_menu_sections`( `{ system, user, subtitle_title? }[]` ), `fortune_menu_meta`( `type: "meta"` ), `fortune_menu_toc`( `type: "toc"`, `sections`, `toc_groups` )가 있으면 단일 스트림이 아니라 **메뉴 SSE 계약**(`section_start` → `chunk` → `section_replace` → `section_end` → `done`)으로 응답합니다. 연운 프로덕션은 `chat-stream-menus` API가 이 형식으로만 호출합니다. **모델**은 본문 `model`로 전달되며, `gemini-2.5-pro` 등이면 Gemini 스트림(`chunk` 델타)을 사용하고, 그 외는 Claude 스트림입니다.
 
-Gemini이면서 **`fortune_menu_cached_system`(블록 배열)** 이 있고 `GEMINI_MENU_SINGLE_STREAM`이 끄지 않았으면(기본 켜짐), **한 번의** `streamGenerateContent`로 전체를 받은 뒤 `<!-- YEONUN_SEC:n -->` … `<!-- /YEONUN_SEC:n -->` 마커로 잘라 **기존과 동일한** `section_start` / `chunk` / `section_replace` / `section_end` 이벤트를 보냅니다(reunionf82 방식 + 연운 UI 유지). `GEMINI_MENU_SINGLE_STREAM=0`이면 **섹션 루프**로 돌아가며, 이때는 `cachedContents`로 공통 system을 캐시해 2번째 소제목부터 TTFT를 줄입니다.
+Gemini이면서 **`fortune_menu_cached_system`(블록 배열)** 이 있고 `GEMINI_MENU_SINGLE_STREAM`이 끄지 않았으면(기본 켜짐), **한 번의** `streamGenerateContent`(**maxOutputTokens 65536**, **temperature 0.7**)로 전체를 받은 뒤 `<!-- YEONUN_SEC:n -->` … `<!-- /YEONUN_SEC:n -->` 마커로 잘라 **기존과 동일한** `section_start` / `chunk` / `section_replace` / `section_end` 이벤트를 보냅니다(reunionf82 방식 + 연운 UI 유지). `GEMINI_MENU_SINGLE_STREAM=0`이면 **섹션 루프**로 돌아가며, 이때는 `cachedContents`로 공통 system을 캐시해 2번째 소제목부터 TTFT를 줄입니다.
 
-체감: **단일 스트림**은 소제목 **사이**에 새 HTTP/TTFT가 없어 reunionf82에 가깝게 이어집니다. 마커를 모델이 어기면 일부 구간이 비거나 오류 블록으로 채워질 수 있어, 문제 시 `GEMINI_MENU_SINGLE_STREAM=0`으로 이전 방식으로 되돌릴 수 있습니다.
+체감: **단일 스트림**은 소제목 **사이**에 새 HTTP/TTFT가 없어 reunionf82에 가깝게 이어집니다.
+
+**30구간·5만자급 후반 `이 구간 생성에 실패` / `섹션 29`:** Vercel 300초가 아니라, **한 번의 응답 출력 한도(약 65k 토큰)** 안에 마커(`<!-- YEONUN_SEC:n -->`)가 끝까지 안 쓰이면 Cloudways 샤더가 남은 구간을 실패 블록으로 채웁니다. 연운은 **10구간 단위 배치** + 누락 구간 **소제목별 1회 재시도**로 보완합니다. 그래도 문제면 `GEMINI_MENU_SINGLE_STREAM=0`(섹션 루프) 또는 `FORTUNE_MENU_SINGLE_PASS_BATCH_SIZE=8` 을 낮춰 보세요.
 
 ## Nginx (지원팀 설정과 맞춤)
 
