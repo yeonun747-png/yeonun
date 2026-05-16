@@ -6763,6 +6763,9 @@ button.y-my-menu-item {
   color: var(--y-rose-deep);
   font-weight: 600;
 }
+.y-my-menu-item--guest .y-my-menu-icon {
+  opacity: 0.85;
+}
 .y-my-foot {
   margin: 10px 20px 0;
   padding: 14px 16px 18px;
@@ -10773,19 +10776,82 @@ a.y-vip-card--link {
   letter-spacing: 0.08em;
   padding: 14px 0 8px;
 }
-.y-support-faq-item {
-  padding: 13px 0;
-  border-bottom: 0.5px solid var(--y-line);
-  font-size: 13.5px;
-  color: var(--y-ink);
-  cursor: pointer;
+/* 고객센터 모달 FAQ 아코디언 — yeonun_v20.html `.y-spt-*` */
+.y-spt-item {
+  border-top: 0.5px solid var(--y-line);
+  overflow: hidden;
+}
+.y-spt-q {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  padding: 15px 0;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--y-ink);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  gap: 10px;
+  line-height: 1.45;
+}
+.y-spt-q > span:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.y-spt-arrow {
+  color: var(--y-mute-2);
+  font-size: 15px;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+  display: inline-block;
+}
+.y-spt-item.open .y-spt-arrow {
+  transform: rotate(90deg);
+}
+.y-spt-a {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.y-spt-item.open .y-spt-a {
+  max-height: 600px;
+}
+.y-spt-a-inner {
+  padding: 4px 0 16px;
+  font-size: 13px;
+  color: var(--y-mute);
+  line-height: 1.75;
+}
+.y-spt-a-inner strong {
+  color: var(--y-ink);
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.y-spt-email-foot {
+  margin-top: 8px;
+  padding: 16px 0 8px;
+  border-top: 0.5px solid var(--y-line);
+  text-align: center;
+}
+.y-spt-email-foot-lead {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  color: var(--y-mute);
+  line-height: 1.55;
+}
+.y-spt-email-foot-addr {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--y-ink);
   text-decoration: none;
 }
-.y-support-faq-item:last-child {
-  border-bottom: none;
+.y-spt-email-foot-addr:active {
+  opacity: 0.75;
 }
 
 /* 히스토리 */

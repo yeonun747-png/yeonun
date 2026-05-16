@@ -1,11 +1,7 @@
 "use client";
 
-import Link from "next/link";
-
-import { MySheetLink } from "@/components/my/MySheetLink";
+import { FaqAccordion } from "@/components/support/FaqAccordion";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
-
-const SUP_Q = `back=${encodeURIComponent("/support")}`;
 
 export function SupportMockClient() {
   return (
@@ -40,22 +36,7 @@ export function SupportMockClient() {
         </div>
         <div className="y-support-faq">
           <div className="y-support-faq-title">자주 묻는 질문</div>
-          <MySheetLink href={`/legal/terms?${SUP_Q}`} className="y-support-faq-item">
-            결제는 어떻게 진행되나요?
-            <span>›</span>
-          </MySheetLink>
-          <MySheetLink href={`/checkout/credit?${SUP_Q}`} className="y-support-faq-item">
-            음성 크레딧은 어떻게 사용하나요?
-            <span>›</span>
-          </MySheetLink>
-          <Link href="/my?modal=saju" className="y-support-faq-item">
-            사주 정보를 어떻게 수정하나요?
-            <span>›</span>
-          </Link>
-          <MySheetLink href={`/my?shelf=fortune&${SUP_Q}`} className="y-support-faq-item">
-            보관함 만료 전 연장이 가능한가요?
-            <span>›</span>
-          </MySheetLink>
+          <FaqAccordion />
         </div>
         <div style={{ height: 40 }} />
       </div>

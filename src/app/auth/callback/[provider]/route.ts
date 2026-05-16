@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { createExchangeToken } from "@/lib/auth/exchange-token";
 import { exchangeCodeAndFetchProfile } from "@/lib/auth/providers";
+import { requestBaseUrl } from "@/lib/auth/request-base-url";
 import {
   clearOAuthStateCookie,
   parseOAuthStateCookie,
@@ -52,7 +53,7 @@ export async function GET(
       isNewUser: result.isNewUser,
     });
 
-    const complete = new URL("/auth/complete", requestBase(request));
+    const complete = new URL("/auth/complete", requestBaseUrl(request));
     complete.searchParams.set("token", exchange);
     complete.searchParams.set("returnTo", result.isNewUser ? returnTo : "/my");
     complete.searchParams.set("provider", provider);
@@ -71,11 +72,4 @@ export async function GET(
     console.error("[auth/callback]", provider, e);
     return fail("token_failed");
   }
-}
-
-function requestBase(request: NextRequest): string {
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  if (host) return `${proto}://${host}`;
-  return request.nextUrl.origin;
 }
