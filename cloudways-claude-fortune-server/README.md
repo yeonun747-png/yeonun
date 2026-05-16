@@ -1,6 +1,6 @@
 # Cloudways Claude 점사 스트림 서버
 
-Vercel의 함수 한도를 넘기는 **긴 단일 스트림**은 Cloudways에서 받는 편이 유리합니다. 이 서버는 **Anthropic Claude** 전용 프록시로, Nginx에서 보통 **30분(1800s)** 까지 `proxy_read_timeout` / `proxy_send_timeout` 을 둡니다. 연운 Next의 `POST /api/fortune/chat-stream`이 여기 `POST /chat`으로 본문을 넘기면, 동일 SSE 형식(`start` → `chunk` → `done`)으로 브라우저까지 스트리밍합니다.
+Vercel의 함수 한도를 넘기는 **긴 단일 스트림**은 Cloudways에서 받는 편이 유리합니다. 이 서버는 **Anthropic Claude** 프록시이며, **메뉴 점사** 요청에서 모델 id가 `gemini-*`이면 **Google Gemini**(`streamGenerateContent`, SSE)로 섹션 HTML을 **토큰 단위로 스트리밍**해 Claude와 동일한 `chunk` 이벤트를 보냅니다. Nginx에서 보통 **30분(1800s)** 까지 `proxy_read_timeout` / `proxy_send_timeout` 을 둡니다. 연운 Next의 `POST /api/fortune/chat-stream`이 여기 `POST /chat`으로 본문을 넘기면, 동일 SSE 형식(`start` → `chunk` → `done`)으로 브라우저까지 스트리밍합니다.
 
 참고: 연운 `POST /api/fortune/chat-stream-menus`는 Next에서 **한 번** `POST /chat`으로 `fortune_menu_*` 본문을 넘기고, **섹션 루프·Claude 호출은 이 Node에서** 수행한 뒤 SSE를 그대로 이어 줍니다 (reunion `stream-proxy`와 같은 우회 패턴). Nginx 추가 없이 기존 `location /chat`만 사용합니다.
 
@@ -8,7 +8,10 @@ Vercel의 함수 한도를 넘기는 **긴 단일 스트림**은 Cloudways에서
 
 | 변수 | 필수 | 설명 |
 |------|------|------|
-| `ANTHROPIC_API_KEY` | 예 | Anthropic API 키 |
+| `ANTHROPIC_API_KEY` | 조건부 | Claude 사용 시 필수. 메뉴 점사만 Gemini로 쓰는 경우 비메뉴 `/chat`·Claude 경로는 여전히 필요할 수 있음 |
+| `GEMINI_API_KEY` 또는 `GOOGLE_AI_API_KEY` | 조건부 | 메뉴 점사에서 `gemini-2.5-pro` 등 Gemini 모델 사용 시 필수 |
+| `GEMINI_MENU_CACHE_TTL` | 아니오 | 섹션 루프 모드에서만: `cachedContents` TTL(기본 `600s`) |
+| `GEMINI_MENU_SINGLE_STREAM` | 아니오 | Gemini 메뉴: 기본 `1` = 한 번의 stream + 마커 샤딩(reunionf82 유사). `0` = 소제목별 순차 요청 + 캐시 |
 | `PORT` | 아니오 | 기본 `3000` |
 | `CLOUDWAYS_PROXY_SECRET` | 아니오 | 설정 시 `Authorization: Bearer …` 일치 요청만 허용 |
 | `FORTUNE_CLOUDWAYS_MODEL` | 아니오 | 기본 `claude-sonnet-4-6` (만남 음성과 동일 계열) |
@@ -32,7 +35,11 @@ Vercel의 함수 한도를 넘기는 **긴 단일 스트림**은 Cloudways에서
 
 ### 메뉴 점사(다구간) — 동일 `POST /chat`
 
-본문에 `fortune_menu_sections`( `{ system, user, subtitle_title? }[]` ), `fortune_menu_meta`( `type: "meta"` ), `fortune_menu_toc`( `type: "toc"`, `sections`, `toc_groups` )가 있으면 단일 스트림이 아니라 **메뉴 SSE 계약**(`section_start` → `chunk` → `section_replace` → `section_end` → `done`)으로 응답합니다. 연운 프로덕션은 `chat-stream-menus` API가 이 형식으로만 호출합니다.
+본문에 `fortune_menu_sections`( `{ system, user, subtitle_title? }[]` ), `fortune_menu_meta`( `type: "meta"` ), `fortune_menu_toc`( `type: "toc"`, `sections`, `toc_groups` )가 있으면 단일 스트림이 아니라 **메뉴 SSE 계약**(`section_start` → `chunk` → `section_replace` → `section_end` → `done`)으로 응답합니다. 연운 프로덕션은 `chat-stream-menus` API가 이 형식으로만 호출합니다. **모델**은 본문 `model`로 전달되며, `gemini-2.5-pro` 등이면 Gemini 스트림(`chunk` 델타)을 사용하고, 그 외는 Claude 스트림입니다.
+
+Gemini이면서 **`fortune_menu_cached_system`(블록 배열)** 이 있고 `GEMINI_MENU_SINGLE_STREAM`이 끄지 않았으면(기본 켜짐), **한 번의** `streamGenerateContent`로 전체를 받은 뒤 `<!-- YEONUN_SEC:n -->` … `<!-- /YEONUN_SEC:n -->` 마커로 잘라 **기존과 동일한** `section_start` / `chunk` / `section_replace` / `section_end` 이벤트를 보냅니다(reunionf82 방식 + 연운 UI 유지). `GEMINI_MENU_SINGLE_STREAM=0`이면 **섹션 루프**로 돌아가며, 이때는 `cachedContents`로 공통 system을 캐시해 2번째 소제목부터 TTFT를 줄입니다.
+
+체감: **단일 스트림**은 소제목 **사이**에 새 HTTP/TTFT가 없어 reunionf82에 가깝게 이어집니다. 마커를 모델이 어기면 일부 구간이 비거나 오류 블록으로 채워질 수 있어, 문제 시 `GEMINI_MENU_SINGLE_STREAM=0`으로 이전 방식으로 되돌릴 수 있습니다.
 
 ## Nginx (지원팀 설정과 맞춤)
 

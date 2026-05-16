@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AdminProductFortuneQuestionsEditor } from "@/components/admin/AdminProductFortuneQuestionsEditor";
 import { AdminThumbnailSvgField } from "@/components/admin/AdminThumbnailSvgField";
 import { ProductFortuneMenuEditor } from "@/components/admin/ProductFortuneMenuEditor";
 import { parseFortuneMenuJson, type FortuneMenuPayload } from "@/lib/product-fortune-menu";
+import { cloneFortuneQuestionsForEditor } from "@/lib/product-fortune-questions";
+import { normalizeFortuneStreamStrategy } from "@/lib/fortune-stream-strategy";
+import type { FortuneQuestionItem } from "@/lib/fortune-ux/defaultQuestions";
 
 type Row = Record<string, unknown>;
 
@@ -57,11 +61,19 @@ function ProductEditorForm({
   const categoryIsAll = categorySlug === "all";
 
   const initialMenu = useMemo(() => parseFortuneMenuJson(row.fortune_menu), [row.fortune_menu]);
+  const streamStrategy = useMemo(() => normalizeFortuneStreamStrategy(row.fortune_stream_strategy), [row.fortune_stream_strategy]);
   const [fortuneMenu, setFortuneMenu] = useState<FortuneMenuPayload>(initialMenu);
+  const initialQuestions = useMemo(() => cloneFortuneQuestionsForEditor(row.fortune_questions), [row.fortune_questions]);
+  const [fortuneQuestions, setFortuneQuestions] = useState<FortuneQuestionItem[]>(initialQuestions);
   const [thumb, setThumb] = useState(text(row.thumbnail_svg, ""));
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [svgBusy, setSvgBusy] = useState(false);
+
+  const fqSyncKey = useMemo(() => JSON.stringify(row.fortune_questions ?? null), [row.fortune_questions]);
+  useEffect(() => {
+    setFortuneQuestions(cloneFortuneQuestionsForEditor(row.fortune_questions));
+  }, [fqSyncKey]);
 
   const runSave = useCallback(async () => {
     const form = formRef.current;
@@ -70,6 +82,7 @@ function ProductEditorForm({
     setSaveErr(null);
     const fd = new FormData(form);
     fd.set("fortune_menu_json", JSON.stringify(fortuneMenu));
+    fd.set("fortune_questions_json", JSON.stringify(fortuneQuestions));
     fd.set("thumbnail_svg", thumb);
     try {
       const res = await fetch("/admin/products", {
@@ -85,7 +98,7 @@ function ProductEditorForm({
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : "저장 실패");
     }
-  }, [fortuneMenu, thumb]);
+  }, [fortuneMenu, fortuneQuestions, thumb]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,7 +203,21 @@ function ProductEditorForm({
         </label>
       </fieldset>
 
+      <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
+        <span className="y-admin-stack-legend">메뉴 점사 스트림</span>
+        <label className="y-admin-radio-option">
+          <input type="radio" name="fortune_stream_strategy" value="claude_only" defaultChecked={streamStrategy !== "hybrid"} />
+          <span>Claude 단독 (기본)</span>
+        </label>
+        <label className="y-admin-radio-option">
+          <input type="radio" name="fortune_stream_strategy" value="hybrid" defaultChecked={streamStrategy === "hybrid"} />
+          <span>하이브리드 — 첫 대메뉴는 Claude, 이후는 Gemini Pro와 병렬 생성</span>
+        </label>
+      </fieldset>
+
       <ProductFortuneMenuEditor value={fortuneMenu} onChange={setFortuneMenu} />
+
+      <AdminProductFortuneQuestionsEditor value={fortuneQuestions} onChange={setFortuneQuestions} />
 
       <div className="y-admin-thumbnail-gen-row">
         <AdminThumbnailSvgField

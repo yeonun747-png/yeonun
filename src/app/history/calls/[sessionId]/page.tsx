@@ -52,7 +52,7 @@ export default async function VoiceCallConversationPage({ params }: Props) {
   return (
     <>
       <MyTabBackdrop />
-      <TextChatDetailShell title={title} retentionLine={retentionLine} consultHref={consultHref} listHref="/history/calls">
+      <TextChatDetailShell title={title} retentionLine={retentionLine} consultHref={consultHref} listHref="/my?shelf=voice">
         <TextChatDetailThread grouped={grouped} characterHan={detail.character_han} />
       </TextChatDetailShell>
     </>

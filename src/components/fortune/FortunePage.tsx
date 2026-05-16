@@ -31,7 +31,6 @@ import { fortunePrefetchStorageKey, readFortunePrefetch, type FortunePrefetchV1 
 import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { runFortunePrefetch } from "@/lib/fortune-ux/runFortunePrefetch";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
-import { DEFAULT_FORTUNE_QUESTIONS } from "@/lib/fortune-ux/defaultQuestions";
 import { computeManseFromFormInput, type ManseRyeokData } from "@/lib/manse-ryeok";
 import { parseProductFortuneQuestions } from "@/lib/product-fortune-questions";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
@@ -143,11 +142,7 @@ export function FortunePage({
   const profile = (product.saju_input_profile === "pair" ? "pair" : "single") as DemoProfile;
   const characterName = character?.name?.trim() || product.character_key;
   const layout = useMemo(() => getFortuneStepLayout(product.slug), [product.slug]);
-  const rawFortuneQuestions = (product as unknown as { fortune_questions?: unknown }).fortune_questions;
-  const questions = useMemo(
-    () => parseProductFortuneQuestions(rawFortuneQuestions || DEFAULT_FORTUNE_QUESTIONS),
-    [rawFortuneQuestions],
-  );
+  const questions = useMemo(() => parseProductFortuneQuestions(product.fortune_questions), [product.fortune_questions]);
   const [step, setStep] = useState<FortuneStep>(0);
   const headerSubtitle = useMemo(
     () => subtitleForFortuneStep(step, layout, characterName),

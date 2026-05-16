@@ -16,6 +16,7 @@ import {
   flattenFortuneMenuForStream,
   parseFortuneMenuJson,
 } from "@/lib/product-fortune-menu";
+import { hybridClaudeSectionCount, normalizeFortuneStreamStrategy } from "@/lib/fortune-stream-strategy";
 
 export type FortuneMenuStreamClientBody = {
   product_slug?: string;
@@ -104,11 +105,15 @@ export async function buildFortuneMenuCloudwaysBody(
   const partner_info = profile === "pair" && body.partner_info ? normUser(body.partner_info) : null;
   const fortune_extra_context = String(body.fortune_extra_context ?? "").trim();
 
-  const claudeModel =
-    typeof body.model === "string" && body.model.trim()
-      ? body.model.trim()
-      : String(process.env.FORTUNE_CLOUDWAYS_MODEL ?? process.env.VOICE_LLM_MODEL ?? "claude-sonnet-4-6").trim() ||
-        "claude-sonnet-4-6";
+  const fortune_stream_strategy = normalizeFortuneStreamStrategy(product.fortune_stream_strategy);
+  const hybrid_claude_section_count =
+    fortune_stream_strategy === "hybrid" ? hybridClaudeSectionCount(menuParsed) : 0;
+
+  const menuClaudeModel =
+    String(process.env.FORTUNE_CLOUDWAYS_MODEL ?? process.env.VOICE_LLM_MODEL ?? "claude-sonnet-4-6").trim() ||
+    "claude-sonnet-4-6";
+  const menuGeminiModel =
+    String(process.env.FORTUNE_MENU_GEMINI_MODEL ?? "gemini-2.5-pro").trim() || "gemini-2.5-pro";
 
   const tocSections = flat.map((s) => ({
     id: s.id,
@@ -150,6 +155,8 @@ export async function buildFortuneMenuCloudwaysBody(
       profile,
       manse_context_included: manse_ryeok_text.length > 0,
       manse_context_chars: manse_ryeok_text.length,
+      fortune_stream_strategy,
+      hybrid_claude_section_count,
     },
     fortune_menu_toc: {
       type: "toc",
@@ -158,7 +165,8 @@ export async function buildFortuneMenuCloudwaysBody(
     },
     fortune_menu_cached_system,
     fortune_menu_sections,
-    model: claudeModel,
+    model: menuClaudeModel,
+    model_gemini_for_menu: menuGeminiModel,
   };
 
   return { ok: true, upstream, product_slug, profile };

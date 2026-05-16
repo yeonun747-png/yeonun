@@ -53,7 +53,7 @@ function productIcon(slug: string): string {
 function libraryAction(slug: string): { href: string; label: string } {
   const s = slug.toLowerCase();
   if (s.includes("credit")) return { href: "/checkout/credit", label: "크레딧 충전 화면으로" };
-  return { href: "/library", label: "점사 보관함에서 이 풀이 열기" };
+  return { href: "/my?shelf=fortune", label: "점사 보관함에서 이 풀이 열기" };
 }
 
 function formatPaidAtFull(iso: string | null): string {

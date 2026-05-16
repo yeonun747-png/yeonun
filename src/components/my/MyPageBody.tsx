@@ -1,23 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 
 import { useYeonunMember } from "@/components/auth/YeonunAuthProvider";
+import { useMyShelfListsPreload } from "@/hooks/useMyShelfListsPreload";
 import { BottomNav } from "@/components/BottomNav";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import { TopNav } from "@/components/TopNav";
 import { MyCreditBalanceLine } from "@/components/my/MyCreditBalanceLine";
+import { CallHistoryClient } from "@/components/history/CallHistoryClient";
+import { LibraryListScreenClient } from "@/components/library/LibraryListScreenClient";
 import { MyCreditOverviewSection } from "@/components/my/MyCreditOverviewSection";
 import { MyLogoutMenuItemClient } from "@/components/my/MyLogoutMenuItemClient";
 import { MyMemberProfileHeader } from "@/components/my/MyMemberProfileHeader";
 import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
 import { MySheetLink } from "@/components/my/MySheetLink";
+import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { MyWithdrawAccountMenuItemClient } from "@/components/my/MyWithdrawAccountMenuItemClient";
 
 const MY_PREFETCH_ROUTES = [
-  "/library",
-  "/history/calls",
+  "/my",
   "/history/chats",
   "/my/payments",
   "/checkout/credit",
@@ -29,8 +33,19 @@ const MY_PREFETCH_ROUTES = [
 
 export function MyPageBody() {
   const member = useYeonunMember();
+  const { fortuneSnapshot, voiceSnapshot } = useMyShelfListsPreload(!!member);
   const router = useRouter();
   const pathname = usePathname();
+  const sp = useSearchParams();
+  const shelf = sp.get("shelf");
+  const shelfFortune = shelf === "fortune";
+  const shelfVoice = shelf === "voice";
+  const shelfOpen = shelfFortune || shelfVoice;
+  const listBackHref = useMemo(() => {
+    const b = sp.get("back");
+    if (typeof b === "string" && b.startsWith("/") && !b.startsWith("//")) return b;
+    return "/my";
+  }, [sp]);
 
   const openAuthSheet = () => {
     const qs = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
@@ -89,7 +104,7 @@ export function MyPageBody() {
 
             <div className="y-my-menu-section">
               <div className="y-my-menu-section-title">콘텐츠</div>
-              <MySheetLink className="y-my-menu-item" href="/library">
+              <MySheetLink className="y-my-menu-item" href="/my?shelf=fortune">
                 <div className="y-my-menu-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
@@ -101,7 +116,7 @@ export function MyPageBody() {
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
-              <MySheetLink className="y-my-menu-item" href="/history/calls">
+              <MySheetLink className="y-my-menu-item" href="/my?shelf=voice">
                 <div className="y-my-menu-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
@@ -226,6 +241,13 @@ export function MyPageBody() {
         <div style={{ height: 80 }} />
       </main>
       <BottomNav />
+      {member && shelfOpen ? (
+        <>
+          <MyTabBackdrop />
+          {shelfFortune ? <LibraryListScreenClient backHref={listBackHref} fortuneSnapshot={fortuneSnapshot} /> : null}
+          {shelfVoice ? <CallHistoryClient voiceSnapshot={voiceSnapshot} /> : null}
+        </>
+      ) : null}
     </div>
   );
 }

@@ -2,9 +2,12 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import { AdminProductFortuneQuestionsEditor } from "@/components/admin/AdminProductFortuneQuestionsEditor";
 import { AdminThumbnailSvgField } from "@/components/admin/AdminThumbnailSvgField";
 import { ProductFortuneMenuEditor } from "@/components/admin/ProductFortuneMenuEditor";
 import { emptyFortuneMenu, type FortuneMenuPayload } from "@/lib/product-fortune-menu";
+import { cloneFortuneQuestionsForEditor } from "@/lib/product-fortune-questions";
+import type { FortuneQuestionItem } from "@/lib/fortune-ux/defaultQuestions";
 
 type Row = Record<string, unknown>;
 
@@ -24,6 +27,7 @@ export function ProductNewFormClient({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [fortuneMenu, setFortuneMenu] = useState<FortuneMenuPayload>(emptyFortuneMenu());
+  const [fortuneQuestions, setFortuneQuestions] = useState<FortuneQuestionItem[]>(() => cloneFortuneQuestionsForEditor(null));
   const [thumb, setThumb] = useState("");
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
@@ -36,6 +40,7 @@ export function ProductNewFormClient({
     setSaveErr(null);
     const fd = new FormData(form);
     fd.set("fortune_menu_json", JSON.stringify(fortuneMenu));
+    fd.set("fortune_questions_json", JSON.stringify(fortuneQuestions));
     fd.set("thumbnail_svg", thumb);
     try {
       const res = await fetch("/admin/products", {
@@ -51,7 +56,7 @@ export function ProductNewFormClient({
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : "저장 실패");
     }
-  }, [fortuneMenu, thumb]);
+  }, [fortuneMenu, fortuneQuestions, thumb]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +158,21 @@ export function ProductNewFormClient({
         </label>
       </fieldset>
 
+      <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
+        <span className="y-admin-stack-legend">메뉴 점사 스트림</span>
+        <label className="y-admin-radio-option">
+          <input type="radio" name="fortune_stream_strategy" value="claude_only" defaultChecked />
+          <span>Claude 단독 (기본)</span>
+        </label>
+        <label className="y-admin-radio-option">
+          <input type="radio" name="fortune_stream_strategy" value="hybrid" />
+          <span>하이브리드 — 첫 대메뉴는 Claude, 이후는 Gemini Pro와 병렬 생성</span>
+        </label>
+      </fieldset>
+
       <ProductFortuneMenuEditor value={fortuneMenu} onChange={setFortuneMenu} />
+
+      <AdminProductFortuneQuestionsEditor value={fortuneQuestions} onChange={setFortuneQuestions} />
 
       <div className="y-admin-thumbnail-gen-row">
         <AdminThumbnailSvgField

@@ -18,6 +18,14 @@ const PRODUCTS_SELECT_NO_PROFILE =
 
 /** `/admin`은 클라이언트 워크스페이스로 내려가므로 PG 결제코드는 조회에서 제외 */
 const PRODUCTS_SELECT_ADMIN =
+  "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,fortune_questions,fortune_stream_strategy,created_at";
+
+/** `fortune_stream_strategy` 컬럼 마이그레이션 전 DB */
+const PRODUCTS_SELECT_ADMIN_PRE_STREAM_STRATEGY =
+  "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,fortune_questions,created_at";
+
+/** `fortune_questions` 컬럼 마이그레이션 전 DB */
+const PRODUCTS_SELECT_ADMIN_PRE_FORTUNE_QUESTIONS =
   "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,created_at";
 
 /** 어드민에 노출하는 공통 시스템 프롬프트만 조회 — `order+limit`만 쓰면 행이 늘었을 때 특정 key가 목록에서 빠질 수 있음 */
@@ -59,6 +67,30 @@ async function readRows(table: string, select = "*", order?: string, limit = 20)
       data = second.data;
       error = second.error;
     }
+    if (
+      error &&
+      table === "products" &&
+      error.message.includes("fortune_questions") &&
+      (error.message.includes("does not exist") || error.message.includes("column"))
+    ) {
+      let q2 = supabase.from(table).select(PRODUCTS_SELECT_ADMIN_PRE_FORTUNE_QUESTIONS);
+      if (order) q2 = q2.order(order, { ascending: false });
+      const third = await q2.limit(limit);
+      data = third.data;
+      error = third.error;
+    }
+    if (
+      error &&
+      table === "products" &&
+      error.message.includes("fortune_stream_strategy") &&
+      (error.message.includes("does not exist") || error.message.includes("column"))
+    ) {
+      let q2 = supabase.from(table).select(PRODUCTS_SELECT_ADMIN_PRE_STREAM_STRATEGY);
+      if (order) q2 = q2.order(order, { ascending: false });
+      const fourth = await q2.limit(limit);
+      data = fourth.data;
+      error = fourth.error;
+    }
     if (error) return { rows: [], ready: false, error: error.message };
     const rowsUnknown = (data ?? []) as unknown;
     const rows = Array.isArray(rowsUnknown) ? (rowsUnknown as Row[]) : [];
@@ -97,8 +129,22 @@ function EmptyPanel({ label, error }: { label: string; error?: string }) {
 }
 
 export default async function AdminHomePage() {
-  const [products, characters, personas, servicePrompts, characterModePrompts, ttsVoices, categories, reviews, orders, payments, coupons, webhooks, voiceSessions, fortuneRequests] =
-    await Promise.all([
+  const [
+    products,
+    characters,
+    personas,
+    servicePrompts,
+    characterModePrompts,
+    ttsVoices,
+    categories,
+    reviews,
+    orders,
+    payments,
+    coupons,
+    webhooks,
+    voiceSessions,
+    fortuneRequests,
+  ] = await Promise.all([
       readRows("products", PRODUCTS_SELECT_ADMIN, "created_at", 80),
       readRows("characters", "key,name,han,en,spec,greeting", "key", 20),
       readRows("character_personas", "character_key,color_hex,age_impression,voice_tone,honorific_style,field_core,emotional_distance,sentence_tempo,endings,specialties,temperament,speech_style,emotion_style,strengths,keywords,is_active", "character_key", 20),

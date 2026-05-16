@@ -36,6 +36,14 @@ const CHAR_NAME: Record<string, string> = {
   un: "운서",
 };
 
+/** 하이브리드 등에서 이후 구간 생성 대기 중일 때 본문 안내 (캐릭터별) */
+const CHAR_GEMINI_WAIT: Record<string, string> = {
+  yeon: "연화가 당신의 인연 실을 읽고 있어요...",
+  byeol: "별하가 별자리를 헤아리고 있어요...",
+  yeo: "여연이 명반을 펼치고 있어요...",
+  un: "운서가 오늘의 기운을 살피고 있어요...",
+};
+
 /** Cloudways 단일 HTML SSE vs 로컬 데모(501) 멀티섹션 SSE */
 type FortuneStreamPumpMode = "claude_html_stream" | "sections";
 
@@ -360,7 +368,22 @@ export function FortuneStreamModal() {
     [profile],
   );
 
+  const streamKey = useMemo(
+    () => `${product}\u001f${profile}\u001f${characterKey}\u001f${orderNo ?? ""}\u001f${title}`,
+    [product, profile, characterKey, orderNo, title],
+  );
+
+  const streamParamsRef = useRef({ product, profile, characterKey, orderNo, title });
+  streamParamsRef.current = { product, profile, characterKey, orderNo, title };
+
+  const pumpSseBodyRef = useRef(pumpSseBody);
+  pumpSseBodyRef.current = pumpSseBody;
+
   const runStream = useCallback(async () => {
+    const { product: productSlug, profile: streamProfile, characterKey: streamCharKey, orderNo: streamOrderNo, title: streamTitle } =
+      streamParamsRef.current;
+    const pumpSse = pumpSseBodyRef.current;
+
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
@@ -392,24 +415,24 @@ export function FortuneStreamModal() {
 
     try {
       const manse_ryeok_text = buildFortuneManseContext({
-        profile,
-        productSlug: product,
+        profile: streamProfile,
+        productSlug: productSlug,
       });
       const user_info = readUserInfoFromYeonunSajuV1();
-      const partner_info = profile === "pair" ? partnerInfoFromPartnerStorage(product) : null;
+      const partner_info = streamProfile === "pair" ? partnerInfoFromPartnerStorage(productSlug) : null;
 
-      const extraCfg = getFortuneProductExtraConfig(product);
+      const extraCfg = getFortuneProductExtraConfig(productSlug);
       const fortune_extra_context = (() => {
         if (!extraCfg) return "";
-        return formatFortuneExtraForPrompt(extraCfg, readFortuneExtraAnswers(product)).trim();
+        return formatFortuneExtraForPrompt(extraCfg, readFortuneExtraAnswers(productSlug)).trim();
       })();
 
       const streamBody = {
-        product_slug: product,
-        profile,
-        character_key: characterKey,
-        order_no: orderNo ?? undefined,
-        title,
+        product_slug: productSlug,
+        profile: streamProfile,
+        character_key: streamCharKey,
+        order_no: streamOrderNo ?? undefined,
+        title: streamTitle,
         manse_ryeok_text,
         user_info,
         partner_info,
@@ -436,7 +459,7 @@ export function FortuneStreamModal() {
         });
       } else {
         if (!res.body) throw new Error("스트림 연결 실패");
-        const pr = await pumpSseBody(res.body.getReader(), ac, "sections");
+        const pr = await pumpSse(res.body.getReader(), ac, "sections");
         if (!pr.sectionsDoneEvent) {
           if (!ac.signal.aborted) {
             setStreamError((prev) => prev || "풀이 전송이 중간에 끊겼습니다. 잠시 후 다시 시도해 주세요.");
@@ -455,16 +478,16 @@ export function FortuneStreamModal() {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
           body: JSON.stringify({
-            product_slug: product,
-            profile,
+            product_slug: productSlug,
+            profile: streamProfile,
             manse_context: manse_ryeok_text,
-            character_key: characterKey,
-            order_no: orderNo ?? undefined,
+            character_key: streamCharKey,
+            order_no: streamOrderNo ?? undefined,
           }),
           signal: ac.signal,
         });
         if (!res.ok || !res.body) throw new Error("스트림 연결 실패");
-        const prDemo = await pumpSseBody(res.body.getReader(), ac, "sections");
+        const prDemo = await pumpSse(res.body.getReader(), ac, "sections");
         if (!prDemo.sectionsDoneEvent) {
           if (!ac.signal.aborted) {
             setStreamError((prev) => prev || "풀이 전송이 중간에 끊겼습니다. 잠시 후 다시 시도해 주세요.");
@@ -483,7 +506,7 @@ export function FortuneStreamModal() {
         throw new Error(errText.slice(0, 400) || "스트림 연결 실패");
       }
 
-      const prClaude = await pumpSseBody(res.body.getReader(), ac, "claude_html_stream");
+      const prClaude = await pumpSse(res.body.getReader(), ac, "claude_html_stream");
       if (!prClaude.claudeDoneEvent) {
         if (!ac.signal.aborted) {
           setStreamError((prev) => prev || "풀이 전송이 중간에 끊겼습니다. 잠시 후 다시 시도해 주세요.");
@@ -497,7 +520,7 @@ export function FortuneStreamModal() {
       setStreamError((e as Error).message || "연결에 실패했습니다.");
       setPhase("interrupted");
     }
-  }, [product, profile, characterKey, orderNo, title, pumpSseBody]);
+  }, [streamKey]);
 
   useEffect(() => {
     void runStream();
@@ -675,14 +698,30 @@ export function FortuneStreamModal() {
     [claudeStreamMode],
   );
 
-  const onTocDoneKeyDown = useCallback(
+  const tocSectionUnlocked = useCallback(
+    (i: number) => {
+      if (i <= 0) return true;
+      return doneIdx.has(i - 1);
+    },
+    [doneIdx],
+  );
+
+  const onTocNavigate = useCallback(
+    (i: number) => {
+      setActiveIdx(i);
+      scrollToSection(i);
+    },
+    [scrollToSection],
+  );
+
+  const onTocItemKeyDown = useCallback(
     (index: number, e: KeyboardEvent<HTMLLIElement>) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        scrollToSection(index);
+        onTocNavigate(index);
       }
     },
-    [scrollToSection],
+    [onTocNavigate],
   );
 
   const scrollToTocTop = useCallback(() => {
@@ -889,23 +928,25 @@ export function FortuneStreamModal() {
                                 {g.subs.map((sub) => {
                                   const i = sub.sectionIndex;
                                   const done = claudeStreamMode ? claudeStreamTocUi.done.has(i) : doneIdx.has(i);
+                                  const unlocked = claudeStreamMode ? done : tocSectionUnlocked(i);
                                   const active = claudeStreamMode ? claudeStreamTocUi.active === i : activeIdx === i;
                                   let cls = "y-fs-toc-item y-fs-toc-item--sub";
                                   if (done) cls += " y-fs-toc-item--done";
                                   else if (active) cls += " y-fs-toc-item--active";
+                                  else if (unlocked) cls += " y-fs-toc-item--ready";
                                   else cls += " y-fs-toc-item--pending";
-                                  if (done) cls += " y-fs-toc-item--clickable";
+                                  if (unlocked) cls += " y-fs-toc-item--clickable";
                                   return (
                                     <li
                                       key={sub.id}
                                       className={cls}
-                                      {...(done
+                                      {...(unlocked
                                         ? {
                                             role: "button" as const,
                                             tabIndex: 0,
                                             "aria-label": `${sub.title} 섹션으로 이동`,
-                                            onClick: () => scrollToSection(i),
-                                            onKeyDown: (e) => onTocDoneKeyDown(i, e),
+                                            onClick: () => onTocNavigate(i),
+                                            onKeyDown: (e) => onTocItemKeyDown(i, e),
                                           }
                                         : {})}
                                     >
@@ -931,23 +972,25 @@ export function FortuneStreamModal() {
                         <ol className="y-fs-toc" aria-label="목차">
                           {toc.map((item, i) => {
                             const done = claudeStreamMode ? claudeStreamTocUi.done.has(i) : doneIdx.has(i);
+                            const unlocked = claudeStreamMode ? done : tocSectionUnlocked(i);
                             const active = claudeStreamMode ? claudeStreamTocUi.active === i : activeIdx === i;
                             let cls = "y-fs-toc-item";
                             if (done) cls += " y-fs-toc-item--done";
                             else if (active) cls += " y-fs-toc-item--active";
+                            else if (unlocked) cls += " y-fs-toc-item--ready";
                             else cls += " y-fs-toc-item--pending";
-                            if (done) cls += " y-fs-toc-item--clickable";
+                            if (unlocked) cls += " y-fs-toc-item--clickable";
                             return (
                               <li
                                 key={item.id}
                                 className={cls}
-                                {...(done
+                                {...(unlocked
                                   ? {
                                       role: "button" as const,
                                       tabIndex: 0,
                                       "aria-label": `${item.title} 섹션으로 이동`,
-                                      onClick: () => scrollToSection(i),
-                                      onKeyDown: (e) => onTocDoneKeyDown(i, e),
+                                      onClick: () => onTocNavigate(i),
+                                      onKeyDown: (e) => onTocItemKeyDown(i, e),
                                     }
                                   : {})}
                               >
@@ -1170,6 +1213,9 @@ export function FortuneStreamModal() {
                                   />
                                 </div>
                               ) : null}
+                              <p className="y-fs-gemini-wait-tx" aria-live="polite">
+                                {CHAR_GEMINI_WAIT[characterKey] ?? CHAR_GEMINI_WAIT.yeon}
+                              </p>
                               <div className="y-fs-skel" aria-hidden="true">
                                 <div className="y-fs-skel-bar y-fs-skel-bar--a" />
                                 <div className="y-fs-skel-bar y-fs-skel-bar--b" />

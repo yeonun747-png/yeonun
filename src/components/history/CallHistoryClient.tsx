@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { VOICE_CALL_ARCHIVE_LIST_DAYS, type VoiceCallHistoryRowVm } from "@/lib/voice-call-history-public";
+import type { MyVoiceListSnapshot, VoiceHistoryGroupedBlock } from "@/hooks/useMyShelfListsPreload";
+import { VOICE_CALL_ARCHIVE_LIST_DAYS } from "@/lib/voice-call-history-public";
 
 import { CallHistorySheet } from "./CallHistorySheet";
-
-type GroupedBlock = { monthLabel: string; rows: VoiceCallHistoryRowVm[] };
 
 function HeadphoneIcon() {
   return (
@@ -36,41 +35,35 @@ function HeadphoneIcon() {
   );
 }
 
-export function CallHistoryClient() {
-  const [grouped, setGrouped] = useState<GroupedBlock[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+function VoiceListSkeleton() {
+  return (
+    <div className="y-my-shelf-skel y-my-shelf-skel--voice" aria-hidden>
+      {[0, 1].map((block) => (
+        <div key={block} className="y-my-shelf-skel-voice-block">
+          <div className="y-my-shelf-skel-month" />
+          <ul className="y-my-shelf-skel-voice-rows">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <li key={i} className="y-my-shelf-skel-voice-row" />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function CallHistoryClient({ voiceSnapshot }: { voiceSnapshot: MyVoiceListSnapshot }) {
+  const [grouped, setGrouped] = useState<VoiceHistoryGroupedBlock[]>(() => voiceSnapshot.grouped);
+  const [loadError, setLoadError] = useState<string | null>(() => voiceSnapshot.loadError);
+  const [loaded, setLoaded] = useState(() => voiceSnapshot.settled);
 
   useEffect(() => {
-    let cancelled = false;
-    const id = requestAnimationFrame(() => {
-      if (cancelled) return;
-      void (async () => {
-        try {
-          const r = await fetch("/api/my/voice-call-history", { method: "GET", cache: "no-store" });
-          const j = (await r.json()) as { ok: true; grouped: GroupedBlock[] } | { ok: false; error?: string };
-          if (cancelled) return;
-          if (!j.ok) {
-            setLoadError(typeof j.error === "string" ? j.error : "목록을 불러오지 못했습니다.");
-            setGrouped([]);
-            setLoaded(true);
-            return;
-          }
-          setLoadError(null);
-          setGrouped(Array.isArray(j.grouped) ? j.grouped : []);
-        } catch {
-          if (!cancelled) setLoadError("목록을 불러오지 못했습니다.");
-        } finally {
-          if (!cancelled) setLoaded(true);
-        }
-      })();
-    });
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(id);
-    };
-  }, []);
+    setGrouped(voiceSnapshot.grouped);
+    setLoadError(voiceSnapshot.loadError);
+    setLoaded(voiceSnapshot.settled);
+  }, [voiceSnapshot.grouped, voiceSnapshot.loadError, voiceSnapshot.settled]);
 
+  const showSkeleton = !loadError && !loaded;
   const empty = loaded && !loadError && grouped.every((g) => g.rows.length === 0);
 
   return (
@@ -81,6 +74,8 @@ export function CallHistoryClient() {
             {loadError}
           </p>
         ) : null}
+
+        {showSkeleton ? <VoiceListSkeleton /> : null}
 
         {empty ? (
           <div className="y-lib-empty y-lib-empty--sheet">

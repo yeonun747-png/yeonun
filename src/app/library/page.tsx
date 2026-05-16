@@ -1,30 +1,29 @@
-import { LibraryListScreenClient } from "@/components/library/LibraryListScreenClient";
-import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
+"use client";
 
-export const metadata = {
-  title: "점사 보관함 | 연운 緣運",
-  description: "저장한 점사 풀이를 다시 열람합니다.",
-  robots: { index: false, follow: true },
-};
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-function resolveBackHref(raw: string | string[] | undefined): string {
-  const v = Array.isArray(raw) ? raw[0] : raw;
-  if (typeof v === "string" && v.startsWith("/") && !v.startsWith("//")) return v;
-  return "/my";
+function LibraryIndexRedirectInner() {
+  const router = useRouter();
+  const sp = useSearchParams();
+
+  useEffect(() => {
+    const back = sp.get("back");
+    const qs = new URLSearchParams();
+    qs.set("shelf", "fortune");
+    if (typeof back === "string" && back.startsWith("/") && !back.startsWith("//")) {
+      qs.set("back", back);
+    }
+    router.replace(`/my?${qs.toString()}`, { scroll: false });
+  }, [router, sp]);
+
+  return null;
 }
 
-export default async function LibraryPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ back?: string | string[] }>;
-}) {
-  const sp = await searchParams;
-  const backHref = resolveBackHref(sp.back);
-
+export default function LibraryIndexRedirect() {
   return (
-    <>
-      <MyTabBackdrop />
-      <LibraryListScreenClient backHref={backHref} />
-    </>
+    <Suspense fallback={null}>
+      <LibraryIndexRedirectInner />
+    </Suspense>
   );
 }

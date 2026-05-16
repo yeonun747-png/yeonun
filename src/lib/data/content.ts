@@ -1,5 +1,6 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { parseFortuneMenuJson, type FortuneMenuPayload } from "@/lib/product-fortune-menu";
+import { normalizeFortuneStreamStrategy, type FortuneStreamStrategy } from "@/lib/fortune-stream-strategy";
 import { cache } from "react";
 
 export type Category = {
@@ -26,6 +27,10 @@ export type Product = {
   payment_code: number | null;
   /** 어드민 점사 대/소메뉴 */
   fortune_menu: FortuneMenuPayload;
+  /** 메뉴카드 질문 스텝 JSON. null/미설정이면 기본 질문 세트 */
+  fortune_questions: unknown | null;
+  /** 메뉴 점사 스트림: claude_only(기본) | hybrid */
+  fortune_stream_strategy: FortuneStreamStrategy;
   created_at: string;
 };
 
@@ -33,7 +38,7 @@ export type Product = {
 const PRODUCT_SELECT_LEGACY =
   "slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at";
 const PRODUCT_SELECT_WITH_PROFILE = `${PRODUCT_SELECT_LEGACY},saju_input_profile`;
-const PRODUCT_SELECT_FULL = `${PRODUCT_SELECT_WITH_PROFILE},payment_code,fortune_menu`;
+const PRODUCT_SELECT_FULL = `${PRODUCT_SELECT_WITH_PROFILE},payment_code,fortune_menu,fortune_questions,fortune_stream_strategy`;
 
 function missingSajuProfileColumn(msg: string) {
   return msg.includes("saju_input_profile") && msg.includes("does not exist");
@@ -41,7 +46,10 @@ function missingSajuProfileColumn(msg: string) {
 
 function missingPaymentOrMenuColumn(msg: string) {
   return (
-    (msg.includes("payment_code") || msg.includes("fortune_menu")) &&
+    (msg.includes("payment_code") ||
+      msg.includes("fortune_menu") ||
+      msg.includes("fortune_questions") ||
+      msg.includes("fortune_stream_strategy")) &&
     (msg.includes("does not exist") || msg.includes("column"))
   );
 }
@@ -65,6 +73,8 @@ function asProduct(row: unknown): Product {
     payment_code:
       r.payment_code == null || r.payment_code === "" ? null : Number(r.payment_code),
     fortune_menu: parseFortuneMenuJson(r.fortune_menu),
+    fortune_questions: r.fortune_questions ?? null,
+    fortune_stream_strategy: normalizeFortuneStreamStrategy(r.fortune_stream_strategy),
     created_at: String(r.created_at ?? ""),
   };
 }

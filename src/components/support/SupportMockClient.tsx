@@ -52,7 +52,7 @@ export function SupportMockClient() {
             사주 정보를 어떻게 수정하나요?
             <span>›</span>
           </Link>
-          <MySheetLink href={`/library?${SUP_Q}`} className="y-support-faq-item">
+          <MySheetLink href={`/my?shelf=fortune&${SUP_Q}`} className="y-support-faq-item">
             보관함 만료 전 연장이 가능한가요?
             <span>›</span>
           </MySheetLink>

@@ -8,7 +8,7 @@ type IdleWindow = Window & {
   cancelIdleCallback?: (id: number) => void;
 };
 
-const MY_SHEET_PRIORITY = new Set(["/library", "/history/calls", "/history/chats"]);
+const MY_SHEET_PRIORITY = new Set(["/my", "/history/chats"]);
 
 export function RoutePrefetcher({ routes }: { routes: string[] }) {
   const router = useRouter();

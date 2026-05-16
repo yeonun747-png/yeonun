@@ -2866,10 +2866,153 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
 .y-chat-consult-hist-modal .y-chat-consult-hist-sheet.y-modal-sheet {
   background: #f9f7f2;
   max-height: min(88vh, 820px);
+  animation: yArchiveSheetSnap 0.2s cubic-bezier(0.12, 0.95, 0.12, 1);
 }
 .y-chat-consult-hist-scroll.y-modal-scroll {
   background: #f9f7f2;
   padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+/* 점사·음성 보관함: 채팅 보관함과 동일 z-index·크림 배경·스냅 업 애니메이션 */
+.y-lib-list-modal.y-modal,
+.y-call-hist-modal.y-modal {
+  z-index: 211;
+}
+.y-lib-list-modal .y-modal-head,
+.y-call-hist-modal .y-modal-head {
+  background: #f9f7f2;
+  border-bottom-color: rgba(26, 24, 21, 0.1);
+}
+.y-lib-list-modal .y-modal-handle,
+.y-call-hist-modal .y-modal-handle {
+  background: rgba(26, 24, 21, 0.18);
+}
+.y-lib-list-modal .y-lib-list-sheet.y-modal-sheet,
+.y-call-hist-modal .y-call-hist-sheet.y-modal-sheet {
+  background: #f9f7f2;
+  max-height: min(88vh, 820px);
+  animation: yArchiveSheetSnap 0.2s cubic-bezier(0.12, 0.95, 0.12, 1);
+}
+.y-lib-sheet-scroll.y-modal-scroll,
+.y-call-hist-scroll.y-modal-scroll {
+  background: #f9f7f2;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+@keyframes yArchiveSheetSnap {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+/* 마이 보관함 시트: 데이터 로딩 중 플레이스홀더(시트와 동시에 자리 확보) */
+@keyframes yShelfSkelShimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+.y-my-shelf-skel {
+  padding: 4px 0 8px;
+}
+.y-my-shelf-skel-pills {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 4px 16px 10px;
+  overflow: hidden;
+}
+.y-my-shelf-skel-pill {
+  flex-shrink: 0;
+  height: 32px;
+  width: 52px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(26, 24, 21, 0.06) 0%,
+    rgba(26, 24, 21, 0.12) 50%,
+    rgba(26, 24, 21, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: yShelfSkelShimmer 1.05s ease-in-out infinite;
+}
+.y-my-shelf-skel-line {
+  height: 12px;
+  margin: 0 16px 14px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(26, 24, 21, 0.05) 0%,
+    rgba(26, 24, 21, 0.1) 50%,
+    rgba(26, 24, 21, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: yShelfSkelShimmer 1.05s ease-in-out infinite;
+}
+.y-my-shelf-skel-line--short {
+  max-width: 180px;
+}
+.y-my-shelf-skel-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.y-my-shelf-skel-card {
+  height: 72px;
+  border-radius: 14px;
+  background: linear-gradient(
+    90deg,
+    rgba(26, 24, 21, 0.05) 0%,
+    rgba(26, 24, 21, 0.09) 50%,
+    rgba(26, 24, 21, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: yShelfSkelShimmer 1.05s ease-in-out infinite;
+}
+.y-my-shelf-skel--voice {
+  padding: 8px 0 4px;
+}
+.y-my-shelf-skel-voice-block {
+  margin-bottom: 4px;
+}
+.y-my-shelf-skel-month {
+  height: 14px;
+  width: 72px;
+  margin: 12px 16px 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(26, 24, 21, 0.06) 0%,
+    rgba(26, 24, 21, 0.11) 50%,
+    rgba(26, 24, 21, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: yShelfSkelShimmer 1.05s ease-in-out infinite;
+}
+.y-my-shelf-skel-voice-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.y-my-shelf-skel-voice-row {
+  height: 56px;
+  border-radius: 12px;
+  background: linear-gradient(
+    90deg,
+    rgba(26, 24, 21, 0.05) 0%,
+    rgba(26, 24, 21, 0.09) 50%,
+    rgba(26, 24, 21, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: yShelfSkelShimmer 1.05s ease-in-out infinite;
 }
 .y-chat-consult-mock-wrap {
   padding: 0 0 8px;
@@ -8842,6 +8985,9 @@ button.y-my-menu-item {
   outline-offset: 2px;
   border-radius: 6px;
 }
+.y-fs-toc-item--ready {
+  opacity: 0.92;
+}
 .y-fs-toc-item {
   display: flex;
   align-items: center;
@@ -9174,6 +9320,13 @@ button.y-my-menu-item {
 .y-fs-skel-bar--c {
   width: 64%;
 }
+.y-fs-gemini-wait-tx {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--y-fs-menu-sub, #216a6d);
+  font-style: italic;
+}
 .y-fs-skel--empty {
   min-height: 0;
 }
@@ -9479,16 +9632,7 @@ button.y-fs-act-consult:disabled {
   overflow: hidden;
 }
 
-/* 보관함 목록 — 목업 바텀시트·필터 알약·카드(한자 블럭 없음) */
-.y-lib-list-modal {
-  z-index: 210;
-}
-.y-lib-list-sheet {
-  max-height: min(88vh, 820px);
-}
-.y-lib-sheet-scroll {
-  padding-bottom: calc(8px + env(safe-area-inset-bottom));
-}
+/* 보관함 목록 — 필터 알약·카드(시트 스타일은 위 채팅 보관함 블록과 공유) */
 .y-lib-mock-wrap {
   padding: 4px 0 20px;
 }
@@ -10718,16 +10862,7 @@ a.y-vip-card--link {
   line-height: 1.55;
 }
 
-/* 상담 히스토리 — 목업 바텀시트(스샷 동일) */
-.y-call-hist-modal {
-  z-index: 210;
-}
-.y-call-hist-sheet {
-  max-height: min(88vh, 820px);
-}
-.y-call-hist-scroll {
-  padding-bottom: calc(8px + env(safe-area-inset-bottom));
-}
+/* 상담 히스토리 — 목록 본문(시트는 위 보관함 공통 블록) */
 .y-call-hist-wrap {
   padding-bottom: 12px;
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/supabase/server";
 import { emptyFortuneMenu, parseFortuneMenuJson } from "@/lib/product-fortune-menu";
+import { parseFortuneQuestionsJsonFromForm } from "@/lib/product-fortune-questions";
 
 function wantsJson(request: Request) {
   const accept = request.headers.get("accept") ?? "";
@@ -33,8 +34,9 @@ export async function POST(request: Request) {
     : [];
   const thumbnail_svg_raw = String(form.get("thumbnail_svg") ?? "");
   const thumbnail_svg = thumbnail_svg_raw.trim().length ? thumbnail_svg_raw : null;
-  const profileRaw = String(form.get("saju_input_profile") ?? "single").trim();
-  const saju_input_profile = profileRaw === "pair" ? "pair" : "single";
+  const strategyRaw = String(form.get("fortune_stream_strategy") ?? "claude_only").trim();
+  const fortune_stream_strategy = strategyRaw === "hybrid" ? "hybrid" : "claude_only";
+  const saju_input_profile = String(form.get("saju_input_profile") ?? "single").trim() === "pair" ? "pair" : "single";
 
   const fortuneMenuRaw = String(form.get("fortune_menu_json") ?? "").trim();
   let fortune_menu = emptyFortuneMenu();
@@ -43,6 +45,18 @@ export async function POST(request: Request) {
       fortune_menu = parseFortuneMenuJson(JSON.parse(fortuneMenuRaw) as unknown);
     } catch {
       if (json) return NextResponse.json({ ok: false, error: "fortune_menu_json 파싱 실패" }, { status: 400 });
+      return NextResponse.redirect(new URL("/admin", request.url), 303);
+    }
+  }
+
+  const fortuneQuestionsRaw = String(form.get("fortune_questions_json") ?? "").trim();
+  let fortune_questions: ReturnType<typeof parseFortuneQuestionsJsonFromForm> = null;
+  if (fortuneQuestionsRaw.length) {
+    try {
+      fortune_questions = parseFortuneQuestionsJsonFromForm(fortuneQuestionsRaw);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "fortune_questions_json 파싱 실패";
+      if (json) return NextResponse.json({ ok: false, error: msg }, { status: 400 });
       return NextResponse.redirect(new URL("/admin", request.url), 303);
     }
   }
@@ -68,6 +82,8 @@ export async function POST(request: Request) {
     thumbnail_svg,
     saju_input_profile,
     fortune_menu,
+    fortune_questions,
+    fortune_stream_strategy,
   };
 
   if (prev?.payment_code != null && prev.payment_code !== "") {

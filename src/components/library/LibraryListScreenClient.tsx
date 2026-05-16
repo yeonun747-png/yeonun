@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import type { MyFortuneListSnapshot } from "@/hooks/useMyShelfListsPreload";
 import { LIBRARY_CHARACTER_FILTER_ORDER } from "@/lib/library-character-filters";
 import type { LibraryListItemVm } from "@/lib/library-list-vm";
 
@@ -18,48 +19,49 @@ function kickerClass(characterKey: LibraryListItemVm["characterKey"]): string {
   return "y-lib-mock-kicker--neutral";
 }
 
-export function LibraryListScreenClient({ backHref = "/my" }: { backHref?: string }) {
-  const [items, setItems] = useState<LibraryListItemVm[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [filter, setFilter] = useState<FilterKey>("all");
+function FortuneListSkeleton() {
+  return (
+    <div className="y-my-shelf-skel" aria-hidden>
+      <div className="y-my-shelf-skel-pills">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="y-my-shelf-skel-pill" />
+        ))}
+      </div>
+      <div className="y-my-shelf-skel-line y-my-shelf-skel-line--short" />
+      <ul className="y-my-shelf-skel-cards">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <li key={i} className="y-my-shelf-skel-card" />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function LibraryListScreenClient({
+  backHref = "/my",
+  fortuneSnapshot,
+}: {
+  backHref?: string;
+  fortuneSnapshot: MyFortuneListSnapshot;
+}) {
+  const [items, setItems] = useState<LibraryListItemVm[]>(() => fortuneSnapshot.items);
+  const [loadError, setLoadError] = useState<string | null>(() => fortuneSnapshot.loadError);
+  const [loaded, setLoaded] = useState(() => fortuneSnapshot.settled);
 
   useEffect(() => {
-    let cancelled = false;
-    const id = requestAnimationFrame(() => {
-      if (cancelled) return;
-      void (async () => {
-        try {
-          const r = await fetch("/api/my/fortune-library-list", { method: "GET", cache: "no-store" });
-          const j = (await r.json()) as
-            | { ok: true; items: LibraryListItemVm[] }
-            | { ok: false; error?: string };
-          if (cancelled) return;
-          if (!j.ok) {
-            setLoadError(typeof j.error === "string" ? j.error : "목록을 불러오지 못했습니다.");
-            setItems([]);
-            setLoaded(true);
-            return;
-          }
-          setLoadError(null);
-          setItems(Array.isArray(j.items) ? j.items : []);
-        } catch {
-          if (!cancelled) setLoadError("목록을 불러오지 못했습니다.");
-        } finally {
-          if (!cancelled) setLoaded(true);
-        }
-      })();
-    });
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(id);
-    };
-  }, []);
+    setItems(fortuneSnapshot.items);
+    setLoadError(fortuneSnapshot.loadError);
+    setLoaded(fortuneSnapshot.settled);
+  }, [fortuneSnapshot.items, fortuneSnapshot.loadError, fortuneSnapshot.settled]);
+
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   const filtered = useMemo(() => {
     if (filter === "all") return items;
     return items.filter((i) => i.characterKey === filter);
   }, [items, filter]);
+
+  const showSkeleton = !loadError && !loaded;
 
   return (
     <LibraryListSheet backHref={backHref}>
@@ -70,7 +72,9 @@ export function LibraryListScreenClient({ backHref = "/my" }: { backHref?: strin
           </p>
         ) : null}
 
-        {!loadError ? (
+        {showSkeleton ? <FortuneListSkeleton /> : null}
+
+        {!loadError && loaded ? (
           <>
             <div className="y-lib-filter-row" role="tablist" aria-label="캐릭터 필터">
               <button

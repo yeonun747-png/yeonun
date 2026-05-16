@@ -1,16 +1,29 @@
-import { CallHistoryClient } from "@/components/history/CallHistoryClient";
-import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
+"use client";
 
-export const metadata = {
-  title: "음성상담 보관함 | 연운 緣運",
-  description: "종료된 음성 상담 목록과 대화 글(전사)을 60일간 확인합니다.",
-};
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function CallHistoryPage() {
+function CallHistoryIndexRedirectInner() {
+  const router = useRouter();
+  const sp = useSearchParams();
+
+  useEffect(() => {
+    const back = sp.get("back");
+    const qs = new URLSearchParams();
+    qs.set("shelf", "voice");
+    if (typeof back === "string" && back.startsWith("/") && !back.startsWith("//")) {
+      qs.set("back", back);
+    }
+    router.replace(`/my?${qs.toString()}`, { scroll: false });
+  }, [router, sp]);
+
+  return null;
+}
+
+export default function CallHistoryIndexRedirect() {
   return (
-    <>
-      <MyTabBackdrop />
-      <CallHistoryClient />
-    </>
+    <Suspense fallback={null}>
+      <CallHistoryIndexRedirectInner />
+    </Suspense>
   );
 }
