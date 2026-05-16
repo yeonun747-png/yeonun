@@ -447,17 +447,12 @@ export function FortunePage({
 
   const onPaid = (orderNo: string | null) => {
     setPendingOrderNo(orderNo);
-    abortRef.current?.abort();
+    /** STEP6 백그라운드 prefetch를 끊지 않음 — 결제 후 별도 스트림을 켜면 본문이 비워졌다가 2~3초 뒤 처음부터 다시 채워짐 */
     const p = readFortunePrefetch(product.slug) || prefetch;
     const next = fortuneResultFromPrefetch(p, profile, orderNo, true);
-    if (next) {
-      setResult(next);
-      if (!next.complete) setResultStreamEnabled(true);
-      go(layout.stepResult);
-      return;
-    }
-    setResult(null);
-    setResultStreamEnabled(true);
+    if (next) setResult(next);
+    else setResult(null);
+    setResultStreamEnabled(false);
     go(layout.stepResult);
   };
 

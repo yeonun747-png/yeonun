@@ -77,7 +77,8 @@ export function useFortuneResultStream(args: {
     const ac = new AbortController();
     abortRef.current = ac;
     setPhaseTracked("streaming");
-    setResult(null);
+    if (cachedResult) setResult(cachedResult);
+    else setResult(null);
 
     void runFortunePrefetch({
       productSlug,

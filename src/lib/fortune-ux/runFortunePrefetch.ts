@@ -3,7 +3,7 @@
 import { partnerInfoFromPartnerStorage, readUserInfoFromYeonunSajuV1 } from "@/lib/fortune-claude-stream-user";
 import { buildFortuneManseContext } from "@/lib/fortune-manse-context";
 import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
-import { writeFortunePrefetch } from "@/lib/fortune-prefetch-storage";
+import { readFortunePrefetch, writeFortunePrefetch } from "@/lib/fortune-prefetch-storage";
 import {
   normalizeFortuneSsePayload,
   parseFortuneSseBlock,
@@ -87,6 +87,25 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     writeFortunePrefetch(productSlug, payload);
     onPatch?.(payload);
   };
+
+  const existing = readFortunePrefetch(productSlug);
+  if (existing) {
+    toc = [...existing.toc];
+    toc_groups = existing.toc_groups;
+    sectionHtml = { ...existing.sectionHtml };
+    doneIdx = new Set(existing.doneIdx);
+    claudeStreamMode = existing.claudeStreamMode;
+    claudeStreamHtml = existing.claudeStreamHtml;
+    claudeStreamStarted =
+      existing.claudeStreamHtml.trim().length > 0 ||
+      Object.keys(existing.sectionHtml).some((k) => String(existing.sectionHtml[Number(k)] ?? "").trim().length > 0);
+    if (existing.complete) {
+      sectionsDoneEvent = existing.sectionsMode;
+      claudeDoneEvent = existing.claudeStreamMode;
+      flush(true);
+      return;
+    }
+  }
 
   const applyEv = (ev: FortuneStreamEvt) => {
     if (ev.type === "error") {
