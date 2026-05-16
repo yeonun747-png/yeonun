@@ -1,19 +1,38 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback } from "react";
+
+const MODAL_QUERY_KEYS = [
+  "modal",
+  "auth_error",
+  "auth_error_provider",
+  "onboard",
+  "after_auth",
+  "product",
+  "title",
+  "price",
+  "grant_base",
+  "credits",
+  "character_key",
+  "profile",
+  "first_voice_credit_bonus",
+  "minutes",
+] as const;
 
 export function useModalControls() {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
 
-  const close = () => {
+  const close = useCallback(() => {
     const next = new URLSearchParams(sp.toString());
-    next.delete("modal");
+    for (const key of MODAL_QUERY_KEYS) {
+      next.delete(key);
+    }
     const qs = next.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
-  };
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, sp]);
 
   return { close };
 }
-

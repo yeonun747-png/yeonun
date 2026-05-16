@@ -1456,6 +1456,17 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   font-size: 22px;
   line-height: 1;
   margin-right: -6px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+.y-auth-modal .y-modal-head {
+  position: relative;
+}
+.y-auth-modal .y-modal-title {
+  flex: 1;
+  text-align: center;
+  pointer-events: none;
 }
 
 /* 나의 기록 바텀시트 (만세력/시작하기와 동일 헤더 + 목업 리스트) */
@@ -2386,9 +2397,9 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   letter-spacing: 0.02em;
 }
 
-.y-meet-guest-top {
-  margin-top: 0;
-  margin-bottom: 12px;
+.y-meet-guest-bottom {
+  margin-top: 12px;
+  margin-bottom: 0;
 }
 
 /* ===== 채팅 상담 모달 ===== */

@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 
 import { SocialLoginSection } from "@/components/auth/SocialLoginSection";
 import { useModalControls } from "@/components/modals/useModalControls";
@@ -57,6 +57,14 @@ export function AuthModal() {
 
   const canBack = step !== "login";
   const back = () => setStep(step === "birth" ? "login" : step === "time" ? "birth" : "time");
+
+  const dismiss = useCallback(
+    (e?: MouseEvent) => {
+      e?.stopPropagation();
+      close();
+    },
+    [close],
+  );
 
   const progress = useMemo(() => {
     if (step === "birth") return ["current", "", ""] as const;
@@ -182,7 +190,7 @@ export function AuthModal() {
 
   return (
     <YeonunSheetPortal>
-      <div className="y-modal open" role="dialog" aria-modal="true" aria-label="시작하기" onMouseDown={close}>
+      <div className="y-modal open y-auth-modal" role="dialog" aria-modal="true" aria-label="시작하기" onMouseDown={dismiss}>
         <div className="y-modal-sheet" onMouseDown={(e) => e.stopPropagation()}>
           <div className="y-modal-handle" />
 
@@ -193,7 +201,7 @@ export function AuthModal() {
               </svg>
             </button>
             <div className="y-modal-title">시작하기</div>
-            <button className="y-modal-close" type="button" onClick={close} aria-label="닫기">
+            <button className="y-modal-close" type="button" onClick={dismiss} aria-label="닫기">
               ×
             </button>
           </div>

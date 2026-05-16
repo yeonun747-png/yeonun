@@ -31,6 +31,12 @@ export function SocialLoginButtons({ className }: Props) {
 
   return (
     <div className={className ?? "y-auth-social"}>
+      <button className="y-social-btn google" type="button" onClick={() => startOAuth("google", returnTo)}>
+        <span className="icon">
+          <SocialProviderIcon provider="google" />
+        </span>
+        Google로 시작하기
+      </button>
       <button className="y-social-btn kakao" type="button" onClick={() => startOAuth("kakao", returnTo)}>
         <span className="icon">
           <SocialProviderIcon provider="kakao" />
@@ -43,12 +49,6 @@ export function SocialLoginButtons({ className }: Props) {
           <SocialProviderIcon provider="naver" />
         </span>
         네이버로 시작하기
-      </button>
-      <button className="y-social-btn google" type="button" onClick={() => startOAuth("google", returnTo)}>
-        <span className="icon">
-          <SocialProviderIcon provider="google" />
-        </span>
-        Google로 시작하기
       </button>
     </div>
   );

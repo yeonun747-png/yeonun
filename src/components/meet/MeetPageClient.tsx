@@ -58,26 +58,6 @@ export function MeetPageClient({ characters }: { characters: Character[] }) {
           </div>
         </div>
 
-        {guest ? (
-          <div className="y-guest-notice y-meet-guest-top" aria-label="로그인 안내">
-            <div className="y-guest-notice-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="8" r="4" />
-                <path d="M4 21 a8 8 0 0 1 16 0" />
-              </svg>
-            </div>
-            <div className="y-guest-notice-title">로그인하면 대화가 이어집니다</div>
-            <div className="y-guest-notice-desc">
-              어제 우리가 했던 이야기, 그 사람의 이름,
-              <br />
-              다음 상담에서 자연스럽게 이어집니다.
-            </div>
-            <button type="button" className="y-guest-notice-btn" onClick={openAuthSheet}>
-              로그인 / 가입하기
-            </button>
-          </div>
-        ) : null}
-
         <div className="y-meet-list" aria-label="인연 안내자 목록">
           {characters.map((c) => (
             <article key={c.key} className={`y-meet-card ${c.key}`}>
@@ -137,6 +117,26 @@ export function MeetPageClient({ characters }: { characters: Character[] }) {
             </article>
           ))}
         </div>
+
+        {guest ? (
+          <div className="y-guest-notice y-meet-guest-bottom" aria-label="로그인 안내">
+            <div className="y-guest-notice-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21 a8 8 0 0 1 16 0" />
+              </svg>
+            </div>
+            <div className="y-guest-notice-title">로그인하면 대화가 이어집니다</div>
+            <div className="y-guest-notice-desc">
+              어제 우리가 했던 이야기, 그 사람의 이름,
+              <br />
+              다음 상담에서 자연스럽게 이어집니다.
+            </div>
+            <button type="button" className="y-guest-notice-btn" onClick={openAuthSheet}>
+              로그인 / 가입하기
+            </button>
+          </div>
+        ) : null}
 
         <div style={{ height: 80 }} />
       </main>
