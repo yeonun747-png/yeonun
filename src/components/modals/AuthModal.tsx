@@ -35,8 +35,10 @@ export function AuthModal() {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
+  const isOnboard = sp.get("onboard") === "1";
+  const modalAuth = sp.get("modal") === "auth";
 
-  const [step, setStep] = useState<AuthStep>("login");
+  const [step, setStep] = useState<AuthStep>(() => (isOnboard ? "birth" : "login"));
   const [displayName, setDisplayName] = useState("");
   const [birthYear, setBirthYear] = useState("");
   const [birthMonth, setBirthMonth] = useState("");
@@ -47,13 +49,14 @@ export function AuthModal() {
   const [gender, setGender] = useState<"male" | "female">("female");
   const [submitBusy, setSubmitBusy] = useState(false);
 
+  /** onboard 쿼리는 OAuth 직후에만 유지됨. sp 객체 전체를 deps에 넣으면 매 렌더마다 step이 birth로 리셋되어 다음/뒤로가 동작하지 않음 */
   useEffect(() => {
-    if (sp.get("onboard") === "1") {
-      setStep("birth");
-      return;
-    }
-    setStep("login");
-  }, [sp]);
+    if (isOnboard) setStep("birth");
+  }, [isOnboard]);
+
+  useEffect(() => {
+    if (!isOnboard && modalAuth) setStep("login");
+  }, [isOnboard, modalAuth]);
 
   const canBack = step !== "login";
   const back = () => setStep(step === "birth" ? "login" : step === "time" ? "birth" : "time");
