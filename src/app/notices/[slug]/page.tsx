@@ -2,31 +2,29 @@ import { notFound } from "next/navigation";
 
 import { NoticeDetailClient } from "@/components/notices/NoticeDetailClient";
 import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
-import { getNoticeById, NOTICES_MOCK } from "@/lib/notices-mock";
+import { getPublishedNoticeBySlug } from "@/lib/notices";
 
-export function generateStaticParams() {
-  return NOTICES_MOCK.map((n) => ({ id: n.id }));
-}
+export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ id: string }> };
+type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props) {
-  const { id } = await params;
-  const n = getNoticeById(id);
+  const { slug } = await params;
+  const n = await getPublishedNoticeBySlug(slug);
   if (!n) return { title: "공지사항 | 연운 緣運" };
   return { title: `${n.title} | 공지 | 연운 緣運`, robots: { index: false, follow: true } };
 }
 
 export default async function NoticeDetailPage({ params }: Props) {
-  const { id } = await params;
-  const n = getNoticeById(id);
-  if (!n) notFound();
+  const { slug } = await params;
+  const notice = await getPublishedNoticeBySlug(slug);
+  if (!notice) notFound();
 
   return (
     <>
       <MyTabBackdrop />
       <div className="y-history-route-live">
-        <NoticeDetailClient notice={n} />
+        <NoticeDetailClient notice={notice} />
       </div>
     </>
   );

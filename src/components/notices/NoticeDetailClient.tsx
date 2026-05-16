@@ -1,25 +1,24 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
-import type { NoticeMock } from "@/lib/notices-mock";
+import { markNoticeReadInStorage } from "@/lib/notice-reads";
+import { noticeBadgeClass, noticeCategoryLabel, type NoticeView } from "@/lib/notices-types";
 
-function badgeClass(b: string): string {
-  if (b === "event") return "y-notice-badge event";
-  if (b === "update") return "y-notice-badge update";
-  return "y-notice-badge notice";
-}
+export function NoticeDetailClient({ notice }: { notice: NoticeView }) {
+  useEffect(() => {
+    markNoticeReadInStorage(notice.slug);
+  }, [notice.slug]);
 
-export function NoticeDetailClient({ notice }: { notice: NoticeMock }) {
   return (
     <MySubpageSheet title="공지사항" ariaLabel="공지사항" backHref="/notices">
       <div className="y-sub-scroll-page">
         <article className="y-notice-detail">
           <div className="y-notice-detail-badge">
-            <span className={badgeClass(notice.badge)}>
-              {notice.badge === "event" ? "이벤트" : notice.badge === "update" ? "업데이트" : "공지"}
-            </span>
+            <span className={noticeBadgeClass(notice.category)}>{noticeCategoryLabel(notice.category)}</span>
           </div>
-          <h2 className="y-notice-detail-title">{notice.title}</h2>
+          <h1 className="y-notice-detail-title">{notice.title}</h1>
           <div className="y-notice-detail-date">{notice.date}</div>
           <div className="y-notice-detail-body" dangerouslySetInnerHTML={{ __html: notice.bodyHtml }} />
         </article>

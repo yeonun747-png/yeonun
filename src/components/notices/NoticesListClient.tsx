@@ -1,35 +1,56 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+
 import { MySheetLink } from "@/components/my/MySheetLink";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
-import { NOTICES_MOCK } from "@/lib/notices-mock";
+import { readNoticeSlugsFromStorage } from "@/lib/notice-reads";
+import { noticeBadgeClass, noticeCategoryLabel, type NoticeView } from "@/lib/notices-types";
 
-function badgeLabel(b: string) {
-  if (b === "event") return "이벤트";
-  if (b === "update") return "업데이트";
-  return "공지";
-}
+type Props = {
+  notices: NoticeView[];
+};
 
-function badgeClass(b: string) {
-  if (b === "event") return "y-notice-badge event";
-  if (b === "update") return "y-notice-badge update";
-  return "y-notice-badge notice";
-}
+export function NoticesListClient({ notices }: Props) {
+  const [readSlugs, setReadSlugs] = useState<Set<string>>(() => new Set());
 
-export function NoticesListClient() {
+  useEffect(() => {
+    setReadSlugs(readNoticeSlugsFromStorage());
+  }, []);
+
+  const sorted = useMemo(
+    () =>
+      [...notices].sort((a, b) => {
+        if (b.sortOrder !== a.sortOrder) return b.sortOrder - a.sortOrder;
+        return b.date.localeCompare(a.date);
+      }),
+    [notices],
+  );
+
   return (
     <MySubpageSheet title="공지사항" ariaLabel="공지사항">
       <div className="y-sub-scroll-page">
-        {NOTICES_MOCK.map((n) => (
-          <MySheetLink key={n.id} href={`/notices/${n.id}`} className="y-notice-item">
-            <div>
-              <span className={badgeClass(n.badge)}>{badgeLabel(n.badge)}</span>
-              {n.showNewDot ? <span className="y-notice-new" aria-label="새 글" /> : null}
-            </div>
-            <div className="y-notice-title">{n.title}</div>
-            <div className="y-notice-date">{n.date}</div>
-          </MySheetLink>
-        ))}
+        {sorted.length === 0 ? (
+          <p className="y-notice-empty">등록된 공지가 없습니다.</p>
+        ) : (
+          <ul className="y-notice-list">
+            {sorted.map((n) => {
+              const unread = n.showNewDot && !readSlugs.has(n.slug);
+              return (
+                <li key={n.slug} className="y-notice-list-item">
+                  <MySheetLink href={`/notices/${encodeURIComponent(n.slug)}`} className="y-notice-item">
+                    <div className="y-notice-item-top">
+                      <span className={noticeBadgeClass(n.category)}>{noticeCategoryLabel(n.category)}</span>
+                      {unread ? <span className="y-notice-new" aria-label="읽지 않음" /> : null}
+                    </div>
+                    <div className="y-notice-title">{n.title}</div>
+                    <div className="y-notice-date">{n.date}</div>
+                  </MySheetLink>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <div style={{ height: 40 }} />
       </div>
     </MySubpageSheet>

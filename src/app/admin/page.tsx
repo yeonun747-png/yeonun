@@ -105,6 +105,20 @@ function text(v: unknown, fallback = "-") {
   return String(v);
 }
 
+function sortNoticeRows(rows: Row[]): Row[] {
+  return [...rows].sort((a, b) => {
+    const orderDiff = Number(b.sort_order ?? 0) - Number(a.sort_order ?? 0);
+    if (orderDiff !== 0) return orderDiff;
+    return String(b.published_on ?? "").localeCompare(String(a.published_on ?? ""));
+  });
+}
+
+function noticeCategoryLabelAdmin(category: string) {
+  if (category === "event") return "이벤트";
+  if (category === "update") return "업데이트";
+  return "공지";
+}
+
 function money(v: unknown) {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? `${n.toLocaleString("ko-KR")}원` : "-";
@@ -144,6 +158,7 @@ export default async function AdminHomePage() {
     webhooks,
     voiceSessions,
     fortuneRequests,
+    notices,
   ] = await Promise.all([
       readRows("products", PRODUCTS_SELECT_ADMIN, "created_at", 80),
       readRows("characters", "key,name,han,en,spec,greeting", "key", 20),
@@ -159,6 +174,12 @@ export default async function AdminHomePage() {
       readRows("webhook_events", "id,provider,event_type,status,processed_at", "processed_at", 20),
       readRows("voice_sessions", "id,character_key,status,started_at,ended_at,duration_sec,cost_krw,summary", "started_at", 20),
       readRows("fortune_requests", "id,product_slug,status,model,created_at", "created_at", 20),
+      readRows(
+        "notices",
+        "slug,category,title,published_on,body,is_published,show_new_dot,sort_order,updated_at",
+        "sort_order",
+        50,
+      ),
     ]);
 
   const adminTtsPreviewToken = await createAdminTtsPreviewToken();
@@ -314,6 +335,51 @@ export default async function AdminHomePage() {
             {reviews.rows.length === 0 ? <EmptyPanel label="리뷰" error={reviews.error} /> : reviews.rows.map((r) => (
               <ReviewEditor key={text(r.id)} row={r} products={products.rows} />
             ))}
+          </CrudSection>
+        </section>
+      }
+      notices={
+        <section className="y-admin-section">
+          <div className="y-admin-section-head">
+            <div>
+              <span className="y-admin-eyebrow">NOTICE OPS</span>
+              <h2>공지사항 운영</h2>
+            </div>
+            <StatusPill tone={notices.ready ? "good" : "warn"}>{notices.ready ? "CRUD 활성" : "마이그레이션 필요"}</StatusPill>
+          </div>
+          <p className="y-admin-muted" style={{ margin: "0 0 14px" }}>
+            마이탭 공지사항 목록·상세에 노출됩니다. <code>sort_order</code>가 클수록 목록 상단(최신순)입니다.
+          </p>
+          <div className="y-admin-card" style={{ marginBottom: 12 }}>
+              <h3>공지 새로 등록</h3>
+              <form action="/admin/notices" method="post" className="y-admin-form compact">
+                <input name="slug" placeholder="slug (영문-하이픈)" required />
+                <select name="category" defaultValue="notice">
+                  <option value="event">이벤트</option>
+                  <option value="update">업데이트</option>
+                  <option value="notice">공지</option>
+                </select>
+                <input name="title" placeholder="제목" required />
+                <input name="published_on" type="date" required />
+                <input name="sort_order" inputMode="numeric" placeholder="정렬 (클수록 상단)" defaultValue="100" />
+                <select name="show_new_dot" defaultValue="true">
+                  <option value="true">새 글 점 표시</option>
+                  <option value="false">점 숨김</option>
+                </select>
+                <select name="is_published" defaultValue="true">
+                  <option value="true">게시</option>
+                  <option value="false">비게시</option>
+                </select>
+                <textarea name="body" placeholder="본문 (플레인 텍스트, [섹션] 제목 지원)" rows={6} required />
+                <button type="submit">공지 저장</button>
+              </form>
+          </div>
+          <CrudSection id="admin-notices" title="공지 목록" hint="최신순 · 한 줄에 하나 · 마이탭 /notices">
+            {notices.rows.length === 0 ? (
+              <EmptyPanel label="공지" error={notices.error} />
+            ) : (
+              sortNoticeRows(notices.rows).map((row) => <NoticeEditor key={text(row.slug)} row={row} />)
+            )}
           </CrudSection>
         </section>
       }
@@ -531,6 +597,60 @@ function CrudSection({ id, title, hint, children }: { id: string; title: string;
       </div>
       <div className="y-admin-crud-list">{children}</div>
     </section>
+  );
+}
+
+function NoticeEditor({ row }: { row: Row }) {
+  const pub = text(row.published_on, "");
+  const dateInput = /^\d{4}-\d{2}-\d{2}$/.test(pub) ? pub : pub.replace(/\./g, "-").slice(0, 10);
+  const category = text(row.category, "notice");
+  const dateLabel = /^\d{4}-\d{2}-\d{2}$/.test(pub)
+    ? pub.replace(/-/g, ".")
+    : pub;
+  return (
+    <details className="y-admin-editor" suppressHydrationWarning>
+      <summary>
+        <span>
+          <strong>
+            <span className={`y-admin-notice-cat ${category}`}>{noticeCategoryLabelAdmin(category)}</span>
+            {text(row.title)}
+          </strong>
+          <em>
+            {dateLabel} · sort {text(row.sort_order)} · {text(row.slug)}
+          </em>
+        </span>
+        <StatusPill tone={row.is_published === false ? "warn" : "good"}>{row.is_published === false ? "비게시" : "게시"}</StatusPill>
+      </summary>
+      <form action="/admin/notices" method="post" className="y-admin-form y-admin-edit-form">
+        <input name="slug" defaultValue={text(row.slug, "")} />
+        <select name="category" defaultValue={text(row.category, "notice")}>
+          <option value="event">이벤트</option>
+          <option value="update">업데이트</option>
+          <option value="notice">공지</option>
+        </select>
+        <input name="title" defaultValue={text(row.title, "")} />
+        <input name="published_on" type="date" defaultValue={dateInput} />
+        <input name="sort_order" defaultValue={text(row.sort_order, "0")} inputMode="numeric" />
+        <select name="show_new_dot" defaultValue={String(row.show_new_dot ?? true)}>
+          <option value="true">새 글 점</option>
+          <option value="false">점 숨김</option>
+        </select>
+        <select name="is_published" defaultValue={String(row.is_published ?? true)}>
+          <option value="true">게시</option>
+          <option value="false">비게시</option>
+        </select>
+        <textarea name="body" defaultValue={text(row.body, "")} rows={12} />
+        <div className="y-admin-edit-actions">
+          <button type="submit">수정 저장</button>
+          <button form={`delete-notice-${text(row.slug)}`} type="submit" className="y-admin-danger">
+            삭제
+          </button>
+        </div>
+      </form>
+      <form id={`delete-notice-${text(row.slug)}`} action="/admin/notices/delete" method="post">
+        <input type="hidden" name="slug" value={text(row.slug, "")} />
+      </form>
+    </details>
   );
 }
 

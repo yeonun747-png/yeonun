@@ -18,6 +18,7 @@ import { MyMemberProfileHeader } from "@/components/my/MyMemberProfileHeader";
 import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
 import { MySheetLink } from "@/components/my/MySheetLink";
 import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
+import { MyNoticesMenuItemContent } from "@/components/my/MyNoticesMenuMeta";
 import { MyWithdrawAccountMenuItemClient } from "@/components/my/MyWithdrawAccountMenuItemClient";
 
 const MY_PREFETCH_ROUTES = [
@@ -25,7 +26,6 @@ const MY_PREFETCH_ROUTES = [
   "/history/chats",
   "/my/payments",
   "/checkout/credit",
-  "/settings/notifications",
   "/notices",
   "/support",
   "/today",
@@ -162,10 +162,7 @@ export function MyPageBody() {
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                 </div>
-                <div className="y-my-menu-text">
-                  <div className="y-my-menu-name">공지사항</div>
-                  <div className="y-my-menu-desc">이벤트 · 운영 안내</div>
-                </div>
+                <MyNoticesMenuItemContent />
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
               <MySheetLink className="y-my-menu-item" href="/support">
@@ -182,19 +179,6 @@ export function MyPageBody() {
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
-              <button type="button" className="y-my-menu-item y-my-menu-item--guest" onClick={openAuthSheet}>
-                <div className="y-my-menu-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  </svg>
-                </div>
-                <div className="y-my-menu-text">
-                  <div className="y-my-menu-name">알림 설정</div>
-                  <div className="y-my-menu-desc">매일 한 마디 · 길조 알림</div>
-                </div>
-                <span className="y-my-menu-arrow">›</span>
-              </button>
             </div>
 
             <div className="y-my-foot" aria-label="약관">
@@ -292,19 +276,6 @@ export function MyPageBody() {
 
             <div className="y-my-menu-section">
               <div className="y-my-menu-section-title">설정</div>
-              <MySheetLink className="y-my-menu-item" href="/settings/notifications">
-                <div className="y-my-menu-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  </svg>
-                </div>
-                <div className="y-my-menu-text">
-                  <div className="y-my-menu-name">알림 설정</div>
-                  <div className="y-my-menu-desc">매일 한 마디 · 길조 알림</div>
-                </div>
-                <span className="y-my-menu-arrow">›</span>
-              </MySheetLink>
               <MySheetLink className="y-my-menu-item" href="/notices">
                 <div className="y-my-menu-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
@@ -313,11 +284,7 @@ export function MyPageBody() {
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
                 </div>
-                <div className="y-my-menu-text">
-                  <div className="y-my-menu-name">공지사항</div>
-                  <div className="y-my-menu-desc">2026 신년 이벤트 외 3건</div>
-                </div>
-                <span className="y-my-menu-badge">3</span>
+                <MyNoticesMenuItemContent />
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
               <MySheetLink className="y-my-menu-item" href="/support">

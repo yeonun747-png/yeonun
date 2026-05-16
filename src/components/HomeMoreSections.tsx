@@ -333,9 +333,6 @@ export async function HomeMoreSections() {
               <li>
                 <Link href="/support">고객센터</Link>
               </li>
-              <li>
-                <Link href="/partner">제휴 문의</Link>
-              </li>
             </ul>
           </div>
           <div className="y-footer-col">
@@ -353,7 +350,12 @@ export async function HomeMoreSections() {
 
         <div className="y-footer-bottom">
           <div className="y-footer-copy">© 2026 연운(YEONUN) · All rights reserved.</div>
-          <div className="y-footer-bizinfo">통신판매업 신고: 2026-서울-XXXX</div>
+          <div className="y-footer-bizinfo">
+            <p>㈜테크앤조이 │ 대표 : 서주형</p>
+            <p>대표전화 : 02-516-1975 │ 팩스 : 02-2210-7865</p>
+            <p>서울특별시 성동구 상원12길 34 (성수동1가, 서울숲에이원) 213호</p>
+            <p>사업자등록번호 : 108-81-84400 │ 통신판매업신고번호 : 2022-서울성동-00643</p>
+          </div>
         </div>
       </footer>
     </>
