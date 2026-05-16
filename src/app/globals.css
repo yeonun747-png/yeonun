@@ -1806,31 +1806,50 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   line-height: 1.6;
 }
 
-/* ===== Content (풀이) 화면 - 목업 스타일 일부 이식 ===== */
+/* ===== Content (풀이) 화면 — yeonun_v20 목업 ===== */
+.yCatHeader,
+.ySortBar,
+.y-content-tab-wrap {
+  --y-sort-text-line-gap: 3px;
+  --y-sort-underline-height: 2px;
+  /* 구분선(border) 위·아래 여백 */
+  --y-sort-divider-gap: 8px;
+  --y-sort-divider-gap-below: 16px;
+}
 .yCatHeader {
-  background: var(--y-bg);
-  padding: 18px 20px 14px;
-  border-bottom: 0.5px solid var(--y-line);
+  padding: 22px 20px 14px;
+  background: rgba(250, 250, 247, 0.96);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 65px;
+  z-index: 9;
 }
 .yCatHeaderRow {
   display: flex;
-  align-items: baseline;
   justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
   gap: 10px;
 }
 .yCatTitle {
+  margin: 0;
   font-family: "Noto Serif KR", serif;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--y-ink);
   letter-spacing: -0.02em;
 }
 .yCatCount {
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--y-mute);
 }
+.yCatCount strong {
+  color: var(--y-rose);
+  font-weight: 600;
+}
 .yCatTabsScroll {
-  margin-top: 12px;
+  margin: 0 -20px;
+  padding: 0 20px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -1839,62 +1858,98 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   display: none;
 }
 .yCatTabsTrack {
-  display: flex;
-  gap: 8px;
+  display: inline-flex;
+  gap: 6px;
   width: max-content;
   padding-bottom: 4px;
 }
 .yCatTab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  flex-shrink: 0;
+  padding: 8px 14px;
   background: white;
-  border: 0.5px solid var(--y-line);
+  border: 0.5px solid var(--y-line-2);
   border-radius: 100px;
   font-size: 12px;
-  color: var(--y-mute);
+  color: var(--y-ink);
   text-decoration: none;
   white-space: nowrap;
 }
+button.yCatTab {
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
 .yCatTab .count {
-  font-size: 11px;
-  color: var(--y-mute-2);
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--y-mute);
 }
 .yCatTab.active {
-  color: var(--y-rose-deep);
-  border-color: var(--y-rose-mid);
-  background: var(--y-rose-soft);
+  background: var(--y-ink);
+  color: var(--y-rose-soft);
+  border-color: var(--y-ink);
+  font-weight: 500;
+}
+.yCatTab.active .count {
+  color: rgba(245, 218, 224, 0.55);
 }
 .ySortBar {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 10px;
-  padding: 12px 20px;
+  padding: 14px 20px
+    calc(
+      var(--y-sort-text-line-gap) + var(--y-sort-underline-height) + var(--y-sort-divider-gap)
+    );
+  border-bottom: 0.5px solid var(--y-line);
   background: var(--y-bg);
 }
 .ySortTabs {
   display: flex;
-  gap: 6px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 .ySortTab {
-  border: 0.5px solid var(--y-line);
-  background: white;
-  color: var(--y-mute);
-  font-size: 12px;
-  padding: 8px 12px;
-  border-radius: 100px;
-  text-decoration: none;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 12.5px;
+  color: var(--y-mute);
+  text-decoration: none;
+}
+button.ySortTab {
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.2;
+  cursor: pointer;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .ySortTab.active {
-  background: var(--y-ink);
-  color: white;
+  color: var(--y-ink);
+  font-weight: 600;
+  background: transparent;
   border-color: transparent;
+}
+.ySortTab.active::after {
+  content: "";
+  position: absolute;
+  bottom: calc(-1 * var(--y-sort-text-line-gap, 3px));
+  left: 0;
+  right: 0;
+  height: var(--y-sort-underline-height, 2px);
+  background: var(--y-rose);
+  border-radius: 1px;
 }
 .ySortFilter {
   display: inline-flex;
@@ -1922,10 +1977,12 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host) {
   gap: 12px;
   padding: 12px 20px 0;
 }
+/* 구분선 아래 — 선 위보다 여유 있게 */
 .y-content-tab-wrap {
-  padding-top: 4px;
+  padding-top: var(--y-sort-divider-gap-below, 16px);
 }
 .y-content-tab-wrap .y-content-grid {
+  padding-top: 0;
   padding-bottom: 32px;
 }
 .y-content-empty {
@@ -5058,6 +5115,65 @@ button.y-dw-listen:disabled {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   padding: 0 20px 20px;
+}
+.y-content-grid--skeleton {
+  pointer-events: none;
+}
+.y-content-card--skeleton {
+  cursor: default;
+  border-color: rgba(24, 20, 15, 0.06);
+}
+.y-content-card--skeleton:active {
+  transform: none;
+}
+.y-content-skeleton-block {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: linear-gradient(90deg, rgba(24, 20, 15, 0.06) 0%, rgba(24, 20, 15, 0.1) 50%, rgba(24, 20, 15, 0.06) 100%);
+  background-size: 200% 100%;
+  animation: y-content-shimmer 1.2s ease-in-out infinite;
+}
+.y-content-skeleton-line {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  margin: 8px 12px 0;
+  background: rgba(24, 20, 15, 0.08);
+}
+.y-content-skeleton-line--title {
+  width: 72%;
+  height: 14px;
+  margin-top: 12px;
+}
+.y-content-skeleton-line--quote {
+  width: 90%;
+  margin-bottom: 12px;
+}
+.y-content-skeleton-pill {
+  display: inline-block;
+  min-width: 56px;
+  height: 32px;
+  border-radius: 100px;
+  background: rgba(24, 20, 15, 0.08);
+  pointer-events: none;
+}
+.y-content-skeleton-pill--wide {
+  min-width: 64px;
+}
+.y-content-skeleton-line--sort {
+  display: inline-block;
+  width: 40px;
+  height: 12px;
+  margin: 0;
+  border-radius: 4px;
+}
+@keyframes y-content-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 .y-content-card {
   background: var(--y-card);
@@ -11405,6 +11521,36 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   color: var(--ink3);
 }
 
+.y-fortune-product-loading-title,
+.y-fortune-product-loading-sub {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(24, 20, 15, 0.06) 0%,
+    rgba(24, 20, 15, 0.1) 50%,
+    rgba(24, 20, 15, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: y-content-shimmer 1.2s ease-in-out infinite;
+}
+.y-fortune-product-loading-title {
+  width: 120px;
+  height: 16px;
+  margin: 0 auto;
+}
+.y-fortune-product-loading-sub {
+  width: 72px;
+  height: 10px;
+  margin: 6px auto 0;
+}
+.y-fortune-product-loading-msg {
+  margin: 48px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--y-mute);
+}
+
 .y-fortune-v2-header-link {
   width: 56px;
   height: 56px;
@@ -13254,26 +13400,34 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   position: fixed;
   top: 0;
   bottom: 0;
-  left: 50%;
-  width: 100%;
-  max-width: 480px;
+  left: 0;
+  right: 0;
+  width: min(100%, 480px);
+  max-width: 100%;
+  margin-inline: auto;
   z-index: 9000;
   background: var(--y-bg);
   display: flex;
   flex-direction: column;
-  transform: translateX(-50%) translateY(100%);
+  box-sizing: border-box;
+  overflow: hidden;
+  transform: translateY(100%);
   transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .y-search-overlay.open {
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
 }
 
 .y-search-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px));
   border-bottom: 1px solid var(--y-line);
   background: var(--y-bg);
   flex-shrink: 0;
@@ -13293,15 +13447,18 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
 }
 
 .y-search-input-wrap {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
   background: var(--y-card-2);
   border-radius: 12px;
-  padding: 0 14px;
+  padding: 0 12px;
   height: 42px;
   border: 1.5px solid transparent;
+  box-sizing: border-box;
   transition: border-color 0.2s;
 }
 
@@ -13318,14 +13475,16 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
 }
 
 .y-search-input {
-  flex: 1;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border: none;
   background: transparent;
   font-family: inherit;
-  font-size: 15px;
+  font-size: clamp(14px, 3.8vw, 15px);
   color: var(--y-ink);
   outline: none;
-  min-width: 0;
 }
 
 .y-search-input::placeholder {
@@ -13352,9 +13511,13 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
 
 .y-search-body {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 0 16px 32px;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
 }
 
 .y-search-section {

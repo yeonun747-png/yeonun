@@ -1,0 +1,22 @@
+/** 풀이 탭 UI 문구 — UTF-8 손상 방지용 상수 */
+export const CONTENT_PAGE_UI = {
+  title: "전체 풀이",
+  countPrefix: "총 ",
+  countSuffix: "개의 풀이",
+  emDash: "—",
+  catAria: "카테고리",
+  sortAria: "정렬",
+  listAria: "풀이 목록",
+  popular: "인기순",
+  latest: "최신순",
+  price: "가격순",
+  empty: "이 카테고리에 등록된 풀이가 없습니다.",
+  tLatestOld: "등록 오래된 순으로 보기",
+  tLatestNew: "최신 등록 순으로 보기",
+  tLatestDefault: "최신 등록 순부터",
+  tPriceHigh: "가격 높은 순으로 보기",
+  tPriceLow: "가격 낮은 순으로 보기",
+  tPriceDefault: "가격 낮은 순부터",
+  arrowDown: "↓",
+  arrowUp: "↑",
+} as const;

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
-import { FortunePage } from "@/components/fortune/FortunePage";
-import { getCharactersCached } from "@/lib/data/characters";
+import { FortuneProductClient } from "@/components/fortune/FortuneProductClient";
 import { getProductBySlugCached } from "@/lib/data/content";
 
 type Props = {
@@ -29,19 +27,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+/** 서버 대기 없이 클라이언트 캐시·API로 즉시 진입 */
 export default async function FortuneProductPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const sp = (await searchParams) ?? {};
-  const product = await getProductBySlugCached(slug);
-  if (!product) notFound();
-
-  const chars = await getCharactersCached();
-  const charRow = chars.find((c) => c.key === product.character_key);
 
   return (
-    <FortunePage
-      product={product}
-      character={charRow ?? null}
+    <FortuneProductClient
+      slug={slug}
       themeKey={typeof sp.ck === "string" ? sp.ck : ""}
       backRaw={typeof sp.back === "string" ? sp.back : undefined}
       menuCardEntry={sp.mc === "1"}

@@ -1,6 +1,9 @@
-import { supabaseServer } from "@/lib/supabase/server";
+import { unstable_cache } from "next/cache";
+
+import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
 import { parseFortuneMenuJson, type FortuneMenuPayload } from "@/lib/product-fortune-menu";
 import { normalizeFortuneStreamStrategy, type FortuneStreamStrategy } from "@/lib/fortune-stream-strategy";
+import { supabaseServer } from "@/lib/supabase/server";
 import { cache } from "react";
 
 export type Category = {
@@ -39,6 +42,8 @@ const PRODUCT_SELECT_LEGACY =
   "slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at";
 const PRODUCT_SELECT_WITH_PROFILE = `${PRODUCT_SELECT_LEGACY},saju_input_profile`;
 const PRODUCT_SELECT_FULL = `${PRODUCT_SELECT_WITH_PROFILE},payment_code,fortune_menu,fortune_questions,fortune_stream_strategy`;
+/** 풀이 목록·카드 그리드용 — fortune_menu 등 대용량 JSON 제외 */
+const PRODUCT_SELECT_LIST = `${PRODUCT_SELECT_WITH_PROFILE},payment_code`;
 
 function missingSajuProfileColumn(msg: string) {
   return msg.includes("saju_input_profile") && msg.includes("does not exist");
@@ -52,6 +57,30 @@ function missingPaymentOrMenuColumn(msg: string) {
       msg.includes("fortune_stream_strategy")) &&
     (msg.includes("does not exist") || msg.includes("column"))
   );
+}
+
+function asProductListRow(row: unknown): Product {
+  const r = row as Record<string, unknown>;
+  const prof = String(r.saju_input_profile ?? "single");
+  const saju_input_profile: SajuInputProfile = prof === "pair" ? "pair" : "single";
+  return {
+    slug: String(r.slug ?? ""),
+    title: String(r.title ?? ""),
+    quote: String(r.quote ?? ""),
+    category_slug: String(r.category_slug ?? ""),
+    badge: r.badge == null || r.badge === "" ? null : String(r.badge),
+    price_krw: Number(r.price_krw ?? 0),
+    character_key: String(r.character_key ?? ""),
+    home_section_slug: r.home_section_slug == null || r.home_section_slug === "" ? null : String(r.home_section_slug),
+    tags: Array.isArray(r.tags) ? (r.tags as unknown[]).map((t) => String(t)) : [],
+    thumbnail_svg: r.thumbnail_svg == null || r.thumbnail_svg === "" ? null : String(r.thumbnail_svg),
+    saju_input_profile,
+    payment_code: r.payment_code == null || r.payment_code === "" ? null : Number(r.payment_code),
+    fortune_menu: { main_menus: [] },
+    fortune_questions: null,
+    fortune_stream_strategy: "claude_only",
+    created_at: String(r.created_at ?? ""),
+  };
 }
 
 function asProduct(row: unknown): Product {
@@ -98,6 +127,50 @@ export async function getCategories(): Promise<Category[]> {
   if (error) throw new Error(error.message);
   return data ?? [];
 }
+
+export const getCategoriesCached = unstable_cache(async () => getCategories(), ["yeonun-content-categories"], {
+  revalidate: 120,
+  tags: ["content-catalog"],
+});
+
+/** 풀이 탭 목록 — 가벼운 select (fortune_menu JSON 미포함) */
+export async function getProductsForList(): Promise<Product[]> {
+  const supabase = supabaseServer();
+  const run = (cols: string) =>
+    supabase.from("products").select(cols).order("created_at", { ascending: false });
+  let { data, error } = await run(PRODUCT_SELECT_LIST);
+  if (error && missingPaymentOrMenuColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_WITH_PROFILE));
+  }
+  if (error && missingSajuProfileColumn(error.message)) {
+    ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
+  }
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => asProductListRow(r));
+}
+
+export const getProductsForListCached = unstable_cache(
+  async () => getProductsForList(),
+  ["yeonun-content-products-list"],
+  { revalidate: 120, tags: ["content-catalog"] },
+);
+
+export async function getContentCatalogThumbs(products: Product[]): Promise<Record<string, string>> {
+  const slugs = products.filter((p) => !p.thumbnail_svg?.trim()).map((p) => p.slug);
+  if (slugs.length === 0) return {};
+  return readProductThumbnailsForSlugs(slugs);
+}
+
+/** 카테고리·목록·썸네일 폴백 한 번에 (풀이 탭·/api/content/catalog) */
+export const getContentCatalogBundleCached = unstable_cache(
+  async () => {
+    const [categories, products] = await Promise.all([getCategories(), getProductsForList()]);
+    const thumbFallback = await getContentCatalogThumbs(products);
+    return { categories, products, thumbFallback };
+  },
+  ["yeonun-content-catalog-bundle"],
+  { revalidate: 120, tags: ["content-catalog"] },
+);
 
 export async function getProducts(params: { category?: string } = {}): Promise<Product[]> {
   const supabase = supabaseServer();

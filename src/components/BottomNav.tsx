@@ -9,8 +9,9 @@ import {
   tabKeyFromBottomHref,
 } from "@/components/PrimaryTabScrollClient";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
+import { preloadContentCatalog } from "@/lib/content-catalog-cache";
 
-const PRIMARY_ROUTES = ["/meet", "/today", "/content", "/my"];
+const PRIMARY_ROUTES = ["/content", "/meet", "/today", "/my"];
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -148,8 +149,15 @@ export function BottomNav() {
         className={`y-bn-item ${isActive("/content") ? "active" : ""}`}
         href="/content"
         aria-label="풀이"
-        onPointerEnter={() => router.prefetch("/content")}
-        onFocus={() => router.prefetch("/content")}
+        onPointerEnter={() => {
+          void preloadContentCatalog();
+          router.prefetch("/content");
+        }}
+        onFocus={() => {
+          void preloadContentCatalog();
+          router.prefetch("/content");
+        }}
+        onTouchStart={() => void preloadContentCatalog()}
         onClick={(e) => {
           if (pathname === "/content") {
             e.preventDefault();

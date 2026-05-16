@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FortuneExitScrollRestore } from "@/components/fortune/FortuneExitScrollRestore";
 import { TopNav } from "@/components/TopNav";
 import { YeonunRoutedBottomSheetPortal } from "@/components/YeonunRoutedBottomSheetPortal";
-import { HomeContentGrid } from "@/components/HomeMoreSections";
+import { HomeContentGrid } from "@/components/HomeContentGrid";
 import { SheetBackdropFrame } from "@/components/my/MySheetBackdropFrame";
 import { getCharacterPersonaCached, getCharactersCached } from "@/lib/data/characters";
 import { getProductsByCharacterKeyCached, getReviewsByProductSlugCached } from "@/lib/data/content";
