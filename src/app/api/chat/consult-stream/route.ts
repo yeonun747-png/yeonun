@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
 import { buildRollingWindowAnthropicInput, type DialogTurnMsg } from "@/lib/dialog-window-claude";
+import { logLlmErrorEvent } from "@/lib/llm-error-log";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
   });
 
   if (!upstream.ok || !upstream.body) {
+    void logLlmErrorEvent("chat");
     const t = await upstream.text().catch(() => "");
     return NextResponse.json({ error: t.slice(0, 800) || "Anthropic stream failed" }, { status: upstream.status || 502 });
   }

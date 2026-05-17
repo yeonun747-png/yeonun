@@ -20,6 +20,7 @@ import {
 import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { formatUserManseFromYeonunSajuJson } from "@/lib/fortune-manse-context";
 import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
+import { reportChatLlmErrorClient } from "@/lib/llm-error-log-client";
 import { trySpendChatMessageCreditsAuth } from "@/lib/credit-client";
 import { spendableTotalCredits, ensureConsultTrialCreditsIfEligible, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
@@ -392,6 +393,7 @@ export function ChatConsultModal() {
         if (!cancelled && lineBuf.trim()) tryAnthropicTextDelta(lineBuf, pushDelta);
       } catch (e) {
         if (cancelled || (e as Error).name === "AbortError") return;
+        reportChatLlmErrorClient();
         setStreamError(e instanceof Error ? e.message : "오류가 났어요.");
         setMessages((prev) => prev.filter((m) => m.id !== asstId));
         const fallback = chatConsultOpeningFor(characterKey, readYeonunSajuJsonFromLocalStorage());
@@ -547,6 +549,7 @@ export function ChatConsultModal() {
         setTyping(false);
         return;
       }
+      reportChatLlmErrorClient();
       setStreamError(e instanceof Error ? e.message : "오류가 났어요.");
       setMessages((prev) => prev.filter((m) => m.id !== asstId && m.id !== userMsg.id));
       setBusy(false);

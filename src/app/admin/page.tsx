@@ -2,6 +2,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 import { createAdminTtsPreviewToken } from "@/lib/admin-tts-preview-token";
 
+import { AdminDashboardPanel } from "@/components/admin/AdminDashboardPanel";
 import { AdminMemberCreditsClient } from "@/components/admin/AdminMemberCreditsClient";
 import { AdminReviewCreateForm } from "@/components/admin/AdminReviewCreateForm";
 import { AdminReviewEditor } from "@/components/admin/AdminReviewEditor";
@@ -11,6 +12,7 @@ import { AdminWorkspace } from "@/components/admin/AdminWorkspace";
 import { ProductEditorBlock } from "@/components/admin/ProductEditorClient";
 import { ProductNewFormClient } from "@/components/admin/ProductNewFormClient";
 import { TtsVoiceListPreview } from "@/components/admin/TtsVoiceListPreview";
+import { loadAdminDashboardData } from "@/lib/admin-dashboard-data";
 import { isFortuneMenuCatalogProductSlug } from "@/lib/credit-package-products";
 import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
 import type { TtsVoiceOption } from "@/components/admin/VoiceCharacterPromptTtsFields";
@@ -216,59 +218,11 @@ export default async function AdminHomePage() {
   /** 크레딧 충전 패키지(9001~9003) — PG·결제용 DB 행만 유지, 어드민·메뉴 카드에는 미노출 */
   const catalogProductRows = products.rows.filter((p) => isFortuneMenuCatalogProductSlug(text(p.slug, "")));
 
-  const kpis = [
-    { label: "상품", value: catalogProductRows.length, hint: products.ready ? "운영" : "확인 필요" },
-    { label: "캐릭터", value: characters.rows.length, hint: characters.ready ? "운영" : "확인 필요" },
-    { label: "리뷰", value: reviews.rows.length, hint: reviews.ready ? "운영" : "확인 필요" },
-    { label: "결제", value: payments.rows.length, hint: payments.ready ? "연결됨" : "스키마 준비" },
-    { label: "음성 세션", value: voiceSessions.rows.length, hint: voiceSessions.ready ? "연결됨" : "스키마 준비" },
-    { label: "점사 요청", value: fortuneRequests.rows.length, hint: fortuneRequests.ready ? "연결됨" : "스키마 준비" },
-  ];
+  const dashboardData = await loadAdminDashboardData();
 
   return (
     <AdminWorkspace
-      dashboard={
-        <>
-        <section className="y-admin-hero">
-          <div>
-            <div className="y-admin-eyebrow">YEONUN OPS CONSOLE</div>
-            <h1>운영 대시보드</h1>
-            <p>현재 운영 가능한 데이터와 준비가 필요한 백오피스 영역을 분리해 관리합니다.</p>
-          </div>
-          <div className="y-admin-hero-card">
-            <span>Auth</span>
-            <strong>Single Admin Cookie</strong>
-            <small>`src/proxy.ts` — `ADMIN_PASSWORD` 설정 시 로그인 필요</small>
-            <form action="/admin/logout" method="post" style={{ marginTop: 10 }}>
-              <button
-                type="submit"
-                style={{
-                  width: "100%",
-                  padding: "8px 10px",
-                  borderRadius: 10,
-                  border: "1px solid var(--y-line)",
-                  background: "transparent",
-                  fontSize: 12,
-                  cursor: "pointer",
-                }}
-              >
-                로그아웃
-              </button>
-            </form>
-          </div>
-        </section>
-
-        <section className="y-admin-kpis" aria-label="운영 지표">
-          {kpis.map((k) => (
-            <div key={k.label} className="y-admin-kpi">
-              <span>{k.label}</span>
-              <strong>{k.value}</strong>
-              <small>{k.hint}</small>
-            </div>
-          ))}
-        </section>
-        </>
-      }
+      dashboard={<AdminDashboardPanel data={dashboardData} />}
       content={
         <section className="y-admin-section">
           <div className="y-admin-section-head">
