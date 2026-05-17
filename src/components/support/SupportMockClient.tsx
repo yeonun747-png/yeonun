@@ -2,6 +2,7 @@
 
 import { FaqAccordion } from "@/components/support/FaqAccordion";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
+import { SUPPORT_FAQ_EMAIL } from "@/components/support/support-faq-data";
 
 export function SupportMockClient() {
   return (
@@ -25,11 +26,11 @@ export function SupportMockClient() {
             </div>
             <span className="y-support-ch-chev">›</span>
           </a>
-          <a className="y-support-channel" href="mailto:help@yeonun.ai">
+          <a className="y-support-channel" href={`mailto:${SUPPORT_FAQ_EMAIL}`}>
             <div className="y-support-ch-icon email">📧</div>
             <div className="y-support-ch-info">
               <div className="y-support-ch-name">이메일 문의</div>
-              <div className="y-support-ch-desc">help@yeonun.ai · 1영업일 이내</div>
+              <div className="y-support-ch-desc">{SUPPORT_FAQ_EMAIL} · 1영업일 이내</div>
             </div>
             <span className="y-support-ch-chev">›</span>
           </a>
