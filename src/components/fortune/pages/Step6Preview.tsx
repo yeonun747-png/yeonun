@@ -2,14 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  appendStubPayment,
-} from "@/lib/payments-history-stub";
-import {
-  spendableTotalCredits,
-  spendCreditsForOrder,
-  YEONUN_CREDIT_UPDATE_EVENT,
-} from "@/lib/credit-balance-local";
+import { launchFortune82PgPayment, registerPgPaymentHandlers } from "@/lib/payment-pg-flow";
+import { appendStubPayment } from "@/lib/payments-history-stub";
+import { spendCreditsWithAuth } from "@/lib/credit-client";
+import { spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Product } from "@/lib/data/content";
 import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
@@ -65,18 +61,39 @@ export function Step6Preview({
 
   const preview = previewText(prefetch, toc[0]?.title || product.title);
 
+  useEffect(() => {
+    return registerPgPaymentHandlers({
+      onSuccess: async (orderNo) => {
+        setStatus("idle");
+        onPaid(orderNo || null);
+      },
+      onError: (_code, pgMsg) => {
+        setStatus("error");
+        setMessage(pgMsg === "close" ? "결제가 취소되었습니다." : "결제에 실패했습니다. 다시 시도해 주세요.");
+      },
+    });
+  }, [onPaid]);
+
   const checkout = async (payMethod: "card" | "phone" | "credit") => {
     if (status === "loading") return;
     setMethod(payMethod);
-    setStatus("loading");
-    setMessage("");
+    const isPg = payMethod === "card" || payMethod === "phone";
+    if (!isPg) {
+      setStatus("loading");
+      setMessage("");
+    }
     try {
       const sb = supabaseBrowser();
       const session = sb ? (await sb.auth.getSession()).data.session : null;
 
       if (payMethod === "credit") {
-        const spent = spendCreditsForOrder(product.price_krw);
-        if (spent < product.price_krw) throw new Error("크레딧이 부족합니다.");
+        const spend = await spendCreditsWithAuth(product.price_krw, {
+          kind: "spend_fortune",
+          ref_type: "product",
+          ref_id: product.slug,
+          memo: product.title,
+        });
+        if (!spend.ok) throw new Error("크레딧이 부족합니다.");
         if (session?.access_token) {
           appendStubPayment({
             productSlug: product.slug,
@@ -102,8 +119,27 @@ export function Step6Preview({
           user_ref: userRef,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string; order?: { order_no?: string } };
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+        order?: { order_no?: string };
+        pg_flow?: boolean;
+      };
       if (!res.ok || !data.success) throw new Error(data.error || "결제 요청 저장 실패");
+
+      const orderNo = String(data.order?.order_no ?? "");
+      if (!orderNo) throw new Error("주문번호를 받지 못했습니다.");
+
+      if (isPg) {
+        await launchFortune82PgPayment({
+          paymentMethod: payMethod,
+          orderNo,
+          productSlug: product.slug,
+          title: product.title,
+        });
+        return;
+      }
+
       if (session?.access_token) {
         appendStubPayment({
           productSlug: product.slug,
@@ -113,7 +149,7 @@ export function Step6Preview({
         });
       }
       setStatus("idle");
-      onPaid(data.order?.order_no ?? null);
+      onPaid(orderNo);
     } catch (e) {
       setStatus("error");
       setMessage(e instanceof Error ? e.message : "결제 요청 중 오류가 발생했습니다.");

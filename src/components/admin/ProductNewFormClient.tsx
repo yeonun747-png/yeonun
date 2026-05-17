@@ -105,6 +105,11 @@ export function ProductNewFormClient({
         <textarea name="quote" placeholder="카드 설명" required />
       </label>
       <label className="y-admin-field-stack">
+        <span className="y-admin-stack-legend">결제 코드 (PG)</span>
+        <input readOnly disabled value="저장 시 자동 부여 (1000~)" aria-readonly />
+        <span className="y-admin-fortune-menu-hint">크레딧 충전 패키지는 9001~9003 고정</span>
+      </label>
+      <label className="y-admin-field-stack">
         <span className="y-admin-stack-legend">가격 (원)</span>
         <input name="price_krw" inputMode="numeric" placeholder="9900" required />
       </label>

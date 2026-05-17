@@ -20,7 +20,8 @@ import {
 import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { formatUserManseFromYeonunSajuJson } from "@/lib/fortune-manse-context";
 import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
-import { spendableTotalCredits, ensureConsultTrialCreditsIfEligible, trySpendChatMessageCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
+import { trySpendChatMessageCreditsAuth } from "@/lib/credit-client";
+import { spendableTotalCredits, ensureConsultTrialCreditsIfEligible, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
 import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
 
@@ -291,8 +292,8 @@ export function ChatConsultModal() {
     let cancelled = false;
     const ac = new AbortController();
 
-    const persistOpening = (asstId: string, finalBody: string): boolean => {
-      const spent = trySpendChatMessageCredits(CREDIT_CHAT_PER_USER_MESSAGE);
+    const persistOpening = async (asstId: string, finalBody: string): Promise<boolean> => {
+      const spent = await trySpendChatMessageCreditsAuth(CREDIT_CHAT_PER_USER_MESSAGE);
       if (!spent) {
         setStreamError("크레딧이 부족해요.");
         return false;
@@ -394,7 +395,7 @@ export function ChatConsultModal() {
         setStreamError(e instanceof Error ? e.message : "오류가 났어요.");
         setMessages((prev) => prev.filter((m) => m.id !== asstId));
         const fallback = chatConsultOpeningFor(characterKey, readYeonunSajuJsonFromLocalStorage());
-        persistOpening(uid(), fallback);
+        void persistOpening(uid(), fallback);
         setTyping(false);
         setBusy(false);
         return;
@@ -414,7 +415,7 @@ export function ChatConsultModal() {
         setBusy(false);
         return;
       }
-      if (!persistOpening(asstId, finalBody)) {
+      if (!(await persistOpening(asstId, finalBody))) {
         setMessages((prev) => prev.filter((m) => m.id !== asstId));
       }
       setBusy(false);
@@ -562,7 +563,7 @@ export function ChatConsultModal() {
       return;
     }
 
-    const spent = trySpendChatMessageCredits(CREDIT_CHAT_PER_USER_MESSAGE);
+    const spent = await trySpendChatMessageCreditsAuth(CREDIT_CHAT_PER_USER_MESSAGE);
     if (!spent) {
       setStreamError("크레딧이 부족해요.");
       setMessages((prev) => prev.filter((m) => m.id !== asstId && m.id !== userMsg.id));

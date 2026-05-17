@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { supabaseServer } from "@/lib/supabase/server";
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
+import { formatPaymentCode } from "@/lib/payment-utils";
+import { supabaseServer } from "@/lib/supabase/server";
 
 const CREDIT_TOPUP_PRODUCT_PRESETS: Record<
   string,
@@ -76,13 +77,15 @@ export async function POST(request: Request) {
     user_ref?: string;
     first_voice_credit_bonus?: boolean;
     voice_package_minutes?: number | null;
+    grant_base?: number;
   };
 
   const product_slug = String(body.product_slug ?? "").trim();
-  const amount_krw = Number(body.price_krw ?? 0);
+  const clientAmount = Number(body.price_krw ?? 0);
   const method = String(body.method ?? "card").trim() || "card";
+  const usePg = method === "card" || method === "phone";
 
-  if (!product_slug || !Number.isFinite(amount_krw) || amount_krw < 0) {
+  if (!product_slug) {
     return NextResponse.json({ error: "Invalid checkout request" }, { status: 400 });
   }
 
@@ -90,7 +93,28 @@ export async function POST(request: Request) {
   const order_no = orderNo();
   const isCreditTopup = isCreditTopupProduct(product_slug);
   if (isCreditTopup) {
-    await ensureCreditTopupProductExists(supabase, product_slug, body.title, amount_krw);
+    await ensureCreditTopupProductExists(supabase, product_slug, body.title, clientAmount);
+  }
+
+  const { data: productRow, error: productErr } = await supabase
+    .from("products")
+    .select("payment_code,price_krw,title")
+    .eq("slug", product_slug)
+    .maybeSingle();
+
+  if (productErr || !productRow) {
+    return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  const payment_code = productRow.payment_code;
+  const codeStr = formatPaymentCode(payment_code);
+  if (!codeStr) {
+    return NextResponse.json({ error: "상품 결제 코드가 없습니다. 관리자에게 문의해 주세요." }, { status: 400 });
+  }
+
+  const amount_krw = Number(productRow.price_krw ?? 0);
+  if (!Number.isFinite(amount_krw) || amount_krw <= 0) {
+    return NextResponse.json({ error: "상품 가격이 올바르지 않습니다." }, { status: 400 });
   }
   const character_key = typeof body.product_slug === "string" && ["zimi-chart", "newyear-2026", "tojeong-2026", "zimi-2026-flow"].includes(body.product_slug)
     ? "byeol"
@@ -128,18 +152,21 @@ export async function POST(request: Request) {
     .from("payments")
     .insert({
       order_id: order.id,
-      provider: "manual-dev",
+      provider: usePg ? "fortune82-pg" : "manual-dev",
       method,
       status: "pending",
       raw_payload: {
         product_slug,
-        title: body.title ?? null,
+        payment_code: codeStr,
+        title: body.title ?? productRow.title ?? null,
         source: "yeonun-payment-modal",
         first_voice_credit_bonus: Boolean(body.first_voice_credit_bonus),
         voice_package_minutes:
           typeof body.voice_package_minutes === "number" && Number.isFinite(body.voice_package_minutes)
             ? body.voice_package_minutes
             : null,
+        grant_base:
+          typeof body.grant_base === "number" && Number.isFinite(body.grant_base) ? Math.floor(body.grant_base) : null,
       },
     })
     .select("id,status")
@@ -147,6 +174,17 @@ export async function POST(request: Request) {
 
   if (paymentError || !payment) {
     return NextResponse.json({ error: paymentError?.message || "Payment creation failed" }, { status: 500 });
+  }
+
+  if (usePg) {
+    return NextResponse.json({
+      success: true,
+      pg_flow: true,
+      order,
+      payment,
+      payment_code: codeStr,
+      amount_krw,
+    });
   }
 
   const paidAt = new Date().toISOString();
@@ -191,6 +229,8 @@ export async function POST(request: Request) {
     success: true,
     order,
     payment,
+    payment_code: codeStr,
+    amount_krw,
     fortune_request: fortuneRequest,
   });
 }

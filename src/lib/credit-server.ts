@@ -1,0 +1,406 @@
+import { CREDIT_FREE_TRIAL_GRANT, CREDIT_FREE_TRIAL_VALID_DAYS, firstChargeTotalCredits } from "@/lib/credit-policy";
+import { supabaseServer } from "@/lib/supabase/server";
+
+export type CreditLedgerKind =
+  | "purchase"
+  | "spend_chat"
+  | "spend_voice"
+  | "spend_fortune"
+  | "admin_adjust"
+  | "cs_refund"
+  | "migration_import"
+  | "trial_grant";
+
+export type CreditWalletRow = {
+  user_id: string;
+  paid_balance: number;
+  free_balance: number;
+  free_expires_at: string;
+  first_purchase_done: boolean;
+};
+
+export type CreditLedgerRow = {
+  id: string;
+  user_id: string;
+  delta_paid: number;
+  delta_free: number;
+  paid_balance_after: number;
+  free_balance_after: number;
+  kind: CreditLedgerKind;
+  ref_type: string | null;
+  ref_id: string | null;
+  memo: string | null;
+  admin_actor: string | null;
+  created_at: string;
+};
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isLoggedInUserId(userRef: string | null | undefined): userRef is string {
+  return Boolean(userRef && UUID_RE.test(userRef));
+}
+
+function defaultFreeExpiresAt(): string {
+  return new Date(Date.now() + CREDIT_FREE_TRIAL_VALID_DAYS * 86400000).toISOString();
+}
+
+function effectiveFreeBalance(wallet: CreditWalletRow, now = Date.now()): number {
+  const exp = new Date(wallet.free_expires_at).getTime();
+  if (!Number.isFinite(exp) || exp < now) return 0;
+  return Math.max(0, wallet.free_balance);
+}
+
+export function walletSpendableTotal(wallet: CreditWalletRow): number {
+  return Math.max(0, wallet.paid_balance) + effectiveFreeBalance(wallet);
+}
+
+export async function getWallet(userId: string): Promise<CreditWalletRow | null> {
+  const sb = supabaseServer();
+  const { data, error } = await sb.from("user_credit_wallets").select("*").eq("user_id", userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as CreditWalletRow | null;
+}
+
+export async function ensureWallet(
+  userId: string,
+  opts?: { importPaid?: number; importFree?: number },
+): Promise<CreditWalletRow> {
+  const existing = await getWallet(userId);
+  if (existing) return existing;
+
+  const paid = Math.max(0, Math.floor(opts?.importPaid ?? 0));
+  const free = Math.max(0, Math.floor(opts?.importFree ?? 0));
+
+  let finalPaid = paid;
+  let finalFree = free;
+  let kind: CreditLedgerKind = "migration_import";
+  let memo = "기기 지갑 → 서버 이전";
+
+  if (paid === 0 && free === 0) {
+    finalFree = CREDIT_FREE_TRIAL_GRANT;
+    kind = "trial_grant";
+    memo = "신규 회원 무료 체험";
+  }
+
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from("user_credit_wallets")
+    .insert({
+      user_id: userId,
+      paid_balance: finalPaid,
+      free_balance: finalFree,
+      free_expires_at: defaultFreeExpiresAt(),
+      first_purchase_done: false,
+    })
+    .select("*")
+    .single();
+  if (error) {
+    const again = await getWallet(userId);
+    if (again) return again;
+    throw new Error(error.message);
+  }
+  const wallet = data as CreditWalletRow;
+
+  await insertLedger(userId, {
+    delta_paid: kind === "trial_grant" ? 0 : finalPaid,
+    delta_free: kind === "trial_grant" ? finalFree : finalFree,
+    paid_after: wallet.paid_balance,
+    free_after: wallet.free_balance,
+    kind,
+    memo,
+  });
+
+  return wallet;
+}
+
+async function insertLedger(
+  userId: string,
+  p: {
+    delta_paid: number;
+    delta_free: number;
+    paid_after: number;
+    free_after: number;
+    kind: CreditLedgerKind;
+    ref_type?: string | null;
+    ref_id?: string | null;
+    memo?: string | null;
+    admin_actor?: string | null;
+  },
+): Promise<CreditLedgerRow> {
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from("user_credit_ledger")
+    .insert({
+      user_id: userId,
+      delta_paid: p.delta_paid,
+      delta_free: p.delta_free,
+      paid_balance_after: p.paid_after,
+      free_balance_after: p.free_after,
+      kind: p.kind,
+      ref_type: p.ref_type ?? null,
+      ref_id: p.ref_id ?? null,
+      memo: p.memo ?? null,
+      admin_actor: p.admin_actor ?? null,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data as CreditLedgerRow;
+}
+
+/** 무료 먼저 차감 후 유료 */
+export async function spendCredits(
+  userId: string,
+  amount: number,
+  meta: {
+    kind: Extract<CreditLedgerKind, "spend_chat" | "spend_voice" | "spend_fortune">;
+    ref_type?: string | null;
+    ref_id?: string | null;
+    memo?: string | null;
+  },
+): Promise<{ wallet: CreditWalletRow; spent: number }> {
+  const need = Math.max(0, Math.floor(amount));
+  if (need <= 0) {
+    const w = (await getWallet(userId)) ?? (await ensureWallet(userId));
+    return { wallet: w, spent: 0 };
+  }
+
+  let wallet = await ensureWallet(userId);
+  const freeEff = effectiveFreeBalance(wallet);
+  const total = wallet.paid_balance + freeEff;
+  if (total < need) {
+    throw new Error("insufficient_credits");
+  }
+
+  let takeFree = Math.min(freeEff, need);
+  let takePaid = need - takeFree;
+  const newFree = wallet.free_balance - takeFree;
+  const newPaid = wallet.paid_balance - takePaid;
+
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from("user_credit_wallets")
+    .update({ paid_balance: newPaid, free_balance: newFree })
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  wallet = data as CreditWalletRow;
+
+  await insertLedger(userId, {
+    delta_paid: -takePaid,
+    delta_free: -takeFree,
+    paid_after: newPaid,
+    free_after: newFree,
+    kind: meta.kind,
+    ref_type: meta.ref_type,
+    ref_id: meta.ref_id,
+    memo: meta.memo,
+  });
+
+  return { wallet, spent: takeFree + takePaid };
+}
+
+export async function grantPurchaseCredits(
+  userId: string,
+  baseGrant: number,
+  opts: { orderId: string; firstBonus?: boolean },
+): Promise<CreditWalletRow> {
+  let wallet = await ensureWallet(userId);
+  let grant = Math.max(0, Math.floor(baseGrant));
+  if (opts.firstBonus && !wallet.first_purchase_done) {
+    grant = firstChargeTotalCredits(grant);
+  }
+
+  const newPaid = wallet.paid_balance + grant;
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from("user_credit_wallets")
+    .update({
+      paid_balance: newPaid,
+      first_purchase_done: opts.firstBonus ? true : wallet.first_purchase_done,
+    })
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  wallet = data as CreditWalletRow;
+
+  await insertLedger(userId, {
+    delta_paid: grant,
+    delta_free: 0,
+    paid_after: newPaid,
+    free_after: wallet.free_balance,
+    kind: "purchase",
+    ref_type: "order",
+    ref_id: opts.orderId,
+    memo: "크레딧 충전",
+  });
+
+  return wallet;
+}
+
+export async function adminAdjustCredits(
+  userId: string,
+  deltaPaid: number,
+  deltaFree: number,
+  opts: { kind: "admin_adjust" | "cs_refund"; memo: string; admin_actor?: string; ref_type?: string; ref_id?: string },
+): Promise<{ wallet: CreditWalletRow; ledger: CreditLedgerRow }> {
+  const dp = Math.floor(deltaPaid);
+  const df = Math.floor(deltaFree);
+  if (dp === 0 && df === 0) throw new Error("adjustment_zero");
+
+  let wallet = await ensureWallet(userId);
+  const freeEff = effectiveFreeBalance(wallet);
+  const newPaid = wallet.paid_balance + dp;
+  const newFree = wallet.free_balance + df;
+
+  if (newPaid < 0 || newFree < 0 || freeEff + df < 0) {
+    throw new Error("balance_would_be_negative");
+  }
+
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from("user_credit_wallets")
+    .update({ paid_balance: newPaid, free_balance: newFree })
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  wallet = data as CreditWalletRow;
+
+  const ledger = await insertLedger(userId, {
+    delta_paid: dp,
+    delta_free: df,
+    paid_after: newPaid,
+    free_after: newFree,
+    kind: opts.kind,
+    ref_type: opts.ref_type ?? null,
+    ref_id: opts.ref_id ?? null,
+    memo: opts.memo,
+    admin_actor: opts.admin_actor ?? "admin",
+  });
+
+  return { wallet, ledger };
+}
+
+export async function listLedger(userId: string, limit = 30): Promise<CreditLedgerRow[]> {
+  const sb = supabaseServer();
+  const { data, error } = await sb
+    .from("user_credit_ledger")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CreditLedgerRow[];
+}
+
+export type AdminMemberSearchHit = {
+  user_id: string;
+  display_name: string;
+  email: string | null;
+  provider: string | null;
+  social_name: string | null;
+};
+
+export async function searchMembersForAdmin(query: string): Promise<AdminMemberSearchHit[]> {
+  const q = query.trim();
+  if (!q) return [];
+
+  const sb = supabaseServer();
+  const hits = new Map<string, AdminMemberSearchHit>();
+
+  const add = (row: AdminMemberSearchHit) => {
+    if (!row.user_id) return;
+    hits.set(row.user_id, row);
+  };
+
+  if (UUID_RE.test(q)) {
+    const { data: profile } = await sb.from("profiles").select("id,display_name").eq("id", q).maybeSingle();
+    const { data: social } = await sb
+      .from("yeonun_social_users")
+      .select("auth_user_id,email,provider,name")
+      .eq("auth_user_id", q)
+      .is("deleted_at", null)
+      .maybeSingle();
+    add({
+      user_id: q,
+      display_name: String(profile?.display_name ?? social?.name ?? ""),
+      email: social?.email ?? null,
+      provider: social?.provider ?? null,
+      social_name: social?.name ?? null,
+    });
+  }
+
+  if (q.includes("@")) {
+    const { data: rows } = await sb
+      .from("yeonun_social_users")
+      .select("auth_user_id,email,provider,name")
+      .ilike("email", `%${q}%`)
+      .is("deleted_at", null)
+      .limit(20);
+    for (const s of rows ?? []) {
+      const uid = String(s.auth_user_id);
+      const { data: profile } = await sb.from("profiles").select("display_name").eq("id", uid).maybeSingle();
+      add({
+        user_id: uid,
+        display_name: String(profile?.display_name ?? s.name ?? ""),
+        email: s.email ?? null,
+        provider: s.provider ?? null,
+        social_name: s.name ?? null,
+      });
+    }
+  }
+
+  if (q.startsWith("YN")) {
+    const { data: order } = await sb.from("orders").select("user_ref").eq("order_no", q).maybeSingle();
+    const uid = String(order?.user_ref ?? "");
+    if (isLoggedInUserId(uid)) {
+      const { data: profile } = await sb.from("profiles").select("display_name").eq("id", uid).maybeSingle();
+      const { data: social } = await sb
+        .from("yeonun_social_users")
+        .select("email,provider,name")
+        .eq("auth_user_id", uid)
+        .is("deleted_at", null)
+        .maybeSingle();
+      add({
+        user_id: uid,
+        display_name: String(profile?.display_name ?? social?.name ?? ""),
+        email: social?.email ?? null,
+        provider: social?.provider ?? null,
+        social_name: social?.name ?? null,
+      });
+    }
+  }
+
+  if (hits.size < 15 && q.length >= 2) {
+    const { data: profiles } = await sb
+      .from("profiles")
+      .select("id,display_name")
+      .ilike("display_name", `%${q}%`)
+      .limit(15);
+    for (const p of profiles ?? []) {
+      const uid = String(p.id);
+      const { data: social } = await sb
+        .from("yeonun_social_users")
+        .select("email,provider,name")
+        .eq("auth_user_id", uid)
+        .is("deleted_at", null)
+        .maybeSingle();
+      add({
+        user_id: uid,
+        display_name: String(p.display_name ?? ""),
+        email: social?.email ?? null,
+        provider: social?.provider ?? null,
+        social_name: social?.name ?? null,
+      });
+    }
+  }
+
+  return [...hits.values()].slice(0, 20);
+}

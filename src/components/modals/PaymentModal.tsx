@@ -6,15 +6,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
+import { pullCreditsAfterPurchase, spendCreditsWithAuth } from "@/lib/credit-client";
 import {
   applyPurchasedCredits,
   markFirstCreditPurchaseDone,
   readWallet,
   spendableTotalCredits,
-  spendCreditsForOrder,
   YEONUN_CREDIT_UPDATE_EVENT,
 } from "@/lib/credit-balance-local";
 import { firstChargeTotalCredits } from "@/lib/credit-policy";
+import { launchFortune82PgPayment, registerPgPaymentHandlers } from "@/lib/payment-pg-flow";
 import { appendStubPayment } from "@/lib/payments-history-stub";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
@@ -55,6 +56,83 @@ export function PaymentModal() {
     if (isCreditTopup && method === "credit") setMethod("card");
   }, [isCreditTopup, method]);
 
+  useEffect(() => {
+    return registerPgPaymentHandlers({
+      onSuccess: async (orderNo) => {
+        setStatus("loading");
+        setMessage("");
+        try {
+          const sb = supabaseBrowser();
+          const session = sb ? (await sb.auth.getSession()).data.session : null;
+          if (session?.access_token) {
+            appendStubPayment({
+              productSlug: product,
+              title,
+              amountKrw: price,
+              method: "card",
+            });
+          }
+
+          if (isCreditTopup) {
+            if (session?.access_token) {
+              await pullCreditsAfterPurchase();
+            } else {
+              const walletBefore = readWallet();
+              let credits =
+                isVoiceCreditLegacy
+                  ? Math.max(0, voicePackageMinutes) * 390
+                  : Number.isFinite(grantBase) && grantBase > 0
+                    ? Math.floor(grantBase)
+                    : Math.floor(price);
+              if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
+                credits = firstChargeTotalCredits(credits);
+              }
+              applyPurchasedCredits(credits);
+              if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
+                markFirstCreditPurchaseDone();
+              }
+            }
+            setStatus("idle");
+            router.replace(pathname);
+            return;
+          }
+
+          const next = new URLSearchParams(sp.toString());
+          next.set("modal", profile === "pair" ? "partner_info" : "fortune_stream");
+          next.set("product", product);
+          next.set("title", title);
+          next.set("price", String(price));
+          next.set("character_key", character_key);
+          next.set("profile", profile);
+          if (orderNo) next.set("order_no", orderNo);
+          setStatus("idle");
+          router.replace(`${pathname}?${next.toString()}`);
+        } catch (e) {
+          setStatus("error");
+          setMessage(e instanceof Error ? e.message : "결제 반영 중 오류가 발생했습니다.");
+        }
+      },
+      onError: (_code, pgMsg) => {
+        setStatus("error");
+        setMessage(pgMsg === "close" ? "결제가 취소되었습니다." : "결제에 실패했습니다. 다시 시도해 주세요.");
+      },
+    });
+  }, [
+    character_key,
+    firstVoiceCreditBonus,
+    grantBase,
+    isCreditTopup,
+    isVoiceCreditLegacy,
+    pathname,
+    price,
+    product,
+    profile,
+    router,
+    sp,
+    title,
+    voicePackageMinutes,
+  ]);
+
   const creditBlocked = useMemo(
     () => !isCreditTopup && method === "credit" && creditBal < price,
     [isCreditTopup, method, creditBal, price],
@@ -83,15 +161,23 @@ export function PaymentModal() {
   const checkout = async () => {
     if (status === "loading") return;
     if (method === "credit" && creditBal < price) return;
-    setStatus("loading");
-    setMessage("");
+    const isPg = method === "card" || method === "phone";
+    if (!isPg) {
+      setStatus("loading");
+      setMessage("");
+    }
     try {
       const sb = supabaseBrowser();
       const session = sb ? (await sb.auth.getSession()).data.session : null;
 
       if (method === "credit" && !isCreditTopup) {
-        const spent = spendCreditsForOrder(price);
-        if (spent < price) throw new Error("크레딧이 부족합니다.");
+        const spend = await spendCreditsWithAuth(price, {
+          kind: "spend_fortune",
+          ref_type: "product",
+          ref_id: product,
+          memo: title,
+        });
+        if (!spend.ok) throw new Error("크레딧이 부족합니다.");
         if (session?.access_token) {
           appendStubPayment({
             productSlug: product,
@@ -121,6 +207,7 @@ export function PaymentModal() {
           product_slug: product,
           title,
           price_krw: price,
+          grant_base: isCreditTopup && grantBase > 0 ? grantBase : undefined,
           method,
           user_ref: userRef,
           first_voice_credit_bonus: isCreditTopup ? firstVoiceCreditBonus : false,
@@ -129,6 +216,20 @@ export function PaymentModal() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) throw new Error(data?.error || "결제 요청 저장 실패");
+
+      const orderNo = String(data.order?.order_no ?? "");
+      if (!orderNo) throw new Error("주문번호를 받지 못했습니다.");
+
+      if (isPg) {
+        await launchFortune82PgPayment({
+          paymentMethod: method,
+          orderNo,
+          productSlug: product,
+          title,
+        });
+        return;
+      }
+
       setStatus("idle");
 
       if (session?.access_token) {
@@ -138,25 +239,6 @@ export function PaymentModal() {
           amountKrw: price,
           method,
         });
-      }
-
-      if (isCreditTopup) {
-        const walletBefore = readWallet();
-        let credits =
-          isVoiceCreditLegacy
-            ? Math.max(0, voicePackageMinutes) * 390
-            : Number.isFinite(grantBase) && grantBase > 0
-              ? Math.floor(grantBase)
-              : Math.floor(price);
-        if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
-          credits = firstChargeTotalCredits(credits);
-        }
-        applyPurchasedCredits(credits);
-        if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
-          markFirstCreditPurchaseDone();
-        }
-        router.replace(pathname);
-        return;
       }
 
       const next = new URLSearchParams(sp.toString());
@@ -332,7 +414,7 @@ export function PaymentModal() {
               onClick={checkout}
               disabled={status === "loading" || creditBlocked}
             >
-              {status === "loading" ? "주문 생성 중..." : payLabel}
+              {status === "loading" ? "결제 진행 중..." : payLabel}
             </button>
             {method === "credit" && creditBlocked ? (
               <p style={{ marginTop: 10, fontSize: 12, color: "#c62828", textAlign: "center" }}>

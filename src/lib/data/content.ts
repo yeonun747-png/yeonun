@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 
+import { isFortuneMenuCatalogProductSlug } from "@/lib/credit-package-products";
 import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
 import { parseFortuneMenuJson, type FortuneMenuPayload } from "@/lib/product-fortune-menu";
 import { normalizeFortuneStreamStrategy, type FortuneStreamStrategy } from "@/lib/fortune-stream-strategy";
@@ -146,7 +147,7 @@ export async function getProductsForList(): Promise<Product[]> {
     ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => asProductListRow(r));
+  return (data ?? []).map((r) => asProductListRow(r)).filter((p) => isFortuneMenuCatalogProductSlug(p.slug));
 }
 
 export const getProductsForListCached = unstable_cache(
@@ -189,7 +190,7 @@ export async function getProducts(params: { category?: string } = {}): Promise<P
     ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => asProduct(r));
+  return (data ?? []).map((r) => asProduct(r)).filter((p) => isFortuneMenuCatalogProductSlug(p.slug));
 }
 
 export const getProductsCached = cache(getProducts);
@@ -227,7 +228,7 @@ export async function getProductsByCharacterKey(characterKey: string): Promise<P
     ({ data, error } = await run(PRODUCT_SELECT_LEGACY));
   }
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => asProduct(r));
+  return (data ?? []).map((r) => asProduct(r)).filter((p) => isFortuneMenuCatalogProductSlug(p.slug));
 }
 
 export const getProductsByCharacterKeyCached = cache(getProductsByCharacterKey);

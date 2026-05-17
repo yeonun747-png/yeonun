@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const PANEL_IDS = ["dashboard", "content", "reviews", "notices", "commerce", "voice", "fortune", "chat", "logs"] as const;
+const PANEL_IDS = ["dashboard", "content", "reviews", "notices", "commerce", "credits", "voice", "fortune", "chat", "logs"] as const;
 export type AdminPanelId = (typeof PANEL_IDS)[number];
 
 const LABELS: Record<AdminPanelId, string> = {
@@ -11,6 +11,7 @@ const LABELS: Record<AdminPanelId, string> = {
   reviews: "Reviews",
   notices: "Notices",
   commerce: "Orders",
+  credits: "C/S Credits",
   voice: "Voice Ops",
   fortune: "Fortune Ops",
   chat: "Chat Ops",

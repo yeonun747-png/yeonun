@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isCreditPackageProductSlug } from "@/lib/credit-package-products";
 import { supabaseServer } from "@/lib/supabase/server";
 import { emptyFortuneMenu, parseFortuneMenuJson } from "@/lib/product-fortune-menu";
 import { parseFortuneQuestionsJsonFromForm } from "@/lib/product-fortune-questions";
@@ -64,6 +65,12 @@ export async function POST(request: Request) {
   if (!slug || !title || !quote || !category_slug || !character_key || !Number.isFinite(price_krw)) {
     if (json) return NextResponse.json({ ok: false, error: "필수 필드 누락" }, { status: 400 });
     return NextResponse.redirect(new URL("/admin", request.url), 303);
+  }
+
+  if (isCreditPackageProductSlug(slug)) {
+    const err = "크레딧 충전 패키지 slug(credit-package-*)는 어드민에서 등록할 수 없습니다.";
+    if (json) return NextResponse.json({ ok: false, error: err }, { status: 400 });
+    return NextResponse.redirect(new URL("/admin#admin-products", request.url), 303);
   }
 
   const supabase = supabaseServer();

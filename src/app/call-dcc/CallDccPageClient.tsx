@@ -10,7 +10,8 @@ import { extractRealtimeFunctionCallsFromResponseDone } from "@/lib/openai-realt
 import { extractRealtimeResponseUsage } from "@/lib/voice-realtime-response-usage";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
 import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
-import { YEONUN_CREDIT_UPDATE_EVENT, readWallet, spendCreditsForOrder, ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
+import { spendCreditsWithAuth } from "@/lib/credit-client";
+import { YEONUN_CREDIT_UPDATE_EVENT, readWallet, ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import {
   CREDIT_FREE_TRIAL_GRANT,
   CREDIT_VOICE_PER_MINUTE,
@@ -382,9 +383,14 @@ export default function CallDccPageClient() {
     } catch {
       // ignore
     } finally {
-      /** 회원·비회원 공통: 로컬 체험/충전 크레딧에서 통화 시간만큼 차감(미차감 시 재입장 시 1170부터 다시 표시됨) */
+      /** 로그인: 서버 지갑 차감 · 비로그인: localStorage */
       if (typeof window !== "undefined" && owedCredits > 0) {
-        spendCreditsForOrder(owedCredits);
+        await spendCreditsWithAuth(owedCredits, {
+          kind: "spend_voice",
+          ref_type: "voice_session",
+          ref_id: id,
+          memo: `음성 통화 ${wallDurationSec}초`,
+        });
       }
     }
     clearVoiceManseMeta();

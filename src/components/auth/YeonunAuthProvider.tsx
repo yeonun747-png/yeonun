@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 
 import { migrateLegacyChatConsultSessions, setChatConsultUserScope } from "@/lib/chat-consult-archive";
+import { setCreditAuthAccessToken, syncCreditsFromServer } from "@/lib/credit-client";
 import { syncProfileFromServer } from "@/lib/profile-sync-from-api";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -38,8 +39,12 @@ export function YeonunAuthProvider({ children }: { children: ReactNode }) {
       if (!cancelled) {
         setSession(s);
         setLoading(false);
-        const tok = s?.access_token;
-        if (tok) void syncProfileFromServer(tok);
+        const tok = s?.access_token ?? null;
+        setCreditAuthAccessToken(tok);
+        if (tok) {
+          void syncProfileFromServer(tok);
+          void syncCreditsFromServer();
+        }
       }
     });
 
@@ -47,8 +52,14 @@ export function YeonunAuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = sb.auth.onAuthStateChange((_evt, s) => {
       setSession(s);
-      const tok = s?.access_token;
-      if (tok) void syncProfileFromServer(tok);
+      const tok = s?.access_token ?? null;
+      setCreditAuthAccessToken(tok);
+      if (tok) {
+        void syncProfileFromServer(tok);
+        void syncCreditsFromServer();
+      } else {
+        setCreditAuthAccessToken(null);
+      }
     });
 
     return () => {

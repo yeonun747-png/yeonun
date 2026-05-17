@@ -2,6 +2,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 import { createAdminTtsPreviewToken } from "@/lib/admin-tts-preview-token";
 
+import { AdminMemberCreditsClient } from "@/components/admin/AdminMemberCreditsClient";
 import { AdminReviewCreateForm } from "@/components/admin/AdminReviewCreateForm";
 import { AdminReviewEditor } from "@/components/admin/AdminReviewEditor";
 import { AdminCharacterModePromptEditor } from "@/components/admin/AdminCharacterModePromptEditor";
@@ -10,6 +11,7 @@ import { AdminWorkspace } from "@/components/admin/AdminWorkspace";
 import { ProductEditorBlock } from "@/components/admin/ProductEditorClient";
 import { ProductNewFormClient } from "@/components/admin/ProductNewFormClient";
 import { TtsVoiceListPreview } from "@/components/admin/TtsVoiceListPreview";
+import { isFortuneMenuCatalogProductSlug } from "@/lib/credit-package-products";
 import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
 import type { TtsVoiceOption } from "@/components/admin/VoiceCharacterPromptTtsFields";
 
@@ -18,17 +20,16 @@ type Row = Record<string, unknown>;
 const PRODUCTS_SELECT_NO_PROFILE =
   "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,created_at";
 
-/** `/admin`은 클라이언트 워크스페이스로 내려가므로 PG 결제코드는 조회에서 제외 */
 const PRODUCTS_SELECT_ADMIN =
-  "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,fortune_questions,fortune_stream_strategy,created_at";
+  "slug,title,quote,payment_code,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,fortune_questions,fortune_stream_strategy,created_at";
 
 /** `fortune_stream_strategy` 컬럼 마이그레이션 전 DB */
 const PRODUCTS_SELECT_ADMIN_PRE_STREAM_STRATEGY =
-  "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,fortune_questions,created_at";
+  "slug,title,quote,payment_code,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,fortune_questions,created_at";
 
 /** `fortune_questions` 컬럼 마이그레이션 전 DB */
 const PRODUCTS_SELECT_ADMIN_PRE_FORTUNE_QUESTIONS =
-  "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,created_at";
+  "slug,title,quote,payment_code,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,created_at";
 
 /** 어드민에 노출하는 공통 시스템 프롬프트만 조회 — `order+limit`만 쓰면 행이 늘었을 때 특정 key가 목록에서 빠질 수 있음 */
 const ADMIN_SERVICE_PROMPT_KEYS = ["yeonun_common_system", "yeonun_fortune_text_system", "yeonun_chat_text_system"] as const;
@@ -212,8 +213,11 @@ export default async function AdminHomePage() {
 
   const categoriesForProducts = categoriesAssignableToProducts(categories.rows);
 
+  /** 크레딧 충전 패키지(9001~9003) — PG·결제용 DB 행만 유지, 어드민·메뉴 카드에는 미노출 */
+  const catalogProductRows = products.rows.filter((p) => isFortuneMenuCatalogProductSlug(text(p.slug, "")));
+
   const kpis = [
-    { label: "상품", value: products.rows.length, hint: products.ready ? "운영" : "확인 필요" },
+    { label: "상품", value: catalogProductRows.length, hint: products.ready ? "운영" : "확인 필요" },
     { label: "캐릭터", value: characters.rows.length, hint: characters.ready ? "운영" : "확인 필요" },
     { label: "리뷰", value: reviews.rows.length, hint: reviews.ready ? "운영" : "확인 필요" },
     { label: "결제", value: payments.rows.length, hint: payments.ready ? "연결됨" : "스키마 준비" },
@@ -275,7 +279,7 @@ export default async function AdminHomePage() {
             <StatusPill tone="good">CRUD 활성</StatusPill>
           </div>
           <div className="y-admin-toolbar">
-            <a href="#admin-products">상품 {products.rows.length}</a>
+            <a href="#admin-products">상품 {catalogProductRows.length}</a>
             <a href="#admin-categories">카테고리 {categories.rows.length}</a>
             <a href="#admin-characters">캐릭터 {characters.rows.length}</a>
             <a href="#admin-personas">페르소나 {personas.rows.length}</a>
@@ -299,7 +303,7 @@ export default async function AdminHomePage() {
           </div>
 
           <CrudSection id="admin-products" title="상품 목록" hint="slug 기준 upsert. 펼쳐서 바로 수정할 수 있습니다.">
-            {products.rows.length === 0 ? <EmptyPanel label="상품" error={products.error} /> : products.rows.map((p) => (
+            {catalogProductRows.length === 0 ? <EmptyPanel label="상품" error={products.error} /> : catalogProductRows.map((p) => (
               <ProductEditorBlock
                 key={text(p.slug)}
                 row={p}
@@ -372,7 +376,7 @@ export default async function AdminHomePage() {
                     is_showcase: r.is_showcase === true,
                     is_published: r.is_published === true,
                   }}
-                  products={products.rows.map((p) => ({ slug: text(p.slug), title: text(p.title) }))}
+                  products={catalogProductRows.map((p) => ({ slug: text(p.slug), title: text(p.title) }))}
                 />
               ))
             )}
@@ -468,6 +472,20 @@ export default async function AdminHomePage() {
             title="결제 운영 체크"
             items={["주문 생성 후 PG 요청", "결제 콜백 HMAC 검증", "payments/webhook_events 원본 payload 저장", "환불은 결제 상태와 별도 refunds로 추적"]}
           />
+        </section>
+      }
+      credits={
+        <section className="y-admin-section">
+          <div className="y-admin-section-head">
+            <div>
+              <span className="y-admin-eyebrow">CREDIT OPS</span>
+              <h2>회원 크레딧 (CS)</h2>
+            </div>
+            <StatusPill tone="good">로그인 회원</StatusPill>
+          </div>
+          <div className="y-admin-card y-admin-member-credits-panel">
+            <AdminMemberCreditsClient />
+          </div>
         </section>
       }
       voice={

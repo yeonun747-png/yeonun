@@ -9,6 +9,7 @@ import { parseFortuneMenuJson, type FortuneMenuPayload } from "@/lib/product-for
 import { cloneFortuneQuestionsForEditor } from "@/lib/product-fortune-questions";
 import { normalizeFortuneStreamStrategy } from "@/lib/fortune-stream-strategy";
 import type { FortuneQuestionItem } from "@/lib/fortune-ux/defaultQuestions";
+import { formatPaymentCode } from "@/lib/payment-utils";
 
 type Row = Record<string, unknown>;
 
@@ -145,6 +146,20 @@ function ProductEditorForm({
       <label className="y-admin-field-stack">
         <span className="y-admin-stack-legend">설명 / 카피</span>
         <textarea name="quote" defaultValue={text(row.quote, "")} />
+      </label>
+      <label className="y-admin-field-stack">
+        <span className="y-admin-stack-legend">결제 코드 (PG)</span>
+        <input
+          readOnly
+          disabled
+          value={
+            row.payment_code != null && row.payment_code !== ""
+              ? formatPaymentCode(row.payment_code as number | string)
+              : "저장 후 자동 부여 (1000~)"
+          }
+          aria-readonly
+        />
+        <span className="y-admin-fortune-menu-hint">4자리 숫자 · 관리자 지정 불가 · PG 상품 구분용</span>
       </label>
       <label className="y-admin-field-stack">
         <span className="y-admin-stack-legend">가격 (원)</span>
