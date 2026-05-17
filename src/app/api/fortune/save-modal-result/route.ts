@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { optionalMyUserId } from "@/lib/my-route-auth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -51,10 +52,13 @@ export async function POST(request: Request) {
     ...(Array.isArray(body.toc_groups) ? { toc_groups: body.toc_groups } : {}),
   };
 
+  const authUserId = await optionalMyUserId(request);
+  const user_ref = authUserId ?? "guest";
+
   const { data: reqRow, error: reqErr } = await supabase
     .from("fortune_requests")
     .insert({
-      user_ref: "guest",
+      user_ref,
       product_slug,
       order_id,
       status: "completed",

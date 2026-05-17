@@ -42,14 +42,14 @@ type VoiceSlice = {
 const emptyFortune: FortuneSlice = { items: [], loadError: null, status: "idle" };
 const emptyVoice: VoiceSlice = { grouped: [], loadError: null, status: "idle" };
 
-function fortuneSliceFromCache(): FortuneSlice {
-  const items = readFortuneListCache();
+function fortuneSliceFromCache(userId: string): FortuneSlice {
+  const items = readFortuneListCache(userId);
   if (!items) return emptyFortune;
   return { items, loadError: null, status: "ready" };
 }
 
-function voiceSliceFromCache(): VoiceSlice {
-  const grouped = readVoiceListCache();
+function voiceSliceFromCache(userId: string): VoiceSlice {
+  const grouped = readVoiceListCache(userId);
   if (!grouped) return emptyVoice;
   return { grouped, loadError: null, status: "ready" };
 }
@@ -70,9 +70,13 @@ function snapshotVoice(s: VoiceSlice): MyVoiceListSnapshot {
   };
 }
 
-export function useMyShelfListsPreload(member: boolean) {
-  const [fortune, setFortune] = useState<FortuneSlice>(fortuneSliceFromCache);
-  const [voice, setVoice] = useState<VoiceSlice>(voiceSliceFromCache);
+function authHeaders(accessToken: string): HeadersInit {
+  return { Authorization: `Bearer ${accessToken}` };
+}
+
+export function useMyShelfListsPreload(member: boolean, userId: string | null, accessToken: string | null) {
+  const [fortune, setFortune] = useState<FortuneSlice>(emptyFortune);
+  const [voice, setVoice] = useState<VoiceSlice>(emptyVoice);
   const acRef = useRef<AbortController | null>(null);
   const genRef = useRef(0);
   const fortuneRef = useRef(fortune);
@@ -81,7 +85,7 @@ export function useMyShelfListsPreload(member: boolean) {
   voiceRef.current = voice;
 
   const load = useCallback(() => {
-    if (!member) return;
+    if (!member || !userId || !accessToken) return;
     const f = fortuneRef.current;
     const v = voiceRef.current;
     if (f.status === "loading" || v.status === "loading") return;
@@ -94,14 +98,19 @@ export function useMyShelfListsPreload(member: boolean) {
     acRef.current?.abort();
     const ac = new AbortController();
     acRef.current = ac;
+    const headers = authHeaders(accessToken);
 
-    /** 캐시로 이미 ready이면 스켈레톤 없이 유지 */
     if (needFortune) setFortune((cur) => ({ ...cur, status: "loading", loadError: null }));
     if (needVoice) setVoice((cur) => ({ ...cur, status: "loading", loadError: null }));
 
     if (needFortune) void (async () => {
       try {
-        const r = await fetch("/api/my/fortune-library-list", { method: "GET", cache: "no-store", signal: ac.signal });
+        const r = await fetch("/api/my/fortune-library-list", {
+          method: "GET",
+          cache: "no-store",
+          signal: ac.signal,
+          headers,
+        });
         const j = (await r.json()) as
           | { ok: true; items: LibraryListItemVm[] }
           | { ok: false; error?: string };
@@ -115,7 +124,7 @@ export function useMyShelfListsPreload(member: boolean) {
           return;
         }
         const items = Array.isArray(j.items) ? j.items : [];
-        writeFortuneListCache(items);
+        writeFortuneListCache(userId, items);
         setFortune({
           items,
           loadError: null,
@@ -133,7 +142,12 @@ export function useMyShelfListsPreload(member: boolean) {
 
     if (needVoice) void (async () => {
       try {
-        const r = await fetch("/api/my/voice-call-history", { method: "GET", cache: "no-store", signal: ac.signal });
+        const r = await fetch("/api/my/voice-call-history", {
+          method: "GET",
+          cache: "no-store",
+          signal: ac.signal,
+          headers,
+        });
         const j = (await r.json()) as
           | { ok: true; grouped: VoiceHistoryGroupedBlock[] }
           | { ok: false; error?: string };
@@ -147,7 +161,7 @@ export function useMyShelfListsPreload(member: boolean) {
           return;
         }
         const grouped = Array.isArray(j.grouped) ? j.grouped : [];
-        writeVoiceListCache(grouped);
+        writeVoiceListCache(userId, grouped);
         setVoice({
           grouped,
           loadError: null,
@@ -162,10 +176,10 @@ export function useMyShelfListsPreload(member: boolean) {
         });
       }
     })();
-  }, [member]);
+  }, [member, userId, accessToken]);
 
   useLayoutEffect(() => {
-    if (!member) {
+    if (!member || !userId || !accessToken) {
       registerMyShelfListsWarm(null);
       genRef.current += 1;
       acRef.current?.abort();
@@ -175,8 +189,8 @@ export function useMyShelfListsPreload(member: boolean) {
       setVoice(emptyVoice);
       return;
     }
-    const cachedFortune = fortuneSliceFromCache();
-    const cachedVoice = voiceSliceFromCache();
+    const cachedFortune = fortuneSliceFromCache(userId);
+    const cachedVoice = voiceSliceFromCache(userId);
     if (cachedFortune.status === "ready") setFortune(cachedFortune);
     if (cachedVoice.status === "ready") setVoice(cachedVoice);
     registerMyShelfListsWarm(load);
@@ -184,7 +198,7 @@ export function useMyShelfListsPreload(member: boolean) {
     return () => {
       registerMyShelfListsWarm(null);
     };
-  }, [member, load]);
+  }, [member, userId, accessToken, load]);
 
   return useMemo(
     () => ({

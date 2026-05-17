@@ -2,7 +2,8 @@ import Link from "next/link";
 
 import { HomeContentGrid } from "@/components/HomeContentGrid";
 import { HomeFaq } from "@/components/HomeFaq";
-import { getProductsBySlugsCached, getReviewsByProductSlugCached } from "@/lib/data/content";
+import { HomeReviewsSection } from "@/components/reviews/HomeReviewsSection";
+import { getProductsBySlugsCached } from "@/lib/data/content";
 import type { Product } from "@/lib/data/content";
 import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
 
@@ -38,8 +39,6 @@ export async function HomeMoreSections() {
   const bySlug = new Map(homeProducts.map((p) => [p.slug, p] as const));
   const featured = weeklyOrder.map((s) => bySlug.get(s)).filter(isProduct).slice(0, 4);
   const thumbFallback = await readProductThumbnailsForSlugs(homeSectionSlugs);
-
-  const reviews = await getReviewsByProductSlugCached(featured[0]?.slug ?? "reunion-maybe", { limit: 6 });
 
   return (
     <>
@@ -119,54 +118,7 @@ export async function HomeMoreSections() {
         fallbackSvgBySlug={thumbFallback}
       />
 
-      <div className="y-reviews-block">
-        <div className="y-section-head">
-          <h2 className="y-section-title">
-            <span className="hash">#</span> 51,820명의 운명
-          </h2>
-          <Link href="/reviews" className="y-section-more">
-            전체 후기
-          </Link>
-        </div>
-
-        <div className="y-reviews-stats">
-          <div className="y-stat-card">
-            <div className="y-stat-num">51,820</div>
-            <div className="y-stat-label">누적 풀이</div>
-          </div>
-          <div className="y-stat-card">
-            <div className="y-stat-num">96%</div>
-            <div className="y-stat-label">재회 적중</div>
-          </div>
-          <div className="y-stat-card">
-            <div className="y-stat-num">4.9</div>
-            <div className="y-stat-label">평균 별점</div>
-          </div>
-        </div>
-
-        <div className="y-review-stack" aria-label="후기">
-          {(reviews.length ? reviews : []).slice(0, 3).map((r) => (
-            <div key={r.id} className="y-review-card">
-              <div className="y-review-head">
-                <div className="y-review-meta-left">
-                  <div className="y-review-avatar yeon">蓮</div>
-                  <div>
-                    <div className="y-review-name">{r.user_mask}</div>
-                    <div className="y-review-prod">연운 · 텍스트 풀이</div>
-                  </div>
-                </div>
-                <div className="y-review-stars">★★★★★</div>
-              </div>
-              <p className="y-review-text">{r.body}</p>
-              <div className="y-review-tags">{(r.tags ?? []).join(" ")}</div>
-            </div>
-          ))}
-        </div>
-
-        <Link className="y-review-more" href="/reviews">
-          후기 더 보기 (51,820+) →
-        </Link>
-      </div>
+      <HomeReviewsSection />
 
       <div className="y-section-divider" />
 

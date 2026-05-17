@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { BottomNav } from "@/components/BottomNav";
 import { CharacterCarousel } from "@/components/CharacterCarousel";
 import { FortuneExitScrollRestore } from "@/components/fortune/FortuneExitScrollRestore";

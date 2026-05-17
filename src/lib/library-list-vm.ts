@@ -7,6 +7,7 @@ import { fortuneLibraryCharLabel, type FortuneLibraryListRow } from "@/lib/libra
 
 export type LibraryListItemVm = {
   requestId: string;
+  productSlug: string;
   characterKey: LibraryCharacterFilterKey | "";
   charLabel: string;
   /** 예: 연화 · 재회비책 풀이 */
@@ -66,6 +67,7 @@ export function buildLibraryListItemVm(
 
   return {
     requestId: row.request_id,
+    productSlug: slug ?? "",
     characterKey: charKey,
     charLabel,
     productLine: `${charLabel} · ${productTitle}`,

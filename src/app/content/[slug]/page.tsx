@@ -283,7 +283,7 @@ export default async function ContentDetailPage({ params, searchParams }: Props)
         </div>
 
         <div className="y-cd-section">
-          <h2 className="y-cd-section-title">최근 후기 ({reviews.length.toLocaleString("ko-KR")}개)</h2>
+          <h2 className="y-cd-section-title">최근 리뷰 ({reviews.length.toLocaleString("ko-KR")}개)</h2>
         </div>
         <div style={{ padding: "0 22px 24px" }}>
           {reviews.length === 0 ? (
@@ -291,7 +291,7 @@ export default async function ContentDetailPage({ params, searchParams }: Props)
               아직 리뷰가 없습니다.
             </div>
           ) : (
-            <div className="y-review-stack" aria-label="후기">
+            <div className="y-review-stack" aria-label="리뷰">
               {reviews.slice(0, 6).map((r) => (
                 <div key={r.id} className="y-review-card">
                   <div className="y-review-head">

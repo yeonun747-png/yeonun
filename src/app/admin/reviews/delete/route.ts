@@ -1,15 +1,36 @@
 import { NextResponse } from "next/server";
 
+import { revalidateReviewPages } from "@/lib/reviews-revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
+
+function wantsJson(form: FormData, request: Request): boolean {
+  return (
+    String(form.get("ajax") ?? "") === "1" ||
+    request.headers.get("accept")?.includes("application/json") === true
+  );
+}
 
 export async function POST(request: Request) {
   const form = await request.formData();
   const id = String(form.get("id") ?? "").trim();
-  if (!id) return NextResponse.redirect(new URL("/admin#content", request.url), 303);
+  const json = wantsJson(form, request);
+
+  if (!id) {
+    if (json) return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
+    return NextResponse.redirect(new URL("/admin#reviews", request.url), 303);
+  }
 
   const supabase = supabaseServer();
-  await supabase.from("reviews").delete().eq("id", id);
+  const { error } = await supabase.from("reviews").delete().eq("id", id);
 
-  return NextResponse.redirect(new URL("/admin#content", request.url), 303);
+  if (error) {
+    if (json) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    return NextResponse.redirect(new URL("/admin#reviews", request.url), 303);
+  }
+
+  revalidateReviewPages();
+
+  if (json) return NextResponse.json({ ok: true });
+
+  return NextResponse.redirect(new URL("/admin#reviews", request.url), 303);
 }
-

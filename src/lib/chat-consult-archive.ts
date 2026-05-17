@@ -1,6 +1,35 @@
 import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
 
-const LS = "yeonun_chat_consult_sessions_v1";
+const LS_LEGACY = "yeonun_chat_consult_sessions_v1";
+const LS_PREFIX = "yeonun_chat_consult_sessions_v1";
+
+let scopedUserId: string | null = null;
+
+/** 로그인 사용자별 localStorage 키 분리 (YeonunAuthProvider에서 설정) */
+export function setChatConsultUserScope(userId: string | null) {
+  scopedUserId = userId?.trim() || null;
+}
+
+function storageKey(): string {
+  return scopedUserId ? `${LS_PREFIX}:${scopedUserId}` : `${LS_PREFIX}:guest`;
+}
+
+/** 예전 공용 키 데이터를 로그인 계정 키로 1회 이전 */
+export function migrateLegacyChatConsultSessions(userId: string) {
+  if (typeof window === "undefined") return;
+  const uid = userId.trim();
+  if (!uid) return;
+  const targetKey = `${LS_PREFIX}:${uid}`;
+  try {
+    if (localStorage.getItem(targetKey)) return;
+    const legacy = localStorage.getItem(LS_LEGACY);
+    if (!legacy) return;
+    localStorage.setItem(targetKey, legacy);
+    localStorage.removeItem(LS_LEGACY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export type ChatConsultMessage = {
   id: string;
@@ -31,7 +60,7 @@ const RETENTION_MS = 30 * 86400000;
 function loadAll(): ChatConsultSession[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(LS);
+    const raw = localStorage.getItem(storageKey());
     const arr = JSON.parse(raw || "[]") as unknown;
     if (!Array.isArray(arr)) return [];
     const list = arr.filter(Boolean) as ChatConsultSession[];
@@ -42,7 +71,7 @@ function loadAll(): ChatConsultSession[] {
     });
     if (kept.length !== list.length) {
       try {
-        localStorage.setItem(LS, JSON.stringify(kept));
+        localStorage.setItem(storageKey(), JSON.stringify(kept));
       } catch {
         /* ignore */
       }
@@ -55,7 +84,7 @@ function loadAll(): ChatConsultSession[] {
 
 function saveAll(list: ChatConsultSession[]) {
   try {
-    localStorage.setItem(LS, JSON.stringify(list));
+    localStorage.setItem(storageKey(), JSON.stringify(list));
   } catch {
     /* ignore */
   }

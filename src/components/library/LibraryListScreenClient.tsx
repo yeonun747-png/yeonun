@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import type { MyFortuneListSnapshot } from "@/hooks/useMyShelfListsPreload";
 import { LIBRARY_CHARACTER_FILTER_ORDER } from "@/lib/library-character-filters";
 import type { LibraryListItemVm } from "@/lib/library-list-vm";
 import { fortuneSnapshotWithCache } from "@/lib/my-shelf-lists-cache";
 
+import { ArchiveReviewAction, toCharacterReviewKey } from "@/components/reviews/ArchiveReviewAction";
 import { LibraryListSheet } from "./LibraryListSheet";
 
 type FilterKey = "all" | "yeon" | "byeol" | "yeo" | "un";
@@ -45,17 +47,19 @@ export function LibraryListScreenClient({
   backHref?: string;
   fortuneSnapshot: MyFortuneListSnapshot;
 }) {
-  const initial = fortuneSnapshotWithCache(fortuneSnapshot);
+  const { user } = useYeonunAuth();
+  const userId = user?.id ?? "";
+  const initial = fortuneSnapshotWithCache(fortuneSnapshot, userId);
   const [items, setItems] = useState<LibraryListItemVm[]>(() => initial.items);
   const [loadError, setLoadError] = useState<string | null>(() => initial.loadError);
   const [loaded, setLoaded] = useState(() => initial.settled);
 
   useEffect(() => {
-    const next = fortuneSnapshotWithCache(fortuneSnapshot);
+    const next = fortuneSnapshotWithCache(fortuneSnapshot, userId);
     setItems(next.items);
     setLoadError(next.loadError);
     setLoaded(next.settled);
-  }, [fortuneSnapshot]);
+  }, [fortuneSnapshot, userId]);
 
   const [filter, setFilter] = useState<FilterKey>("all");
 
@@ -135,11 +139,24 @@ export function LibraryListScreenClient({
                       <span className="y-lib-mock-meta-chars">{item.visibleChars.toLocaleString("ko-KR")}자</span>
                     </span>
                   </div>
-                  {item.badge.kind === "expired" ? (
-                    <span className="y-lib-mock-badge y-lib-mock-badge--expired">만료</span>
-                  ) : (
-                    <span className="y-lib-mock-badge">D-{item.badge.left}</span>
-                  )}
+                  <div className="y-archive-card-side">
+                    {item.badge.kind === "expired" ? (
+                      <span className="y-lib-mock-badge y-lib-mock-badge--expired">만료</span>
+                    ) : (
+                      <span className="y-lib-mock-badge">D-{item.badge.left}</span>
+                    )}
+                    <ArchiveReviewAction
+                      target={{
+                        sourceType: "fortune",
+                        sourceId: item.requestId,
+                        productSlug: item.productSlug || "saju-classic",
+                        characterKey: toCharacterReviewKey(item.characterKey),
+                        productLine: item.productLine,
+                        title: item.title,
+                        subline: item.timeLabel ? `${item.dateYmd} · ${item.timeLabel}` : item.dateYmd,
+                      }}
+                    />
+                  </div>
                 </Link>
               </li>
             ))}

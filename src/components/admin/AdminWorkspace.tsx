@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-const PANEL_IDS = ["dashboard", "content", "notices", "commerce", "voice", "fortune", "chat", "logs"] as const;
+const PANEL_IDS = ["dashboard", "content", "reviews", "notices", "commerce", "voice", "fortune", "chat", "logs"] as const;
 export type AdminPanelId = (typeof PANEL_IDS)[number];
 
 const LABELS: Record<AdminPanelId, string> = {
   dashboard: "Dashboard",
   content: "Content",
+  reviews: "Reviews",
   notices: "Notices",
   commerce: "Orders",
   voice: "Voice Ops",
@@ -24,16 +25,17 @@ function scrollMainPanelToTop(id: AdminPanelId) {
   });
 }
 
+function readPanelFromHash(): AdminPanelId {
+  if (typeof window === "undefined") return "dashboard";
+  const h = window.location.hash.slice(1) as AdminPanelId;
+  return PANEL_IDS.includes(h) ? h : "dashboard";
+}
+
 export function AdminWorkspace(props: AdminWorkspaceProps) {
-  const [panel, setPanel] = useState<AdminPanelId>("dashboard");
+  const [panel, setPanel] = useState<AdminPanelId>(readPanelFromHash);
 
   useEffect(() => {
-    const readHash = (): AdminPanelId => {
-      const h = window.location.hash.slice(1) as AdminPanelId;
-      return PANEL_IDS.includes(h) ? h : "dashboard";
-    };
-    setPanel(readHash());
-    const onHash = () => setPanel(readHash());
+    const onHash = () => setPanel(readPanelFromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);

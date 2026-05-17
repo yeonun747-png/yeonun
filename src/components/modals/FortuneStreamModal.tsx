@@ -29,6 +29,7 @@ import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prom
 import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
+import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
 
 /** 음성 무료 잔여(초). 없으면 첫 방문 시 충분히 크게 두고, 0이면 충전 유도 */
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
@@ -620,9 +621,11 @@ export function FortuneStreamModal() {
       return;
     }
 
-    void fetch("/api/fortune/save-modal-result", {
+    void (async () => {
+      const headers = await jsonAuthHeaders();
+      return fetch("/api/fortune/save-modal-result", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         product_slug: product,
         order_no: orderNo ?? undefined,
@@ -650,6 +653,7 @@ export function FortuneStreamModal() {
       .catch((e) => {
         setLibrarySaveError(e instanceof Error ? e.message : "저장에 실패했습니다.");
       });
+    })();
   }, [
     phase,
     product,

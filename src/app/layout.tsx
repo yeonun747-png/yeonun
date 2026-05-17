@@ -5,6 +5,7 @@ import { YeonunAuthProvider } from "@/components/auth/YeonunAuthProvider";
 import { ModalLayer } from "@/components/ModalLayer";
 import { ContentCatalogPreloader } from "@/components/content/ContentCatalogPreloader";
 import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
+import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetProvider";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 
 export const metadata: Metadata = {
@@ -52,10 +53,12 @@ export default function RootLayout({
       </head>
       <body>
         <YeonunAuthProvider>
-          <PrimaryTabScrollClient />
-          <ContentCatalogPreloader />
-          {children}
-          <YeonunToastHost />
+          <WriteReviewSheetProvider>
+            <PrimaryTabScrollClient />
+            <ContentCatalogPreloader />
+            {children}
+            <YeonunToastHost />
+          </WriteReviewSheetProvider>
           <Suspense fallback={null}>
             <ModalLayer />
           </Suspense>

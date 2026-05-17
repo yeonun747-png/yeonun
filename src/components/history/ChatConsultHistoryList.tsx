@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
 import {
   chatConsultListPreview,
@@ -11,6 +12,7 @@ import {
   type ChatConsultSession,
 } from "@/lib/chat-consult-archive";
 
+import { ArchiveReviewAction, toCharacterReviewKey } from "@/components/reviews/ArchiveReviewAction";
 import { ChatConsultHistorySheet } from "./ChatConsultHistorySheet";
 
 const CHAR_NAME: Record<string, string> = {
@@ -38,6 +40,12 @@ function kstYmd(iso: string): string {
 }
 
 /** 목록 우측: 오늘 / M.D */
+function formatSheetDateLabel(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "";
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Seoul" }).format(d).replace(/-/g, ".");
+}
+
 function formatListDateLabel(iso: string): string {
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return "";
@@ -52,13 +60,14 @@ function formatListDateLabel(iso: string): string {
 
 export function ChatConsultHistoryList() {
   const router = useRouter();
+  const { user } = useYeonunAuth();
   const [sessions, setSessions] = useState<ChatConsultSession[]>([]);
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       setSessions(chatConsultListSessions());
     });
     return () => cancelAnimationFrame(id);
-  }, []);
+  }, [user?.id]);
 
   const stats = useMemo(() => {
     let msgs = 0;
@@ -135,7 +144,17 @@ export function ChatConsultHistoryList() {
                               <span className="y-chat-consult-mock-tag">{s.topic_tag}</span>
                               <span className="y-chat-consult-mock-msgcount">{n} 메시지</span>
                             </div>
-                            <span className="y-chat-consult-mock-credit">-{s.credits_used.toLocaleString("ko-KR")} 크레딧</span>
+                            <ArchiveReviewAction
+                                target={{
+                                  sourceType: "chat",
+                                  sourceId: s.id,
+                                  productSlug: "mind-now",
+                                  characterKey: toCharacterReviewKey(s.character_key),
+                                  productLine: `${CHAR_NAME[s.character_key] ?? s.character_key} · 채팅 상담`,
+                                  title: `${CHAR_NAME[s.character_key] ?? s.character_key} 상담`,
+                                  subline: formatSheetDateLabel(s.updated_at),
+                                }}
+                              />
                           </div>
                         </div>
                       </button>

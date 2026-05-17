@@ -81,11 +81,15 @@ function firstResult(row: RequestRowWithResults) {
   return fr ?? null;
 }
 
-export const listFortuneLibraryItems = cache(async (): Promise<FortuneLibraryListRow[]> => {
+export const listFortuneLibraryItems = cache(async (userRef: string): Promise<FortuneLibraryListRow[]> => {
+  const uid = String(userRef ?? "").trim();
+  if (!uid) return [];
+
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("fortune_requests")
     .select("id, created_at, product_slug, payload, fortune_results ( id, summary, completed_at, html )")
+    .eq("user_ref", uid)
     .eq("status", "completed")
     .contains("payload", { source: "fortune_stream_modal" })
     .order("created_at", { ascending: false })
@@ -131,14 +135,17 @@ export type FortuneLibraryDetail = {
   toc_groups: FortuneTocMainGroup[] | null;
 };
 
-export const getFortuneLibraryDetail = cache(async (requestId: string): Promise<FortuneLibraryDetail | null> => {
+export const getFortuneLibraryDetail = cache(
+  async (requestId: string, userRef?: string | null): Promise<FortuneLibraryDetail | null> => {
   const supabase = supabaseServer();
-  const { data, error } = await supabase
+  let q = supabase
     .from("fortune_requests")
     .select("id, created_at, product_slug, payload, fortune_results ( id, summary, voice_consult_summary, completed_at, html )")
     .eq("id", requestId)
-    .eq("status", "completed")
-    .maybeSingle();
+    .eq("status", "completed");
+  const uid = String(userRef ?? "").trim();
+  if (uid) q = q.eq("user_ref", uid);
+  const { data, error } = await q.maybeSingle();
 
   if (error || !data) return null;
 
@@ -167,7 +174,8 @@ export const getFortuneLibraryDetail = cache(async (requestId: string): Promise<
     toc_sections: tocSnap.toc_sections,
     toc_groups: tocSnap.toc_groups,
   };
-});
+  },
+);
 
 export function isUuidRequestId(v: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v || "").trim());

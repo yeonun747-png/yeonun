@@ -17,7 +17,8 @@ import {
   CREDIT_VOICE_PER_SECOND,
 } from "@/lib/credit-policy";
 import { clearVoiceManseMeta, readVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
-import { getOrCreateVoiceVisitorRef } from "@/lib/voice-visitor-ref";
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
+import { resolveVoiceUserRef } from "@/lib/voice-user-ref";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { rollMaxAssistantResponses, rollWallMs } from "@/lib/voice-roll-triggers";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -174,6 +175,7 @@ function extractAssistantFromResponseDone(ev: unknown): string {
 }
 
 export default function CallDccPageClient() {
+  const { user } = useYeonunAuth();
   const router = useRouter();
   const sp = useSearchParams();
   const characterKey = asCharacterKey(sp.get("character_key"));
@@ -544,7 +546,7 @@ export default function CallDccPageClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         character_key: characterKey,
-        user_ref: getOrCreateVoiceVisitorRef(),
+        user_ref: resolveVoiceUserRef(user?.id),
         ...(summaryForSession ? { summary: summaryForSession } : {}),
       }),
     })
@@ -586,7 +588,7 @@ export default function CallDccPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [characterKey, meta.name, voiceOverride]);
+  }, [characterKey, meta.name, voiceOverride, user?.id]);
 
   useEffect(() => {
     if (!sessionId || !voiceExternalId) return;

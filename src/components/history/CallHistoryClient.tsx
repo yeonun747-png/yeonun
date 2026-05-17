@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import type { MyVoiceListSnapshot, VoiceHistoryGroupedBlock } from "@/hooks/useMyShelfListsPreload";
 import { voiceSnapshotWithCache } from "@/lib/my-shelf-lists-cache";
 import { VOICE_CALL_ARCHIVE_LIST_DAYS } from "@/lib/voice-call-history-public";
 
+import { ArchiveReviewAction, toCharacterReviewKey } from "@/components/reviews/ArchiveReviewAction";
 import { CallHistorySheet } from "./CallHistorySheet";
 
 function HeadphoneIcon() {
@@ -54,17 +56,19 @@ function VoiceListSkeleton() {
 }
 
 export function CallHistoryClient({ voiceSnapshot }: { voiceSnapshot: MyVoiceListSnapshot }) {
-  const initial = voiceSnapshotWithCache(voiceSnapshot);
+  const { user } = useYeonunAuth();
+  const userId = user?.id ?? "";
+  const initial = voiceSnapshotWithCache(voiceSnapshot, userId);
   const [grouped, setGrouped] = useState<VoiceHistoryGroupedBlock[]>(() => initial.grouped);
   const [loadError, setLoadError] = useState<string | null>(() => initial.loadError);
   const [loaded, setLoaded] = useState(() => initial.settled);
 
   useEffect(() => {
-    const next = voiceSnapshotWithCache(voiceSnapshot);
+    const next = voiceSnapshotWithCache(voiceSnapshot, userId);
     setGrouped(next.grouped);
     setLoadError(next.loadError);
     setLoaded(next.settled);
-  }, [voiceSnapshot]);
+  }, [voiceSnapshot, userId]);
 
   const showSkeleton = !loadError && !loaded;
   const empty = loaded && !loadError && grouped.every((g) => g.rows.length === 0);
@@ -109,10 +113,20 @@ export function CallHistoryClient({ voiceSnapshot }: { voiceSnapshot: MyVoiceLis
                           <div className="y-call-hist-title">{row.consultantName}와 음성 상담</div>
                           <div className="y-call-hist-time">{row.timeLine}</div>
                         </div>
-                        <span className="y-call-hist-badge">{row.badge}</span>
-                        <span className="y-call-hist-chev" aria-hidden>
-                          ›
-                        </span>
+                        <div className="y-archive-card-side">
+                          <span className="y-call-hist-badge">{row.badge}</span>
+                          <ArchiveReviewAction
+                            target={{
+                              sourceType: "voice",
+                              sourceId: row.id,
+                              productSlug: "mind-now",
+                              characterKey: toCharacterReviewKey(row.character_key),
+                              productLine: `${row.consultantName} · 음성 상담`,
+                              title: `${row.consultantName}와 음성 상담`,
+                              subline: `${row.timeLine} · ${row.badge}`,
+                            }}
+                          />
+                        </div>
                       </Link>
                     </li>
                   ))}

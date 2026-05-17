@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 
+import { migrateLegacyChatConsultSessions, setChatConsultUserScope } from "@/lib/chat-consult-archive";
 import { syncProfileFromServer } from "@/lib/profile-sync-from-api";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -65,6 +66,12 @@ export function YeonunAuthProvider({ children }: { children: ReactNode }) {
     }),
     [session, loading, authUnavailable],
   );
+
+  useEffect(() => {
+    const uid = session?.user?.id ?? null;
+    setChatConsultUserScope(uid);
+    if (uid) migrateLegacyChatConsultSessions(uid);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     try {

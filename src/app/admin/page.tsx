@@ -2,6 +2,8 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 import { createAdminTtsPreviewToken } from "@/lib/admin-tts-preview-token";
 
+import { AdminReviewCreateForm } from "@/components/admin/AdminReviewCreateForm";
+import { AdminReviewEditor } from "@/components/admin/AdminReviewEditor";
 import { AdminCharacterModePromptEditor } from "@/components/admin/AdminCharacterModePromptEditor";
 import { AdminServicePromptForm } from "@/components/admin/AdminServicePromptForm";
 import { AdminWorkspace } from "@/components/admin/AdminWorkspace";
@@ -113,6 +115,10 @@ function sortNoticeRows(rows: Row[]): Row[] {
   });
 }
 
+function sortReviewRows(rows: Row[]): Row[] {
+  return [...rows].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+}
+
 function noticeCategoryLabelAdmin(category: string) {
   if (category === "event") return "이벤트";
   if (category === "update") return "업데이트";
@@ -167,7 +173,12 @@ export default async function AdminHomePage() {
       readRows("character_mode_prompts", "character_key,mode,title,prompt,is_active,tts_voice_id,updated_at", "updated_at", 50),
       readRows("tts_voices", "id,provider,label,external_id,gender,sort_order,is_active", "sort_order", 100),
       readRows("categories", "slug,label,sort_order", "sort_order", 50),
-      readRows("reviews", "id,product_slug,user_mask,stars,body,tags,created_at", "created_at", 30),
+      readRows(
+        "reviews",
+        "id,product_slug,user_mask,stars,body,tags,created_at,source_type,source_id,user_ref,character_key,product_label,is_showcase,is_published",
+        "created_at",
+        200,
+      ),
       readRows("orders", "id,order_no,product_slug,status,amount_krw,created_at", "created_at", 20),
       readRows("payments", "id,order_id,provider,method,status,paid_at", "paid_at", 20),
       readRows("coupons", "id,code,type,value,is_active,used_count,max_uses", "created_at", 20),
@@ -268,7 +279,6 @@ export default async function AdminHomePage() {
             <a href="#admin-categories">카테고리 {categories.rows.length}</a>
             <a href="#admin-characters">캐릭터 {characters.rows.length}</a>
             <a href="#admin-personas">페르소나 {personas.rows.length}</a>
-            <a href="#admin-reviews">리뷰 {reviews.rows.length}</a>
           </div>
 
           <div className="y-admin-grid two y-admin-product-save-grid">
@@ -278,20 +288,12 @@ export default async function AdminHomePage() {
             </div>
 
             <div className="y-admin-card">
-              <h3>카테고리/리뷰 빠른 저장</h3>
+              <h3>카테고리 빠른 저장</h3>
               <form action="/admin/categories" method="post" className="y-admin-form compact">
                 <input name="slug" placeholder="category slug" />
                 <input name="label" placeholder="카테고리명" />
                 <input name="sort_order" inputMode="numeric" placeholder="정렬" />
                 <button type="submit">카테고리 저장</button>
-              </form>
-              <form action="/admin/reviews" method="post" className="y-admin-form compact">
-                <input name="product_slug" placeholder="product slug" />
-                <input name="user_mask" placeholder="사용자 표시명" />
-                <input name="stars" inputMode="numeric" placeholder="별점 1-5" />
-                <textarea name="body" placeholder="후기 내용" />
-                <input name="tags" placeholder="#재회 #인연" />
-                <button type="submit">리뷰 저장</button>
               </form>
             </div>
           </div>
@@ -331,10 +333,49 @@ export default async function AdminHomePage() {
             })}
           </CrudSection>
 
-          <CrudSection id="admin-reviews" title="리뷰 목록" hint="상품 상세의 최근 후기와 운영 신뢰도 요소입니다.">
-            {reviews.rows.length === 0 ? <EmptyPanel label="리뷰" error={reviews.error} /> : reviews.rows.map((r) => (
-              <ReviewEditor key={text(r.id)} row={r} products={products.rows} />
-            ))}
+        </section>
+      }
+      reviews={
+        <section className="y-admin-section">
+          <div className="y-admin-section-head">
+            <div>
+              <span className="y-admin-eyebrow">REVIEW OPS</span>
+              <h2>리뷰 운영</h2>
+            </div>
+            <StatusPill tone={reviews.ready ? "good" : "warn"}>{reviews.ready ? "CRUD 활성" : "마이그레이션 필요"}</StatusPill>
+          </div>
+          <p className="y-admin-muted" style={{ margin: "0 0 14px" }}>
+            <strong>노출</strong> 선택 시 홈·전체 리뷰·상품 상세에 표시됩니다.
+          </p>
+          <div className="y-admin-card" style={{ marginBottom: 12 }}>
+            <h3>리뷰 새로 등록 (운영)</h3>
+            <AdminReviewCreateForm />
+          </div>
+          <CrudSection id="admin-reviews" title="리뷰 목록" hint="최신순 · 한 줄에 하나 · 노출 여부">
+            {reviews.rows.length === 0 ? (
+              <EmptyPanel label="리뷰" error={reviews.error} />
+            ) : (
+              sortReviewRows(reviews.rows).map((r) => (
+                <AdminReviewEditor
+                  key={text(r.id)}
+                  row={{
+                    id: text(r.id),
+                    product_slug: text(r.product_slug),
+                    user_mask: text(r.user_mask),
+                    stars: r.stars as number | string,
+                    body: text(r.body),
+                    tags: (r.tags as string[] | string) ?? [],
+                    created_at: text(r.created_at, ""),
+                    source_type: text(r.source_type, ""),
+                    source_id: text(r.source_id, ""),
+                    user_ref: text(r.user_ref, ""),
+                    is_showcase: r.is_showcase === true,
+                    is_published: r.is_published === true,
+                  }}
+                  products={products.rows.map((p) => ({ slug: text(p.slug), title: text(p.title) }))}
+                />
+              ))
+            )}
           </CrudSection>
         </section>
       }
@@ -854,46 +895,6 @@ function TtsVoiceEditor({ row, adminTtsPreviewToken }: { row: Row; adminTtsPrevi
         </div>
       </form>
       <form id={`delete-tts-${text(row.id)}`} action="/admin/tts-voices/delete" method="post">
-        <input type="hidden" name="id" value={text(row.id, "")} />
-      </form>
-    </details>
-  );
-}
-
-function ReviewEditor({ row, products }: { row: Row; products: Row[] }) {
-  return (
-    <details className="y-admin-editor y-admin-review-editor" suppressHydrationWarning>
-      <summary className="y-admin-review-summary">
-        <div className="y-admin-review-head">
-          <div className="y-admin-review-avatar">{text(row.user_mask).slice(0, 1)}</div>
-          <div className="y-admin-review-meta">
-            <strong>{text(row.user_mask)}</strong>
-            <span>{text(row.product_slug)}</span>
-          </div>
-          <StatusPill tone="warn">★ {text(row.stars)}</StatusPill>
-        </div>
-        <p className="y-admin-review-body">{text(row.body)}</p>
-        <div className="y-admin-review-tags">
-          {(Array.isArray(row.tags) ? row.tags : text(row.tags).split(/[,\s]+/)).filter(Boolean).map((tag) => (
-            <span key={String(tag)}>{String(tag)}</span>
-          ))}
-        </div>
-      </summary>
-      <form action="/admin/reviews" method="post" className="y-admin-form y-admin-edit-form">
-        <input type="hidden" name="id" defaultValue={text(row.id, "")} />
-        <select name="product_slug" defaultValue={text(row.product_slug, "")}>
-          {products.map((p) => <option key={text(p.slug)} value={text(p.slug)}>{text(p.title)} ({text(p.slug)})</option>)}
-        </select>
-        <input name="user_mask" defaultValue={text(row.user_mask, "")} />
-        <input name="stars" defaultValue={text(row.stars, "5")} inputMode="numeric" />
-        <textarea name="body" defaultValue={text(row.body, "")} />
-        <input name="tags" defaultValue={Array.isArray(row.tags) ? row.tags.join(" ") : text(row.tags, "")} />
-        <div className="y-admin-edit-actions">
-          <button type="submit">수정 저장</button>
-          <button form={`delete-review-${text(row.id)}`} type="submit" className="y-admin-danger">삭제</button>
-        </div>
-      </form>
-      <form id={`delete-review-${text(row.id)}`} action="/admin/reviews/delete" method="post">
         <input type="hidden" name="id" value={text(row.id, "")} />
       </form>
     </details>

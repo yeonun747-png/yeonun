@@ -21,13 +21,17 @@ export {
 const HISTORY_DAYS = VOICE_CALL_ARCHIVE_LIST_DAYS;
 
 /** 종료·시간이 남은 세션만 히스토리에 표시 */
-export const listVoiceCallHistoryRows = cache(async (): Promise<VoiceCallHistoryRowVm[]> => {
+export const listVoiceCallHistoryRows = cache(async (userRef: string): Promise<VoiceCallHistoryRowVm[]> => {
+  const uid = String(userRef ?? "").trim();
+  if (!uid) return [];
+
   const supabase = supabaseServer();
   const since = new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString();
 
   const { data: sessions, error } = await supabase
     .from("voice_sessions")
     .select("id, character_key, started_at, duration_sec, cost_krw, status, ended_at")
+    .eq("user_ref", uid)
     .gte("started_at", since)
     .not("character_key", "is", null)
     .or("status.eq.ended,ended_at.not.is.null,duration_sec.gt.0")

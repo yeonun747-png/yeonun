@@ -28,6 +28,7 @@ import type { Character } from "@/lib/data/characters";
 import type { Product } from "@/lib/data/content";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { fortunePrefetchStorageKey, readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
 import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { runFortunePrefetch } from "@/lib/fortune-ux/runFortunePrefetch";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
@@ -320,20 +321,23 @@ export function FortunePage({
     const html = resultHtmlForSave(result);
     if (!html.trim()) return;
     savedResultRef.current = true;
-    void fetch("/api/fortune/save-modal-result", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        product_slug: product.slug,
-        order_no: result.orderNo ?? undefined,
-        character_key: product.character_key,
-        profile,
-        title: product.title,
-        html,
-        toc_sections: result.toc,
-        ...(result.tocGroups ? { toc_groups: result.tocGroups } : {}),
-      }),
-    }).catch(() => {
+    void (async () => {
+      const headers = await jsonAuthHeaders();
+      return fetch("/api/fortune/save-modal-result", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          product_slug: product.slug,
+          order_no: result.orderNo ?? undefined,
+          character_key: product.character_key,
+          profile,
+          title: product.title,
+          html,
+          toc_sections: result.toc,
+          ...(result.tocGroups ? { toc_groups: result.tocGroups } : {}),
+        }),
+      });
+    })().catch(() => {
       savedResultRef.current = false;
     });
   }, [layout.stepResult, product, profile, result, step]);

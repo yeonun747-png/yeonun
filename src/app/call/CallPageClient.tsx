@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { computeManseFromFormInput } from "@/lib/manse-ryeok";
-import { getOrCreateVoiceVisitorRef } from "@/lib/voice-visitor-ref";
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
+import { resolveVoiceUserRef } from "@/lib/voice-user-ref";
 import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 import { VoiceLiveAudioRecorder } from "@/lib/voice-live/audio-recorder";
 
@@ -25,6 +26,7 @@ function asCharacterKey(v: string | null): CharacterKey {
 }
 
 export default function CallPageClient() {
+  const { user } = useYeonunAuth();
   const sp = useSearchParams();
   const characterKey = asCharacterKey(sp.get("character_key"));
   const meta = CHARACTER_META[characterKey];
@@ -96,7 +98,7 @@ export default function CallPageClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         character_key: characterKey,
-        user_ref: getOrCreateVoiceVisitorRef(),
+        user_ref: resolveVoiceUserRef(user?.id),
         ...(summaryForSession ? { summary: summaryForSession } : {}),
       }),
     })
@@ -111,7 +113,7 @@ export default function CallPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [characterKey, meta.name]);
+  }, [characterKey, meta.name, user?.id]);
 
   // meet에서 클릭(사용자 제스처)로 권한을 선요청했다면, call 입장 시 추가 터치 없이 시작한다.
   useEffect(() => {

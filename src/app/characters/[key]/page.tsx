@@ -8,8 +8,14 @@ import { YeonunRoutedBottomSheetPortal } from "@/components/YeonunRoutedBottomSh
 import { HomeContentGrid } from "@/components/HomeContentGrid";
 import { SheetBackdropFrame } from "@/components/my/MySheetBackdropFrame";
 import { getCharacterPersonaCached, getCharactersCached } from "@/lib/data/characters";
-import { getProductsByCharacterKeyCached, getReviewsByProductSlugCached } from "@/lib/data/content";
+import { getProductsByCharacterKeyCached } from "@/lib/data/content";
+import { ReviewCard } from "@/components/reviews/ReviewCard";
+import { listPublishedReviewsByCharacterKeyCached } from "@/lib/reviews";
+import type { CharacterReviewKey } from "@/lib/reviews-types";
+import { parseCharacterReviewKey } from "@/lib/reviews-types";
 import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
+
+export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ key: string }>;
@@ -48,10 +54,12 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     getProductsByCharacterKeyCached(c.key),
     getCharacterPersonaCached(c.key),
   ]);
+  const charReviewKey = (parseCharacterReviewKey(c.key) ?? "yeon") as CharacterReviewKey;
   const [thumbFallback, reviews] = await Promise.all([
     readProductThumbnailsForSlugs(catalog.filter((p) => !p.thumbnail_svg).map((p) => p.slug)),
-    getReviewsByProductSlugCached(catalog[0]?.slug ?? "reunion-maybe", { limit: 6 }),
+    listPublishedReviewsByCharacterKeyCached(charReviewKey, { limit: 12 }),
   ]);
+  const reviewsPreview = reviews.slice(0, 3);
   const backToCharacter = `/characters/${c.key}?sheet=1&from=${from ?? "home"}`;
   const contentLinkExtra = `&ck=${encodeURIComponent(c.key)}&back=${encodeURIComponent(backToCharacter)}`;
   const specialties = persona?.specialties?.length
@@ -154,30 +162,19 @@ export default async function CharacterPage({ params, searchParams }: Props) {
         </section>
 
         <div className="y-chd-catalog-head">
-          <h2 className="y-section-title">{c.name}의 후기 ({(reviews.length || 0).toLocaleString("ko-KR")}개)</h2>
-          <Link href="/reviews" className="y-section-more">
+          <h2 className="y-section-title">{c.name}의 리뷰 ({reviews.length.toLocaleString("ko-KR")}개)</h2>
+          <Link href={`/reviews?character=${encodeURIComponent(charReviewKey)}`} className="y-section-more">
             전체
           </Link>
         </div>
-        <section className="y-review-stack" style={{ padding: "0 22px 80px" }} aria-label="후기">
-          {(reviews ?? []).slice(0, 3).map((r) => (
-            <div key={r.id} className="y-review-card">
-              <div className="y-review-head">
-                <div className="y-review-meta-left">
-                  <div className={`y-review-avatar ${c.key}`}>{c.han}</div>
-                  <div>
-                    <div className="y-review-name">{r.user_mask}</div>
-                    <div className="y-review-prod">음성 상담 · 30분</div>
-                  </div>
-                </div>
-                <div className="y-review-stars-row">
-                  <div className="y-review-stars">{"★".repeat(Math.round(Number(r.stars) || 5))}</div>
-                  <div className="y-review-time">방금</div>
-                </div>
-              </div>
-              <p className="y-review-text">{r.body}</p>
-            </div>
-          ))}
+        <section className="y-review-stack" style={{ padding: "0 22px 80px" }} aria-label={`${c.name}의 리뷰`}>
+          {reviewsPreview.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--y-mute)", lineHeight: 1.55, padding: "4px 0" }}>
+              아직 등록된 리뷰가 없습니다.
+            </p>
+          ) : (
+            reviewsPreview.map((r) => <ReviewCard key={r.id} review={r} variant="home" />)
+          )}
         </section>
 
       <div className="y-chd-foot">
@@ -197,7 +194,7 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     return (
       <>
         <SheetBackdropFrame />
-        <YeonunRoutedBottomSheetPortal backHref={closeHref} ariaLabel="인연 안내자" title="인연 안내자">
+        <YeonunRoutedBottomSheetPortal backHref={closeHref} ariaLabel={c.name} title={c.name}>
           {Body}
         </YeonunRoutedBottomSheetPortal>
       </>
@@ -211,4 +208,3 @@ export default async function CharacterPage({ params, searchParams }: Props) {
     </div>
   );
 }
-

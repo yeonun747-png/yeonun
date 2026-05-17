@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 
-import { useYeonunMember } from "@/components/auth/YeonunAuthProvider";
+import { useYeonunAuth, useYeonunMember } from "@/components/auth/YeonunAuthProvider";
 import { useMyShelfListsPreload } from "@/hooks/useMyShelfListsPreload";
 import { BottomNav } from "@/components/BottomNav";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
@@ -33,7 +33,12 @@ const MY_PREFETCH_ROUTES = [
 
 export function MyPageBody() {
   const member = useYeonunMember();
-  const { fortuneSnapshot, voiceSnapshot } = useMyShelfListsPreload(!!member);
+  const { session, user } = useYeonunAuth();
+  const { fortuneSnapshot, voiceSnapshot } = useMyShelfListsPreload(
+    member,
+    user?.id ?? null,
+    session?.access_token ?? null,
+  );
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();

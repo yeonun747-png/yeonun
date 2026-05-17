@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getProductsBySlugsCached } from "@/lib/data/content";
 import { buildLibraryListItemVm } from "@/lib/library-list-vm";
 import { listFortuneLibraryItems, type FortuneLibraryListRow } from "@/lib/library-fortune";
+import { requireMyUserId } from "@/lib/my-route-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,12 @@ function rowSortTime(row: FortuneLibraryListRow): number {
   return Number.isFinite(t) ? t : 0;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireMyUserId(request);
+  if (!auth.ok) return auth.response;
+
   try {
-    const rows = await listFortuneLibraryItems();
+    const rows = await listFortuneLibraryItems(auth.userId);
     const slugs = [...new Set(rows.map((r) => r.product_slug).filter(Boolean))] as string[];
     const products = slugs.length ? await getProductsBySlugsCached(slugs) : [];
     const productTitleBySlug = Object.fromEntries(products.map((p) => [p.slug, p.title]));

@@ -255,6 +255,7 @@ export async function getReviewsByProductSlug(productSlug: string, opts: { limit
     .from("reviews")
     .select("id,product_slug,user_mask,stars,body,tags,created_at")
     .eq("product_slug", productSlug)
+    .eq("is_published", true)
     .order("created_at", { ascending: false });
   if (typeof opts.limit === "number") q = q.limit(opts.limit);
   const { data, error } = await q;
