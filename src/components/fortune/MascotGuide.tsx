@@ -397,6 +397,7 @@ function MascotGuideInner({
   milestoneSteps,
   bubbleDockFixedLeft,
   bubbleDockExtraWide,
+  bubbleReplayToken,
   onArrive,
   layoutTopCenter,
   reactClip,
@@ -411,6 +412,8 @@ function MascotGuideInner({
   bubbleDockFixedLeft?: boolean;
   /** 명식 탭 설명만 말풍선 폭 대폭 확대(뷰포트와 겹쳐도 됨) */
   bubbleDockExtraWide?: boolean;
+  /** 동일 문구 재탭 시 말풍선·8초 페이드 타이머 재시작(0이면 무시) */
+  bubbleReplayToken?: number;
   onArrive?: () => void;
   /** Step0–6: 말풍선 상단 정중앙 + 마스코트 가운데 정렬 */
   layoutTopCenter?: boolean;
@@ -631,9 +634,19 @@ function MascotGuideInner({
       layoutSnapOnceRef.current = true;
       applyPos(posRef.current);
     }
-    const onResize = () => applyPos(posRef.current);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const onLayout = () => {
+      if (pendingArriveRef.current || pendingMoveRef.current) return;
+      applyPos(posRef.current);
+    };
+    window.addEventListener("resize", onLayout);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", onLayout);
+    vv?.addEventListener("scroll", onLayout);
+    return () => {
+      window.removeEventListener("resize", onLayout);
+      vv?.removeEventListener("resize", onLayout);
+      vv?.removeEventListener("scroll", onLayout);
+    };
   }, [applyPos, fortuneStep, ms]);
 
   /** 질문 스텝: 매 레이아웃마다 마스코트 박스 뷰포트 스냅샷 */
@@ -731,12 +744,7 @@ function MascotGuideInner({
                 const br = box.getBoundingClientRect();
                 return viewportPxToStageLocal(stageEl, br.left, br.top);
               })()
-            : box
-              ? (() => {
-                  const br = box.getBoundingClientRect();
-                  return { left: br.left, top: br.top };
-                })()
-              : computePosPx(fromKey));
+            : computePosPx(fromKey));
       const toPx = computePosPx(target);
       const nextYaw = yawForWalkPixels(fromPx, toPx, yawRef.current);
       yawRef.current = nextYaw;
@@ -1091,7 +1099,14 @@ function MascotGuideInner({
       if (c.t2 != null) window.clearTimeout(c.t2);
       bubbleFadeTimersRef.current = { t1: null, t2: null };
     };
-  }, [bubble.text, bubble.name, fortuneStep, hasArrived, isMoving, modelReady]);
+  }, [bubble.text, bubble.name, bubbleReplayToken, fortuneStep, hasArrived, isMoving, modelReady]);
+
+  /** 명식 주(柱) 재탭: guide.text가 같아도 말풍선 다시 표시 */
+  useEffect(() => {
+    if (!bubbleReplayToken) return;
+    setBubble({ text: guide.text, name: guide.name });
+    setBubbleFade("show");
+  }, [bubbleReplayToken, guide.name, guide.text]);
 
   const bubbleFadeClass = bubbleFade === "fading" ? " is-bubble-fading" : bubbleFade === "gone" ? " is-bubble-gone" : "";
 
@@ -1113,7 +1128,7 @@ function MascotGuideInner({
       <div
         ref={bubbleOuterRef}
         className={`y-fortune-v2-bubble y-fortune-v2-bubble--${view.mascot} y-fortune-v2-bubble--anchor-${view.pos}${bubbleDockClass}${bubbleFadeClass}`}
-        key={`${bubble.text}-${view.pos}-${fortuneStep}-${useFixedBubbleDock ? "fx" : "in"}`}
+        key={`${bubble.text}-${view.pos}-${fortuneStep}-${useFixedBubbleDock ? "fx" : "in"}-${bubbleReplayToken ?? 0}`}
       >
         <div className="y-fortune-v2-bubble-name">{bubble.name}가 전해요</div>
         <div className="y-fortune-v2-bubble-text">{bubble.text}</div>

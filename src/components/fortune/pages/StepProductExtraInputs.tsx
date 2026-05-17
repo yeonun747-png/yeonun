@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { dismissFortuneSoftKeyboard } from "@/lib/fortune-keyboard";
+
 import type { FortuneExtraFieldDef } from "@/lib/fortune-product-extra-config";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { readFortuneExtraAnswers, writeFortuneExtraAnswers, type FortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
@@ -94,7 +96,7 @@ function validateField(f: FortuneExtraFieldDef, v: string): string | null {
   const t = v.trim();
   if (f.required && !t) return `${f.label}을(를) 입력해 주세요.`;
   if (f.kind === "textarea" && f.minLen && f.minLen > 0 && t.length < f.minLen) {
-    return `${f.label}은(는) 최소 ${f.minLen}자 이상 적어 주세요.`;
+    return f.minLenMessage ?? `${f.label}은(는) 최소 ${f.minLen}자 이상 적어 주세요.`;
   }
   if (f.kind === "text" && f.required && !t) return `${f.label}을(를) 입력해 주세요.`;
   if (f.kind === "gender" && f.required && !t) return `${f.label}을(를) 선택해 주세요.`;
@@ -139,6 +141,22 @@ export function StepProductExtraInputs({
     setAnswers((prev) => ({ ...prev, [id]: v }));
   }
 
+  const canContinue = useMemo(() => {
+    if (!cfg) return false;
+    const merged: FortuneExtraAnswers = { ...answers };
+    for (const f of cfg.fields) {
+      if (f.kind === "date_ymd") {
+        const p = ymdParts[f.id] ?? { y: "", m: "", d: "" };
+        merged[f.id] = p.y && p.m && p.d ? `${p.y}-${p.m}-${p.d}` : "";
+      }
+    }
+    return cfg.fields.every((f) => validateField(f, merged[f.id] ?? "") === null);
+  }, [answers, cfg, ymdParts]);
+
+  const dreamContentLen =
+    productSlug === "dream-lastnight" ? (answers.dream_content ?? "").trim().length : null;
+  const showDreamMinHint = dreamContentLen != null && dreamContentLen < 10;
+
   function submit() {
     if (!cfg) return;
     const merged: FortuneExtraAnswers = { ...answers };
@@ -157,6 +175,7 @@ export function StepProductExtraInputs({
     }
     setError(null);
     writeFortuneExtraAnswers(productSlug, merged);
+    dismissFortuneSoftKeyboard();
     onContinue();
   }
 
@@ -181,12 +200,20 @@ export function StepProductExtraInputs({
                 <textarea
                   className="y-fortune-v2-input y-fortune-v2-extra-textarea"
                   value={answers[f.id] ?? ""}
-                  onChange={(e) => setAnswer(f.id, e.target.value)}
+                  onChange={(e) => {
+                    setAnswer(f.id, e.target.value);
+                    if (error) setError(null);
+                  }}
                   placeholder={f.placeholder}
                   rows={rows}
                   aria-label={f.label}
                 />
               </div>
+              {productSlug === "dream-lastnight" && f.id === "dream_content" && showDreamMinHint ? (
+                <p className="y-fortune-v2-extra-len-hint" role="status">
+                  10글자보다 많아야 꿈해몽이 가능해요
+                </p>
+              ) : null}
             </div>
           );
         }
@@ -273,7 +300,7 @@ export function StepProductExtraInputs({
         <button type="button" className="y-fortune-v2-outline" onClick={onBack}>
           ← 이전
         </button>
-        <button type="button" className="y-fortune-v2-primary" onClick={submit}>
+        <button type="button" className="y-fortune-v2-primary" disabled={!canContinue} onClick={submit}>
           다음으로 →
         </button>
       </div>

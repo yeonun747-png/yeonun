@@ -8,6 +8,8 @@ export type FortuneExtraFieldDef = {
   kind: FortuneExtraFieldKind;
   required: boolean;
   minLen?: number;
+  /** minLen 미달 시 표시 (없으면 기본 문구) */
+  minLenMessage?: string;
   /** choice 전용 */
   options?: string[];
 };
@@ -42,7 +44,8 @@ export const FORTUNE_PRODUCT_EXTRA_BY_SLUG: Record<string, FortuneProductExtraCo
         placeholder: "예: 낯선 길을 걷다 아는 사람을 만났고, 맑은 하늘이었어요",
         kind: "textarea",
         required: true,
-        minLen: 30,
+        minLen: 10,
+        minLenMessage: "10글자보다 많아야 꿈해몽이 가능해요",
       },
     ],
   },

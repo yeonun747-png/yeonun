@@ -12626,6 +12626,14 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   line-height: 1.55;
 }
 
+.y-fortune-v2-extra-len-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rose2);
+  line-height: 1.5;
+}
+
 .y-fortune-v2-extra-req {
   font-weight: 700;
   color: var(--rose2);
@@ -15018,6 +15026,21 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   padding: 12px 24px calc(48px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   animation: ySheetUp 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.y-rv-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--y-mute);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0;
 }
 .y-rv-handle {
   width: 36px;

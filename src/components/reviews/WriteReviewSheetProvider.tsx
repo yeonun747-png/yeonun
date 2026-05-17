@@ -4,7 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
@@ -54,6 +56,7 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
   const [body, setBody] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const historyPushedRef = useRef(false);
 
   const openWriteReview = useCallback((next: WriteReviewTarget) => {
     setTarget(next);
@@ -64,8 +67,27 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const close = useCallback(() => {
+    if (historyPushedRef.current) {
+      window.history.back();
+      return;
+    }
     setOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    window.history.pushState({ yWriteReview: 1 }, "");
+    historyPushedRef.current = true;
+
+    const onPopState = () => {
+      historyPushedRef.current = false;
+      setOpen(false);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [open]);
 
   const toggleTag = useCallback((tag: string) => {
     setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
@@ -128,6 +150,9 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
             onMouseDown={onOverlayMouseDown}
           >
             <div className="y-rv-sheet" onMouseDown={(e) => e.stopPropagation()}>
+              <button type="button" className="y-rv-close" onClick={close} aria-label="닫기">
+                {"\u00d7"}
+              </button>
               <div className="y-rv-handle" aria-hidden />
               <div className="y-rv-char-row">
                 <div className={`y-rv-avatar ${target.characterKey}`} aria-hidden>

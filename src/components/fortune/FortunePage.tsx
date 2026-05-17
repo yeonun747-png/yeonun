@@ -167,6 +167,8 @@ export function FortunePage({
   const [resultStreamEnabled, setResultStreamEnabled] = useState(false);
   const [episode, setEpisode] = useState(0);
   const [guideTextOverride, setGuideTextOverride] = useState<string | null>(null);
+  /** 명식 연·월·일·시 재탭 시 동일 문구여도 말풍선·페이드 타이머 재시작 */
+  const [pillarTalkTick, setPillarTalkTick] = useState(0);
   const [stageReady, setStageReady] = useState(false);
   const [guideTop, setGuideTop] = useState<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -349,7 +351,12 @@ export function FortunePage({
       /** 명식 탭 말풍선은 오행 분석 등 다른 스텝으로 나가면 즉시 제거 */
       const myungsikStep = layout.stepMyungsik;
       setStep((prev) => {
-        if (prev === myungsikStep && next !== myungsikStep) queueMicrotask(() => setGuideTextOverride(null));
+        if (prev === myungsikStep && next !== myungsikStep) {
+          queueMicrotask(() => {
+            setGuideTextOverride(null);
+            setPillarTalkTick(0);
+          });
+        }
         return next;
       });
       // Step6/7는 stage 내부 스크롤이므로 window 만 0 으로 올리면 효과가 없다.
@@ -422,7 +429,9 @@ export function FortunePage({
   const onExtraContinue = useCallback(() => {
     startPrefetch(form);
     setEpisode(0);
-    go(layout.stepCharIntro);
+    requestAnimationFrame(() => {
+      go(layout.stepCharIntro);
+    });
   }, [form, go, layout.stepCharIntro, startPrefetch]);
 
   const onUseStored = () => {
@@ -503,6 +512,11 @@ export function FortunePage({
     go(prev, "back");
   }, [go, headerBackHref, menuCardEntry, router, step, stored]);
 
+  const onPillarTalk = useCallback((text: string) => {
+    setGuideTextOverride(text);
+    setPillarTalkTick((t) => t + 1);
+  }, []);
+
   const guide = useMemo(() => {
     const base = buildFortuneGuide(step, layout, product.slug, step1MascotCorner, mascot, characterName, form.name, manse);
     let text = base.text;
@@ -572,6 +586,7 @@ export function FortunePage({
             milestoneSteps={mascotMilestoneSteps}
             bubbleDockFixedLeft={step === layout.stepMyungsik && Boolean(guideTextOverride)}
             bubbleDockExtraWide={step === layout.stepMyungsik && Boolean(guideTextOverride)}
+            bubbleReplayToken={step === layout.stepMyungsik ? pillarTalkTick : 0}
             reactClip={answerReactClip}
             onReactClipDone={onAnswerReactDone}
             onArrive={onMascotArrive}
@@ -607,7 +622,7 @@ export function FortunePage({
           <Step3Myungsik
             name={form.name || "회원"}
             manse={manse}
-            onPillarTalk={setGuideTextOverride}
+            onPillarTalk={onPillarTalk}
             onNext={() => go(layout.stepOhaeng)}
           />
         ) : null}
