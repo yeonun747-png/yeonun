@@ -28,7 +28,12 @@ import { resolveVoiceUserRef } from "@/lib/voice-user-ref";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { rollMaxAssistantResponses, rollWallMs } from "@/lib/voice-roll-triggers";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { DEFAULT_FREE_TRIAL_SEC } from "@/lib/voice-balance-local";
+import {
+  DEFAULT_FREE_TRIAL_SEC,
+  hasGuestVoiceTrialUsedClient,
+  isGuestVoiceFreeTrialAvailableClient,
+  markGuestVoiceTrialUsedClient,
+} from "@/lib/voice-balance-local";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -276,6 +281,10 @@ export default function CallDccPageClient() {
   const voiceExternalId = voiceOverride || fetchedVoiceExternalId || null;
 
   const [guestCapActive, setGuestCapActive] = useState(false);
+  /** 비회원 + 기기당 3분 무료 미사용(진입 시) */
+  const [guestFreeTrialActive, setGuestFreeTrialActive] = useState(false);
+  /** 비회원 무료 체험 통화 진행 중 */
+  const [guestFreeInCall, setGuestFreeInCall] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [creditGateReady, setCreditGateReady] = useState(false);
   const [creditBlocked, setCreditBlocked] = useState(false);
@@ -284,9 +293,10 @@ export default function CallDccPageClient() {
     let cancelled = false;
     const sync = async () => {
       const sb = supabaseBrowser();
-      if (!sb) {
+        if (!sb) {
         if (!cancelled) {
           setGuestCapActive(true);
+          setGuestFreeTrialActive(isGuestVoiceFreeTrialAvailableClient());
           setAuthReady(true);
         }
         return;
@@ -295,7 +305,9 @@ export default function CallDccPageClient() {
         data: { session },
       } = await sb.auth.getSession();
       if (!cancelled) {
-        setGuestCapActive(!session?.access_token);
+        const guest = !session?.access_token;
+        setGuestCapActive(guest);
+        setGuestFreeTrialActive(guest && isGuestVoiceFreeTrialAvailableClient());
         setAuthReady(true);
       }
     };
@@ -448,6 +460,7 @@ export default function CallDccPageClient() {
         });
       }
     }
+    setGuestFreeInCall(false);
     clearVoiceManseMeta();
   }, [characterKey]);
 
@@ -457,9 +470,9 @@ export default function CallDccPageClient() {
     };
   }, [finalizeVoiceSession]);
 
-  /** 비회원: 무료 3분 경과 시 통화 종료 후 로그인 유도 */
+  /** 비회원 무료 체험 통화: 3분 경과 시 종료 후 로그인 유도 */
   useEffect(() => {
-    if (!guestCapActive || !sessionId || voiceMeterWallStartMsRef.current == null) return;
+    if (!guestFreeCallRef.current || !sessionId || voiceMeterWallStartMsRef.current == null) return;
     const wallElapsedSec = Math.floor((Date.now() - voiceMeterWallStartMsRef.current) / 1000);
     if (wallElapsedSec < DEFAULT_FREE_TRIAL_SEC) return;
     if (guestCapDoneRef.current) return;
@@ -477,7 +490,7 @@ export default function CallDccPageClient() {
         `/meet?modal=auth&after_auth=${encodeURIComponent(`call:${characterKey}`)}`,
       );
     })();
-  }, [guestCapActive, sessionId, meterElapsedWallSec, finalizeVoiceSession, router, characterKey]);
+  }, [sessionId, meterElapsedWallSec, finalizeVoiceSession, router, characterKey]);
 
   /** 회원: 통화 중 크레딧 소진 시 종료(채팅과 동일) */
   useEffect(() => {
@@ -610,7 +623,9 @@ export default function CallDccPageClient() {
 
   useEffect(() => {
     let cancelled = false;
-    if (voiceOverride || !creditGateReady || (!guestCapActive && creditBlocked)) {
+    const guestTrialBlocked =
+      guestCapActive && hasGuestVoiceTrialUsedClient() && !guestFreeInCall;
+    if (voiceOverride || !creditGateReady || guestTrialBlocked || (!guestCapActive && creditBlocked)) {
       return () => {
         cancelled = true;
       };
@@ -647,7 +662,13 @@ export default function CallDccPageClient() {
           endPostedRef.current = false;
           sessionIdRef.current = sid;
           setElapsedSec(0);
-          guestFreeCallRef.current = guestCapActive;
+          const guestFreeThisSession =
+            guestCapActive && isGuestVoiceFreeTrialAvailableClient();
+          if (guestFreeThisSession) {
+            markGuestVoiceTrialUsedClient();
+            setGuestFreeInCall(true);
+          }
+          guestFreeCallRef.current = guestFreeThisSession;
           if (!guestCapActive) {
             ensureConsultTrialCreditsIfEligible();
           }
@@ -679,7 +700,17 @@ export default function CallDccPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [characterKey, meta.name, voiceOverride, user?.id, creditGateReady, creditBlocked, guestCapActive]);
+  }, [
+    characterKey,
+    meta.name,
+    voiceOverride,
+    user?.id,
+    creditGateReady,
+    creditBlocked,
+    guestCapActive,
+    guestFreeTrialActive,
+    guestFreeInCall,
+  ]);
 
   useEffect(() => {
     if (!sessionId || !voiceExternalId) return;
@@ -1188,16 +1219,24 @@ export default function CallDccPageClient() {
 
   const bars = useMemo(() => Array.from({ length: 12 }, (_, i) => i), []);
 
+  const showGuestTrialExhausted =
+    creditGateReady &&
+    guestCapActive &&
+    hasGuestVoiceTrialUsedClient() &&
+    !guestFreeInCall;
   const showCreditShortage = creditGateReady && !guestCapActive && creditBlocked;
+  const showCallBlocked = showCreditShortage || showGuestTrialExhausted;
   const creditNeedMore = voiceConsultCreditsShortfall();
   const creditShortageCaption =
     creditNeedMore > 0
       ? `크레딧이 부족해요. ${creditNeedMore.toLocaleString("ko-KR")} 크레딧이 더 필요해요.`
       : `크레딧이 부족해요. 음성 상담을 시작하려면 최소 ${CREDIT_VOICE_MIN_TO_START.toLocaleString("ko-KR")} 크레딧이 필요해요.`;
+  const guestTrialExhaustedCaption =
+    "비회원 무료 음성 상담(3분)은 기기당 1회만 이용할 수 있어요. 로그인 후 크레딧으로 이어서 상담할 수 있어요.";
 
   return (
     <div className="yeonunPage" style={{ background: "#1A1815" }}>
-      <main className={`y-call-root${showCreditShortage ? " y-call-root--credit-low" : ""}`}>
+      <main className={`y-call-root${showCallBlocked ? " y-call-root--credit-low" : ""}`}>
         <header className="y-call-header">
           <a
             className="y-call-back"
@@ -1237,8 +1276,10 @@ export default function CallDccPageClient() {
             <h1 className="y-call-name">{meta.name}</h1>
             <div className="y-call-status">
               <span className="y-call-status-text">
-                {showCreditShortage
-                  ? "크레딧 충전 후 상담을 시작할 수 있어요"
+                {showCallBlocked
+                  ? showGuestTrialExhausted
+                    ? "로그인 후 상담을 이어갈 수 있어요"
+                    : "크레딧 충전 후 상담을 시작할 수 있어요"
                   : ttsOutputActive
                     ? `${meta.name}가 말하고 있어요`
                     : rtcReady
@@ -1310,9 +1351,11 @@ export default function CallDccPageClient() {
 
           <div className="y-call-caption" aria-label="자막">
             <div className="y-call-caption-head">내가 방금 한 말 (인식)</div>
-            <div className={`y-call-caption-body${showCreditShortage ? " y-call-caption-body--credit-low" : ""}`}>
-              {showCreditShortage
-                ? creditShortageCaption
+            <div className={`y-call-caption-body${showCallBlocked ? " y-call-caption-body--credit-low" : ""}`}>
+              {showCallBlocked
+                ? showGuestTrialExhausted
+                  ? guestTrialExhaustedCaption
+                  : creditShortageCaption
                 : uiError
                   ? uiError
                   : lastUserText
@@ -1325,7 +1368,7 @@ export default function CallDccPageClient() {
         </section>
 
         <footer className="y-call-controls" aria-label="컨트롤">
-          {!showCreditShortage ? (
+          {!showCallBlocked ? (
             <div className="y-call-meter">
               <div>
                 <div className="y-call-meter-time">{formatMmSs(sessionId ? elapsedSec : 0)}</div>
@@ -1334,24 +1377,38 @@ export default function CallDccPageClient() {
               <div className="y-call-meter-info">
                 <div className="free">{creditLine.line1}</div>
                 <div>{creditLine.line2}</div>
-                {guestCapActive ? (
+                {guestFreeTrialActive || guestFreeInCall ? (
                   <div className="y-call-meter-guest-hint">
-                    비회원 · 무료 최대 {DEFAULT_FREE_TRIAL_SEC / 60}분
+                    비회원 · 무료 최대 {DEFAULT_FREE_TRIAL_SEC / 60}분 (기기당 1회)
                   </div>
                 ) : null}
               </div>
             </div>
           ) : null}
 
-          {showCreditShortage ? (
+          {showCallBlocked ? (
             <div className="y-call-btns y-call-btns--credit-low">
-              <button
-                type="button"
-                className="y-call-credit-charge"
-                onClick={() => router.push("/checkout/credit")}
-              >
-                크레딧 충전하기
-              </button>
+              {showGuestTrialExhausted ? (
+                <button
+                  type="button"
+                  className="y-call-credit-charge"
+                  onClick={() =>
+                    router.push(
+                      `/meet?modal=auth&after_auth=${encodeURIComponent(`call:${characterKey}`)}`,
+                    )
+                  }
+                >
+                  로그인하기
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="y-call-credit-charge"
+                  onClick={() => router.push("/checkout/credit")}
+                >
+                  크레딧 충전하기
+                </button>
+              )}
               <button type="button" className="y-call-credit-back" onClick={() => router.push("/meet")}>
                 돌아가기
               </button>

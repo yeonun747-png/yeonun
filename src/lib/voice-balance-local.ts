@@ -5,7 +5,32 @@ export const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
 /** 무료 체험 전용 잔여(초). 미설정 시 기본 3분. 소진 로직은 통화 종료 시 차감 연동 예정 */
 export const LS_VOICE_FREE_REMAINING_SEC = "yeonun_voice_free_remaining_sec";
 
+/** 비회원 음성 3분 무료 — 기기(브라우저)당 1회 */
+export const LS_GUEST_VOICE_TRIAL_USED = "yeonun_guest_voice_trial_used_v1";
+
 export const DEFAULT_FREE_TRIAL_SEC = 180;
+
+export function hasGuestVoiceTrialUsedClient(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(LS_GUEST_VOICE_TRIAL_USED) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markGuestVoiceTrialUsedClient(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(LS_GUEST_VOICE_TRIAL_USED, "1");
+  } catch {
+    // ignore
+  }
+}
+
+export function isGuestVoiceFreeTrialAvailableClient(): boolean {
+  return !hasGuestVoiceTrialUsedClient();
+}
 
 export function readVoiceBalanceSecClient(): number {
   if (typeof window === "undefined") return DEFAULT_FREE_TRIAL_SEC;
