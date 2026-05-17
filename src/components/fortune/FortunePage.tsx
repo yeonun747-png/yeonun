@@ -37,6 +37,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { computeManseFromFormInput, type ManseRyeokData } from "@/lib/manse-ryeok";
 import { parseProductFortuneQuestions } from "@/lib/product-fortune-questions";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
+import { scheduleFortuneVoiceSummaryParallel } from "@/lib/fortune-voice-summary-prefetch";
 import { YEON, UN } from "@/components/mascot/mascotAssets";
 import { happyPoolFor, pickFromPool } from "@/components/mascot/mascotClipPools";
 import { readFortuneExtraAnswers, writeFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
@@ -325,9 +326,9 @@ export function FortunePage({
     const html = resultHtmlForSave(result);
     if (!html.trim()) return;
     savedResultRef.current = true;
-    void (async () => {
+    const resultIdPromise = (async (): Promise<string | null> => {
       const headers = await jsonAuthHeaders();
-      return fetch("/api/fortune/save-modal-result", {
+      const res = await fetch("/api/fortune/save-modal-result", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -341,7 +342,18 @@ export function FortunePage({
           ...(result.tocGroups ? { toc_groups: result.tocGroups } : {}),
         }),
       });
-    })().catch(() => {
+      const j = (await res.json().catch(() => ({}))) as {
+        saved?: boolean;
+        error?: string;
+        result_id?: string;
+      };
+      if (!res.ok || !j.saved) throw new Error(j.error || "저장에 실패했습니다.");
+      return typeof j.result_id === "string" ? j.result_id.trim() : null;
+    })();
+
+    scheduleFortuneVoiceSummaryParallel(html, resultIdPromise);
+
+    void resultIdPromise.catch(() => {
       savedResultRef.current = false;
     });
   }, [layout.stepResult, product, profile, result, step]);

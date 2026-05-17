@@ -32,6 +32,11 @@ import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream"
 import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
 import { ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import { hasVoiceConsultCredits } from "@/lib/voice-consult-credit-gate";
+import {
+  getFortuneVoiceSummaryPrefetch,
+  prefetchFortuneVoiceSummary,
+  scheduleFortuneVoiceSummaryParallel,
+} from "@/lib/fortune-voice-summary-prefetch";
 
 /** 음성 무료 잔여(초). 없으면 첫 방문 시 충분히 크게 두고, 0이면 충전 유도 */
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
@@ -559,47 +564,16 @@ export function FortuneStreamModal() {
     return () => abortRef.current?.abort();
   }, [runStream]);
 
-  const scheduleVoicePrefetch = useCallback((htmlArg: string, resultId: string) => {
-    const rid = String(resultId || "").trim();
-    const h = String(htmlArg || "").trim();
-    if (!rid || !h) return;
+  const bindVoiceSummaryPrefetchRef = useCallback((p: Promise<string | null>) => {
     if (voiceSummaryTextRef.current?.trim()) return;
-    if (voicePrefetchPromiseRef.current) return;
-
-    const run = () => {
-      if (voiceSummaryTextRef.current?.trim() || voicePrefetchPromiseRef.current) return;
-      const p = (async (): Promise<string | null> => {
-        try {
-          const res = await fetch("/api/fortune/summarize-for-voice", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ html: h }),
-          });
-          const j = (await res.json().catch(() => ({}))) as { summary?: string; error?: string };
-          if (!res.ok || typeof j.summary !== "string" || !j.summary.trim()) return null;
-          const text = j.summary.trim();
-          voiceSummaryTextRef.current = text;
-          await fetch("/api/fortune/result-voice-summary", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ result_id: rid, voice_consult_summary: text }),
-          });
-          return text;
-        } catch {
-          return null;
-        }
-      })();
-      voicePrefetchPromiseRef.current = p;
-      void p.finally(() => {
+    voicePrefetchPromiseRef.current = p;
+    void p
+      .then((text) => {
+        if (text?.trim()) voiceSummaryTextRef.current = text.trim();
+      })
+      .finally(() => {
         if (voicePrefetchPromiseRef.current === p) voicePrefetchPromiseRef.current = null;
       });
-    };
-
-    if (typeof requestIdleCallback !== "undefined") {
-      requestIdleCallback(() => run(), { timeout: 8_000 });
-    } else {
-      setTimeout(run, 0);
-    }
   }, []);
 
   /** 완료 시 보관함 DB 자동 저장(버튼 없음) */
@@ -623,39 +597,45 @@ export function FortuneStreamModal() {
       return;
     }
 
-    void (async () => {
+    const resultIdPromise = (async (): Promise<string | null> => {
       const headers = await jsonAuthHeaders();
-      return fetch("/api/fortune/save-modal-result", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        product_slug: product,
-        order_no: orderNo ?? undefined,
-        character_key: characterKey,
-        profile,
-        title,
-        html,
-        ...(toc.length > 0 ? { toc_sections: toc } : {}),
-        ...(tocGroups && tocGroups.length > 0 ? { toc_groups: tocGroups } : {}),
-      }),
-    })
-      .then(async (res) => {
-        const j = (await res.json().catch(() => ({}))) as {
-          saved?: boolean;
-          error?: string;
-          result_id?: string;
-        };
-        if (!res.ok || !j.saved) throw new Error(j.error || "저장에 실패했습니다.");
-        const resultId = typeof j.result_id === "string" ? j.result_id.trim() : "";
-        if (resultId) libraryResultIdRef.current = resultId;
-        setLibrarySaved(true);
-        setLibrarySaveError(null);
-        if (resultId) scheduleVoicePrefetch(html, resultId);
-      })
-      .catch((e) => {
-        setLibrarySaveError(e instanceof Error ? e.message : "저장에 실패했습니다.");
+      const res = await fetch("/api/fortune/save-modal-result", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          product_slug: product,
+          order_no: orderNo ?? undefined,
+          character_key: characterKey,
+          profile,
+          title,
+          html,
+          ...(toc.length > 0 ? { toc_sections: toc } : {}),
+          ...(tocGroups && tocGroups.length > 0 ? { toc_groups: tocGroups } : {}),
+        }),
       });
+      const j = (await res.json().catch(() => ({}))) as {
+        saved?: boolean;
+        error?: string;
+        result_id?: string;
+      };
+      if (!res.ok || !j.saved) throw new Error(j.error || "저장에 실패했습니다.");
+      const resultId = typeof j.result_id === "string" ? j.result_id.trim() : "";
+      if (resultId) libraryResultIdRef.current = resultId;
+      setLibrarySaved(true);
+      setLibrarySaveError(null);
+      return resultId || null;
     })();
+
+    scheduleFortuneVoiceSummaryParallel(html, resultIdPromise);
+    void resultIdPromise.then((rid) => {
+      if (!rid) return;
+      const p = getFortuneVoiceSummaryPrefetch(rid);
+      if (p) bindVoiceSummaryPrefetchRef(p);
+    });
+
+    void resultIdPromise.catch((e) => {
+      setLibrarySaveError(e instanceof Error ? e.message : "저장에 실패했습니다.");
+    });
   }, [
     phase,
     product,
@@ -667,7 +647,7 @@ export function FortuneStreamModal() {
     claudeStreamHtml,
     toc,
     tocGroups,
-    scheduleVoicePrefetch,
+    bindVoiceSummaryPrefetchRef,
   ]);
 
   useEffect(() => {
@@ -831,12 +811,15 @@ export function FortuneStreamModal() {
       return;
     }
 
-    const pending = voicePrefetchPromiseRef.current;
+    const rid = libraryResultIdRef.current?.trim();
+    const pending =
+      voicePrefetchPromiseRef.current ?? (rid ? getFortuneVoiceSummaryPrefetch(rid) : null);
     if (pending) {
       setVoiceContinueBusy(true);
       try {
         const s = await pending;
         if (s?.trim()) {
+          voiceSummaryTextRef.current = s.trim();
           await persistVoiceBriefAndGoCall(s.trim());
           return;
         }
@@ -850,25 +833,31 @@ export function FortuneStreamModal() {
 
     setVoiceContinueBusy(true);
     try {
-      const res = await fetch("/api/fortune/summarize-for-voice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { summary?: string; error?: string };
-      if (!res.ok || typeof j.summary !== "string" || !j.summary.trim()) {
-        throw new Error(j.error || "요약에 실패했습니다.");
-      }
-      const text = j.summary.trim();
-      voiceSummaryTextRef.current = text;
-      const rid = libraryResultIdRef.current?.trim();
+      let text = "";
       if (rid) {
-        void fetch("/api/fortune/result-voice-summary", {
+        const prefetched = await prefetchFortuneVoiceSummary(html, rid);
+        if (prefetched?.trim()) text = prefetched.trim();
+      }
+      if (!text) {
+        const res = await fetch("/api/fortune/summarize-for-voice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ result_id: rid, voice_consult_summary: text }),
+          body: JSON.stringify({ html }),
         });
+        const j = (await res.json().catch(() => ({}))) as { summary?: string; error?: string };
+        if (!res.ok || typeof j.summary !== "string" || !j.summary.trim()) {
+          throw new Error(j.error || "요약에 실패했습니다.");
+        }
+        text = j.summary.trim();
+        if (rid) {
+          void fetch("/api/fortune/result-voice-summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ result_id: rid, voice_consult_summary: text }),
+          });
+        }
       }
+      voiceSummaryTextRef.current = text;
       await persistVoiceBriefAndGoCall(text);
     } catch (e) {
       setStreamError(e instanceof Error ? e.message : "음성 상담 준비에 실패했습니다.");

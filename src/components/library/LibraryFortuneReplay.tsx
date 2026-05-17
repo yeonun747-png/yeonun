@@ -19,6 +19,10 @@ import type { FortuneTocItem } from "@/lib/fortune-stream-client";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import { hasVoiceConsultCredits } from "@/lib/voice-consult-credit-gate";
+import {
+  getFortuneVoiceSummaryPrefetch,
+  prefetchFortuneVoiceSummary,
+} from "@/lib/fortune-voice-summary-prefetch";
 import { setVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
@@ -192,25 +196,35 @@ export function LibraryFortuneReplay(props: {
       setVoiceError("음성 상담용 본문이 없습니다.");
       return;
     }
+    const rid = String(resultId ?? "").trim();
+    const inflight = rid ? getFortuneVoiceSummaryPrefetch(rid) : null;
     setVoiceContinueBusy(true);
     setVoiceError(null);
     try {
-      const res = await fetch("/api/fortune/summarize-for-voice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html: bodyHtml }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { summary?: string; error?: string };
-      if (!res.ok || typeof j.summary !== "string" || !j.summary.trim()) {
-        throw new Error(j.error || "요약에 실패했습니다.");
+      let text = inflight ? ((await inflight)?.trim() ?? "") : "";
+      if (!text && rid) {
+        text = ((await prefetchFortuneVoiceSummary(bodyHtml, rid))?.trim()) ?? "";
       }
-      const text = j.summary.trim();
+      if (!text) {
+        const res = await fetch("/api/fortune/summarize-for-voice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ html: bodyHtml }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { summary?: string; error?: string };
+        if (!res.ok || typeof j.summary !== "string" || !j.summary.trim()) {
+          throw new Error(j.error || "요약에 실패했습니다.");
+        }
+        text = j.summary.trim();
+        if (rid) {
+          void fetch("/api/fortune/result-voice-summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ result_id: rid, voice_consult_summary: text }),
+          });
+        }
+      }
       await persistVoiceBriefAndGoCall(text);
-      void fetch("/api/fortune/result-voice-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ result_id: resultId, voice_consult_summary: text }),
-      });
     } catch (e) {
       setVoiceError(e instanceof Error ? e.message : "음성 상담 준비에 실패했습니다.");
     } finally {
