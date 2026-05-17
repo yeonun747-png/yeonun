@@ -27,7 +27,38 @@ export function authErrorMessage(
     }
     case "withdrawal_pending":
       return "탈퇴 처리 중인 계정입니다. 30일 이후 재가입하거나 고객센터로 문의해 주세요.";
+    case "link_failed":
+      return "로그인 연동에 실패했습니다. 잠시 후 다시 시도해 주세요.";
     default:
       return "로그인 중 문제가 발생했습니다.";
   }
+}
+
+const PROVIDER_LABEL_KO: Record<SocialProvider, string> = {
+  google: "Google",
+  kakao: "카카오",
+  naver: "네이버",
+};
+
+export function socialLinkErrorMessage(code: string | null): string | null {
+  if (!code) return null;
+  switch (code) {
+    case "cancelled":
+      return "연동이 취소되었습니다.";
+    case "invalid_state":
+      return "연동 요청이 만료되었습니다. 다시 시도해 주세요.";
+    case "withdrawal_pending":
+      return "탈퇴 처리 중인 계정은 연동할 수 없습니다.";
+    case "link_failed":
+      return "로그인 연동에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+    default:
+      return "연동 중 문제가 발생했습니다.";
+  }
+}
+
+export function socialLinkSuccessMessage(provider: string | null): string | null {
+  if (!provider) return null;
+  const p = provider as SocialProvider;
+  const label = PROVIDER_LABEL_KO[p] ?? provider;
+  return `${label} 계정이 연결되었습니다. 크레딧은 하나로 합쳐집니다.`;
 }

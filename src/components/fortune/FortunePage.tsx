@@ -32,6 +32,8 @@ import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
 import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { runFortunePrefetch } from "@/lib/fortune-ux/runFortunePrefetch";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
+import { pushLocalSajuToServerProfile } from "@/lib/profile-push-to-server";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { computeManseFromFormInput, type ManseRyeokData } from "@/lib/manse-ryeok";
 import { parseProductFortuneQuestions } from "@/lib/product-fortune-questions";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
@@ -377,6 +379,11 @@ export function FortunePage({
       const ac = new AbortController();
       abortRef.current = ac;
       persistYeonunSajuV1(payload);
+      void (async () => {
+        const sb = supabaseBrowser();
+        const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+        if (token) await pushLocalSajuToServerProfile(token, { force: true });
+      })();
       try {
         sessionStorage.removeItem(fortunePrefetchStorageKey(product.slug));
       } catch {

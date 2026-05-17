@@ -19,6 +19,7 @@ import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
 import { MySheetLink } from "@/components/my/MySheetLink";
 import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { MyNoticesMenuItemContent } from "@/components/my/MyNoticesMenuMeta";
+import { MySocialAccountsClient } from "@/components/my/MySocialAccountsClient";
 import { MyWithdrawAccountMenuItemClient } from "@/components/my/MyWithdrawAccountMenuItemClient";
 
 const MY_PREFETCH_ROUTES = [
@@ -278,6 +279,8 @@ export function MyPageBody() {
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
             </div>
+
+            <MySocialAccountsClient />
 
             <div className="y-my-menu-section">
               <div className="y-my-menu-section-title">설정</div>

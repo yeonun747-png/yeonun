@@ -7,7 +7,16 @@ export type AuthErrorCode =
   | "token_failed"
   | "email_provider_conflict"
   | "withdrawal_pending"
+  | "link_failed"
   | "unknown";
+
+export type SocialLinkErrorCode = "cancelled" | "invalid_state" | "withdrawal_pending" | "link_failed";
+
+export function socialLinkErrorRedirectPath(returnTo: string, code: SocialLinkErrorCode): string {
+  const url = new URL(returnTo.startsWith("/") ? returnTo : "/", "http://local");
+  url.searchParams.set("social_link_error", code);
+  return `${url.pathname}${url.search}`;
+}
 
 export function authErrorRedirectPath(returnTo: string, code: AuthErrorCode, extra?: { provider?: SocialProvider }): string {
   const base = returnTo.includes("?") ? returnTo : returnTo;

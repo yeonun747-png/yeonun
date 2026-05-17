@@ -11,13 +11,20 @@ function sign(body: string): string {
   return createHmac("sha256", authSecret()).update(body).digest("base64url");
 }
 
-export function createOAuthState(provider: SocialProvider, returnTo: string): { state: string; cookieValue: string } {
+export function createOAuthState(
+  provider: SocialProvider,
+  returnTo: string,
+  opts?: { mode?: "link"; linkToAuthUserId?: string },
+): { state: string; cookieValue: string } {
   const state = randomBytes(24).toString("base64url");
   const payload: OAuthStatePayload = {
     state,
     returnTo: sanitizeReturnTo(returnTo),
     provider,
     exp: Date.now() + MAX_AGE_SEC * 1000,
+    ...(opts?.mode === "link" && opts.linkToAuthUserId
+      ? { mode: "link" as const, linkToAuthUserId: opts.linkToAuthUserId }
+      : {}),
   };
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const cookieValue = `${body}.${sign(body)}`;

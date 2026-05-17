@@ -190,8 +190,6 @@ function MemberFileCard({
               </tbody>
             </table>
 
-            <CreditBalanceCards wallet={wallet} />
-
             <section className="y-admin-cs-file-section">
               <h4 className="y-admin-cs-file-panel-title">생년월일 · 사주 입력 (서버 profiles)</h4>
               {profiles.length === 0 ? (
@@ -225,6 +223,7 @@ function MemberFileCard({
 
             <div className="y-admin-cs-adjust-box">
               <h5>크레딧 조정 (CS)</h5>
+              <CreditBalanceCards wallet={wallet} />
               <div className="y-admin-form compact y-admin-member-credits-adjust">
                 <label className="y-admin-member-credits-field">
                   <span className="y-admin-member-credits-field-label">유료 (+/-)</span>

@@ -288,6 +288,83 @@ export async function adminAdjustCredits(
   return { wallet, ledger };
 }
 
+/** 중복 auth 계정 통합 시 source 지갑 → target 지갑으로 합산 */
+export async function mergeCreditWallets(
+  targetUserId: string,
+  sourceUserId: string,
+  opts?: { memo?: string; admin_actor?: string },
+): Promise<void> {
+  if (targetUserId === sourceUserId) return;
+
+  const source = await getWallet(sourceUserId);
+  if (!source) return;
+
+  const target = await ensureWallet(targetUserId);
+  const sourceFreeEff = effectiveFreeBalance(source);
+  const addPaid = source.paid_balance;
+  const addFree = sourceFreeEff;
+
+  if (addPaid === 0 && addFree === 0) return;
+
+  const newPaid = target.paid_balance + addPaid;
+  const newFree = target.free_balance + addFree;
+  const freeExpMs = Math.max(
+    new Date(target.free_expires_at).getTime(),
+    new Date(source.free_expires_at).getTime(),
+  );
+  const firstPurchaseDone = target.first_purchase_done || source.first_purchase_done;
+
+  const sb = supabaseServer();
+  const { data: updated, error } = await sb
+    .from("user_credit_wallets")
+    .update({
+      paid_balance: newPaid,
+      free_balance: newFree,
+      free_expires_at: new Date(freeExpMs).toISOString(),
+      first_purchase_done: firstPurchaseDone,
+    })
+    .eq("user_id", targetUserId)
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  const wallet = updated as CreditWalletRow;
+
+  await insertLedger(targetUserId, {
+    delta_paid: addPaid,
+    delta_free: addFree,
+    paid_after: wallet.paid_balance,
+    free_after: wallet.free_balance,
+    kind: "migration_import",
+    ref_type: "account_merge",
+    ref_id: sourceUserId,
+    memo: opts?.memo ?? "계정 통합 크레딧 이전",
+    admin_actor: opts?.admin_actor ?? null,
+  });
+
+  await sb
+    .from("user_credit_wallets")
+    .update({ paid_balance: 0, free_balance: 0 })
+    .eq("user_id", sourceUserId);
+
+  if (addPaid > 0 || addFree > 0) {
+    const srcAfter = await getWallet(sourceUserId);
+    if (srcAfter) {
+      await insertLedger(sourceUserId, {
+        delta_paid: -addPaid,
+        delta_free: -addFree,
+        paid_after: 0,
+        free_after: 0,
+        kind: "migration_import",
+        ref_type: "account_merge",
+        ref_id: targetUserId,
+        memo: opts?.memo ?? "계정 통합으로 이전",
+        admin_actor: opts?.admin_actor ?? null,
+      });
+    }
+  }
+}
+
 export async function listLedger(userId: string, limit = 30): Promise<CreditLedgerRow[]> {
   const sb = supabaseServer();
   const { data, error } = await sb

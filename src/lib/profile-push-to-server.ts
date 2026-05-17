@@ -75,7 +75,10 @@ export function localSajuToProfileBody(local: LocalSaju): Record<string, unknown
 }
 
 /** 마이탭·점사 등에서 저장한 local 사주 → 서버 profiles (어드민 CS 표시용) */
-export async function pushLocalSajuToServerProfile(accessToken: string): Promise<boolean> {
+export async function pushLocalSajuToServerProfile(
+  accessToken: string,
+  opts?: { force?: boolean },
+): Promise<boolean> {
   const local = readLocalSaju();
   if (!local) return false;
 
@@ -84,10 +87,12 @@ export async function pushLocalSajuToServerProfile(accessToken: string): Promise
 
   const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
 
-  const existingRes = await fetch("/api/me/profile", { headers, cache: "no-store" });
-  if (existingRes.ok) {
-    const existing = (await existingRes.json()) as ProfileApiRow;
-    if (profileHasBirth(existing)) return false;
+  if (!opts?.force) {
+    const existingRes = await fetch("/api/me/profile", { headers, cache: "no-store" });
+    if (existingRes.ok) {
+      const existing = (await existingRes.json()) as ProfileApiRow;
+      if (profileHasBirth(existing)) return false;
+    }
   }
 
   const res = await fetch("/api/me/profile", {
@@ -98,7 +103,7 @@ export async function pushLocalSajuToServerProfile(accessToken: string): Promise
   return res.ok;
 }
 
-/** 로그인 후: 서버에 사주 없고 local만 있으면 1회 업로드 */
+/** 로그인 후: 서버에 사주 없고 local만 있으면 1회 업로드 (기존 서버 데이터는 덮어쓰지 않음) */
 export async function syncLocalSajuToServerIfNeeded(accessToken: string): Promise<void> {
   await pushLocalSajuToServerProfile(accessToken);
 }

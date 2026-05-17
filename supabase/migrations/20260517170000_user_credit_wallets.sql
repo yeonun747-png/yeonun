@@ -54,12 +54,14 @@ create trigger trg_user_credit_wallets_updated_at
 alter table public.user_credit_wallets enable row level security;
 alter table public.user_credit_ledger enable row level security;
 
--- 서비스 롤만 접근 (API 경유)
+-- 서비스 롤만 접근 (API 경유) — 재실행 시 기존 policy 제거 후 생성
+drop policy if exists "user_credit_wallets_service_only" on public.user_credit_wallets;
 create policy "user_credit_wallets_service_only"
   on public.user_credit_wallets for all
   using (false)
   with check (false);
 
+drop policy if exists "user_credit_ledger_service_only" on public.user_credit_ledger;
 create policy "user_credit_ledger_service_only"
   on public.user_credit_ledger for all
   using (false)

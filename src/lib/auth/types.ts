@@ -13,4 +13,7 @@ export type OAuthStatePayload = {
   returnTo: string;
   provider: SocialProvider;
   exp: number;
+  /** 로그인 중 다른 소셜 연동 */
+  mode?: "link";
+  linkToAuthUserId?: string;
 };

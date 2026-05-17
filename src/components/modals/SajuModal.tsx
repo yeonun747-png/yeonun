@@ -110,7 +110,9 @@ export function SajuModal() {
 
       const sb = supabaseBrowser();
       const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
-      if (token) void pushLocalSajuToServerProfile(token);
+      if (token) {
+        await pushLocalSajuToServerProfile(token, { force: true });
+      }
     } catch {
       // ignore
     }
