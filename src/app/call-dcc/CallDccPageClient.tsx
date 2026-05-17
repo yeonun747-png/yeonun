@@ -99,13 +99,12 @@ function buildVoiceCreditLines(): { line1: string; line2: string } {
   const wallet = readWallet();
   const now = Date.now();
   const freeExpired = wallet.freeExpiresAtMs < now;
-  const freeUsed = Math.max(
-    0,
-    CREDIT_FREE_TRIAL_GRANT - Math.min(CREDIT_FREE_TRIAL_GRANT, Math.max(0, wallet.free)),
-  );
+  const freeRem = freeExpired ? 0 : Math.max(0, wallet.free);
   let line1: string;
-  if (!freeExpired && (wallet.free > 0 || freeUsed > 0)) {
-    line1 = `무료 ${CREDIT_FREE_TRIAL_GRANT.toLocaleString("ko-KR")} 크레딧 중 ${freeUsed.toLocaleString("ko-KR")} 사용`;
+  if (!freeExpired && freeRem > CREDIT_FREE_TRIAL_GRANT) {
+    line1 = `무료·보너스 크레딧 ${freeRem.toLocaleString("ko-KR")} 잔여`;
+  } else if (!freeExpired && freeRem > 0) {
+    line1 = `무료 크레딧 ${freeRem.toLocaleString("ko-KR")} 잔여`;
   } else if (wallet.paid > 0) {
     line1 = `충전 크레딧 ${wallet.paid.toLocaleString("ko-KR")} 잔여`;
   } else {
@@ -130,40 +129,32 @@ function buildVoiceMeterSessionLines(opts: {
   const owedDisplay = Math.min(sessionCreditsRaw, snapTotal);
   const takeFree = Math.min(snapFreeRem, owedDisplay);
   const takePaid = owedDisplay - takeFree;
+  const freeRemNow = Math.max(0, snapFreeRem - takeFree);
+  const paidRemNow = Math.max(0, snapPaidRem - takePaid);
 
-  const line2Base = `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`;
+  const line2 = `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`;
 
-  /** 무료 버킷이 체험 지급(1170)을 넘는 경우(미션 등) — "1170 중 X" 식이 음수로 깨짐 */
-  if (!snapFreeExpired && snapFreeRem > CREDIT_FREE_TRIAL_GRANT) {
-    let line2 = line2Base;
-    if (takePaid > 0) {
-      line2 = `충전 크레딧 ${takePaid.toLocaleString("ko-KR")} 사용 · ${line2}`;
-    } else if (takeFree > 0) {
-      line2 = `이번 통화 약 ${takeFree.toLocaleString("ko-KR")} 크레딧 사용 · ${line2}`;
-    }
+  /** 무료 버킷 소진 중 — 잔여가 통화 시간에 따라 줄어듦(무료 먼저 차감) */
+  if (!snapFreeExpired && snapFreeRem > CREDIT_FREE_TRIAL_GRANT && freeRemNow > 0) {
     return {
-      line1: `무료·보너스 크레딧 ${snapFreeRem.toLocaleString("ko-KR")} 잔여`,
+      line1: `무료·보너스 크레딧 ${freeRemNow.toLocaleString("ko-KR")} 잔여`,
       line2,
     };
   }
 
   if (!snapFreeExpired && (snapFreeRem > 0 || takeFree > 0 || sessionCreditsRaw === 0)) {
-    const grantUsedDisplay = CREDIT_FREE_TRIAL_GRANT - snapFreeRem + takeFree;
-    const cappedGrantUsed = Math.min(CREDIT_FREE_TRIAL_GRANT, Math.max(0, grantUsedDisplay));
-    let line2 = line2Base;
-    if (takePaid > 0) {
-      line2 = `충전 크레딧 ${takePaid.toLocaleString("ko-KR")} 사용 · ${line2}`;
+    if (freeRemNow > 0 || sessionCreditsRaw === 0) {
+      return {
+        line1: `무료 크레딧 ${freeRemNow.toLocaleString("ko-KR")} 잔여`,
+        line2,
+      };
     }
-    return {
-      line1: `무료 ${CREDIT_FREE_TRIAL_GRANT.toLocaleString("ko-KR")} 크레딧 중 ${cappedGrantUsed.toLocaleString("ko-KR")} 사용`,
-      line2,
-    };
   }
 
   if (snapPaidRem > 0) {
     return {
-      line1: `충전 크레딧 ${snapPaidRem.toLocaleString("ko-KR")} 중 ${takePaid.toLocaleString("ko-KR")} 사용`,
-      line2: `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`,
+      line1: `충전 크레딧 ${paidRemNow.toLocaleString("ko-KR")} 잔여`,
+      line2,
     };
   }
 
