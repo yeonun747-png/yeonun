@@ -12,6 +12,7 @@ import {
 import { authErrorRedirectPath, socialLinkErrorRedirectPath } from "@/lib/auth/redirect-errors";
 import {
   linkSocialProviderToUser,
+  SocialLinkDisabledError,
   upsertSocialUser,
   WithdrawalPendingError,
 } from "@/lib/auth/social-user-service";
@@ -80,12 +81,13 @@ export async function GET(
     complete.searchParams.set("returnTo", result.isNewUser ? returnTo : "/my");
     complete.searchParams.set("provider", provider);
     if (result.isNewUser) complete.searchParams.set("onboard", "1");
-    if (result.mergedFromAuthUserId) complete.searchParams.set("account_merged", "1");
-
     const res = NextResponse.redirect(complete);
     clearOAuthStateCookie(res);
     return res;
   } catch (e) {
+    if (e instanceof SocialLinkDisabledError) {
+      return isLinkMode ? failLink("link_disabled") : failLogin("link_failed");
+    }
     if (e instanceof WithdrawalPendingError) {
       return isLinkMode ? failLink("withdrawal_pending") : failLogin("withdrawal_pending");
     }

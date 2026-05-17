@@ -30,7 +30,7 @@ export const listVoiceCallHistoryRows = cache(async (userRef: string): Promise<V
 
   const { data: sessions, error } = await supabase
     .from("voice_sessions")
-    .select("id, character_key, started_at, duration_sec, cost_krw, status, ended_at")
+    .select("id, character_key, started_at, duration_sec, cost_krw, status, ended_at, archive_subtitle")
     .eq("user_ref", uid)
     .gte("started_at", since)
     .not("character_key", "is", null)
@@ -59,10 +59,12 @@ export const listVoiceCallHistoryRows = cache(async (userRef: string): Promise<V
     const ck = String(r.character_key ?? "");
     const started_at = String(r.started_at ?? "");
     const duration_sec = Math.max(0, Number(r.duration_sec ?? 0));
+    const subtitleRaw = String(r.archive_subtitle ?? "").trim();
     rows.push({
       id,
       character_key: ck,
       consultantName: nameByKey[ck] || ck,
+      subtitle: subtitleRaw || null,
       timeLine: formatVoiceHistoryTimeLine(started_at),
       badge: formatVoiceHistoryBadge(duration_sec),
       started_at,

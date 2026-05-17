@@ -4,22 +4,10 @@ import { useEffect } from "react";
 
 import { preloadContentCatalog } from "@/lib/content-catalog-cache";
 
-/** 앱 기동 후 idle에 풀이 카탈로그 JSON을 미리 받아 둠 */
+/** 앱 기동 직후 풀이 카탈로그 JSON 프리로드(홈 상품 그리드·풀이 탭) */
 export function ContentCatalogPreloader() {
   useEffect(() => {
-    const run = () => {
-      void preloadContentCatalog();
-    };
-    const w = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    if (w.requestIdleCallback) {
-      const id = w.requestIdleCallback(run, { timeout: 2500 });
-      return () => w.cancelIdleCallback?.(id);
-    }
-    const t = window.setTimeout(run, 400);
-    return () => window.clearTimeout(t);
+    void preloadContentCatalog();
   }, []);
 
   return null;

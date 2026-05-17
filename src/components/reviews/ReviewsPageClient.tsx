@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { ReviewCard } from "@/components/reviews/ReviewCard";
 import { ReviewsSubNav } from "@/components/reviews/ReviewsSubNav";
@@ -17,6 +17,8 @@ type Props = {
   pageTitle?: string;
 };
 
+const PAGE_SIZE = 10;
+
 const FILTERS: { key: ReviewStarBucket; label: (n: number) => string }[] = [
   { key: "all", label: (n) => `전체 (${n})` },
   { key: "5", label: (n) => `★★★★★ (${n})` },
@@ -26,11 +28,32 @@ const FILTERS: { key: ReviewStarBucket; label: (n: number) => string }[] = [
 
 export function ReviewsPageClient({ reviews, stats, pageTitle = "전체 리뷰" }: Props) {
   const [filter, setFilter] = useState<ReviewStarBucket>("all");
+  const [page, setPage] = useState(1);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(
     () => reviews.filter((r) => matchesStarFilter(r.stars, filter)),
     [reviews, filter],
   );
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+
+  const paged = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, currentPage]);
+
+  const goPage = (next: number) => {
+    const clamped = Math.max(1, Math.min(totalPages, next));
+    setPage(clamped);
+    listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const onFilterChange = (next: ReviewStarBucket) => {
+    setFilter(next);
+    setPage(1);
+  };
 
   return (
     <div className="yeonunPage rv-page">
@@ -64,20 +87,76 @@ export function ReviewsPageClient({ reviews, stats, pageTitle = "전체 리뷰" 
 
       <div className="rv-divider" role="presentation" />
 
-      <FilterRow filter={filter} stats={stats} onChange={setFilter} />
+      <FilterRow filter={filter} stats={stats} onChange={onFilterChange} />
 
-      <div className="rv-list" aria-label="리뷰 목록">
-        {filtered.map((review) => (
+      <div ref={listRef} className="rv-list" aria-label="리뷰 목록">
+        {paged.map((review) => (
           <ReviewCard key={review.id} review={review} variant="page" />
         ))}
       </div>
 
       {filtered.length === 0 ? (
         <p className="rv-empty">해당 별점의 리뷰가 없습니다.</p>
+      ) : totalPages > 1 ? (
+        <ReviewsPagination page={currentPage} totalPages={totalPages} onChange={goPage} />
       ) : (
         <p className="rv-end">리뷰를 모두 확인했어요 ✓</p>
       )}
     </div>
+  );
+}
+
+function ReviewsPagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+}) {
+  const pageNums = useMemo(() => {
+    const maxButtons = 5;
+    let start = Math.max(1, page - Math.floor(maxButtons / 2));
+    const end = Math.min(totalPages, start + maxButtons - 1);
+    start = Math.max(1, end - maxButtons + 1);
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+  }, [page, totalPages]);
+
+  return (
+    <nav className="rv-pagination" aria-label="리뷰 페이지">
+      <div className="rv-pagination-controls">
+        <button
+          type="button"
+          className="rv-page-btn rv-page-btn--arrow"
+          disabled={page <= 1}
+          onClick={() => onChange(page - 1)}
+          aria-label="이전 페이지"
+        >
+          ‹
+        </button>
+        {pageNums.map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={`rv-page-btn${n === page ? " active" : ""}`}
+            aria-current={n === page ? "page" : undefined}
+            onClick={() => onChange(n)}
+          >
+            {n}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="rv-page-btn rv-page-btn--arrow"
+          disabled={page >= totalPages}
+          onClick={() => onChange(page + 1)}
+          aria-label="다음 페이지"
+        >
+          ›
+        </button>
+      </div>
+    </nav>
   );
 }
 

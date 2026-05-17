@@ -8,6 +8,8 @@ export type VoiceCallHistoryRowVm = {
   id: string;
   character_key: string;
   consultantName: string;
+  /** 보관함 목록 부제목(한 문장 요약) */
+  subtitle: string | null;
   /** 예: 04.28 오후 11:24 */
   timeLine: string;
   /** 우측 배지 */

@@ -1,20 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ComponentProps, ReactNode } from "react";
 
 import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
 
-type Props = Omit<ComponentProps<typeof Link>, "onClick" | "children"> & {
+type Props = Omit<ComponentProps<typeof Link>, "children"> & {
   children: ReactNode;
 };
 
-export function SheetLink({ children, ...props }: Props) {
+export function SheetLink({ children, href, scroll = false, onPointerEnter, onClick, ...props }: Props) {
+  const router = useRouter();
+  const hrefStr = typeof href === "string" ? href : null;
+
   return (
     <Link
       {...props}
-      onClick={() => {
+      href={href}
+      scroll={scroll}
+      prefetch={props.prefetch ?? true}
+      onPointerEnter={(e) => {
+        if (hrefStr) router.prefetch(hrefStr);
+        onPointerEnter?.(e);
+      }}
+      onClick={(e) => {
         rememberSheetBackdropScrollY();
+        onClick?.(e);
       }}
     >
       {children}

@@ -1,14 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { ReviewCard } from "@/components/reviews/ReviewCard";
+import { SheetLink } from "@/components/SheetLink";
 import {
   buildHomeReviewsSeedSnapshot,
   type HomeReviewsBlockPayload,
 } from "@/lib/reviews-home-client";
 import { preloadHomeReviewsBlock, readHomeReviewsCache } from "@/lib/home-reviews-cache";
+import { preloadReviewsPage } from "@/lib/reviews-page-cache";
 
 type Props = {
   /** SSR 첫 페인트용(있으면 시드 대신 사용) */
@@ -33,9 +34,12 @@ export function HomeReviewsSectionClient({ serverSnapshot }: Props) {
     void preloadHomeReviewsBlock().then((next) => {
       if (next?.reviews.length) setBlock(next);
     });
+    void preloadReviewsPage();
   }, [block.fetchedAt]);
 
   const { reviews, stats } = block;
+  const publishedReviewCount =
+    stats.publishedReviewCount ?? buildHomeReviewsSeedSnapshot().stats.publishedReviewCount;
 
   return (
     <div className="y-reviews-block">
@@ -43,9 +47,9 @@ export function HomeReviewsSectionClient({ serverSnapshot }: Props) {
         <h2 className="y-section-title">
           <span className="hash">#</span> {stats.totalReadings.toLocaleString("ko-KR")}명의 운명
         </h2>
-        <Link href="/reviews" className="y-section-more">
+        <SheetLink href="/reviews" className="y-section-more">
           전체 리뷰
-        </Link>
+        </SheetLink>
       </div>
 
       <div className="y-reviews-stats">
@@ -69,9 +73,9 @@ export function HomeReviewsSectionClient({ serverSnapshot }: Props) {
         ))}
       </div>
 
-      <Link className="y-review-more" href="/reviews">
-        리뷰 더 보기 ({stats.totalReadings.toLocaleString("ko-KR")}+) →
-      </Link>
+      <SheetLink className="y-review-more" href="/reviews">
+        리뷰 더 보기 ({publishedReviewCount.toLocaleString("ko-KR")}+) →
+      </SheetLink>
     </div>
   );
 }

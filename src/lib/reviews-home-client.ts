@@ -19,6 +19,8 @@ export type HomeReviewsBlockPayload = {
   reviews: ShowcaseReviewView[];
   stats: {
     totalReadings: number;
+    /** is_published=true 노출 리뷰 총건수 */
+    publishedReviewCount: number;
     averageRatingDisplay: string;
     guideCount: number;
   };
@@ -57,6 +59,7 @@ export function buildHomeReviewsSeedSnapshot(): HomeReviewsBlockPayload {
     reviews,
     stats: {
       totalReadings: LAUNCH_TOTAL_READINGS,
+      publishedReviewCount: SHOWCASE_REVIEWS_SEED.length,
       averageRatingDisplay: avg,
       guideCount: LAUNCH_GUIDE_COUNT,
     },

@@ -1,44 +1,43 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 
 import { HomeContentGrid } from "@/components/HomeContentGrid";
 import { HomeFaq } from "@/components/HomeFaq";
 import { HomeReviewsSectionClient } from "@/components/reviews/HomeReviewsSectionClient";
-import { getProductsBySlugsCached } from "@/lib/data/content";
+import type { ContentCatalogSnapshot } from "@/lib/content-catalog";
+import { preloadContentCatalog, readContentCatalogCache } from "@/lib/content-catalog-cache";
 import type { Product } from "@/lib/data/content";
-import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
+import { HOME_WEEKLY_SLUGS } from "@/lib/home-product-slugs";
+import { preloadHomeReviewsBlock } from "@/lib/home-reviews-cache";
+import { preloadReviewsPage } from "@/lib/reviews-page-cache";
 
 function isProduct(x: Product | undefined): x is Product {
   return Boolean(x);
 }
 
-export async function HomeMoreSections() {
-  // 홈에서 보여줄 대표 상품/리뷰는 우선 DB에서 가져와서 “목업 섹션”에 꽂는다.
-  const weeklyOrder = ["reunion-maybe", "mind-now", "compat-howfar", "future-spouse"];
-  const homeSectionSlugs = Array.from(
-    new Set([
-      ...weeklyOrder,
-      // # 평생을 풀어드립니다
-      "lifetime-master",
-      "saju-classic",
-      "wealth-graph",
-      "career-timing",
-      // # 2026 신년 특별
-      "newyear-2026",
-      "tojeong-2026",
-      "zimi-2026-flow",
-      "calendar-2026",
-      // # 깊이 있는 풀이
-      "zimi-chart",
-      "naming-baby",
-      "dream-lastnight",
-      "child-saju",
-    ]),
-  );
+function pickProducts(bySlug: Map<string, Product>, slugs: readonly string[]) {
+  return slugs.map((s) => bySlug.get(s)).filter(isProduct);
+}
 
-  const homeProducts = await getProductsBySlugsCached(homeSectionSlugs);
-  const bySlug = new Map(homeProducts.map((p) => [p.slug, p] as const));
-  const featured = weeklyOrder.map((s) => bySlug.get(s)).filter(isProduct).slice(0, 4);
-  const thumbFallback = await readProductThumbnailsForSlugs(homeSectionSlugs);
+export function HomeMoreSections() {
+  const [catalog, setCatalog] = useState<ContentCatalogSnapshot | null>(() => readContentCatalogCache());
+
+  useEffect(() => {
+    void preloadContentCatalog().then((next) => {
+      if (next?.products.length) setCatalog(next);
+    });
+    void preloadHomeReviewsBlock();
+    void preloadReviewsPage();
+  }, []);
+
+  const bySlug = useMemo(
+    () => new Map((catalog?.products ?? []).map((p) => [p.slug, p] as const)),
+    [catalog],
+  );
+  const thumbFallback = catalog?.thumbFallback ?? {};
+  const featured = pickProducts(bySlug, HOME_WEEKLY_SLUGS).slice(0, 4);
 
   return (
     <>
@@ -70,12 +69,7 @@ export async function HomeMoreSections() {
         <strong>한 사람의 인생을 처음부터 끝까지.</strong> 합·충·형·파·해 200개 항목, 10년 단위 대운까지.
       </p>
       <HomeContentGrid
-        items={[
-          bySlug.get("lifetime-master"),
-          bySlug.get("saju-classic"),
-          bySlug.get("wealth-graph"),
-          bySlug.get("career-timing"),
-        ].filter(Boolean) as Product[]}
+        items={pickProducts(bySlug, ["lifetime-master", "saju-classic", "wealth-graph", "career-timing"])}
         fallbackSvgBySlug={thumbFallback}
       />
 
@@ -92,12 +86,7 @@ export async function HomeMoreSections() {
           <strong>병오년(丙午年), 붉은 말의 해.</strong> 한 해를 어떻게 시작할지, 어디서 머물고 어디로 갈지.
         </p>
         <HomeContentGrid
-          items={[
-            bySlug.get("newyear-2026"),
-            bySlug.get("tojeong-2026"),
-            bySlug.get("zimi-2026-flow"),
-            bySlug.get("calendar-2026"),
-          ].filter(Boolean) as Product[]}
+          items={pickProducts(bySlug, ["newyear-2026", "tojeong-2026", "zimi-2026-flow", "calendar-2026"])}
           fallbackSvgBySlug={thumbFallback}
         />
       </div>
@@ -114,7 +103,7 @@ export async function HomeMoreSections() {
         <strong>한 끗 더 깊이 들어가는 사람들을 위해.</strong> 자미두수·작명·꿈해몽·자녀 사주까지.
       </p>
       <HomeContentGrid
-        items={[bySlug.get("zimi-chart"), bySlug.get("naming-baby"), bySlug.get("dream-lastnight"), bySlug.get("child-saju")].filter(Boolean) as Product[]}
+        items={pickProducts(bySlug, ["zimi-chart", "naming-baby", "dream-lastnight", "child-saju"])}
         fallbackSvgBySlug={thumbFallback}
       />
 

@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { MyPaymentApiRow, MyPaymentsPayload } from "@/app/api/my/payments/route";
+import type { MyPaymentApiRow } from "@/app/api/my/payments/route";
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { preloadMyPayments, readMyPaymentsCache, resolveInitialMyPayments } from "@/lib/my-payments-cache";
 
 type PayDetail = {
   product: string;
@@ -126,49 +127,59 @@ function apiRowToPayRow(r: MyPaymentApiRow): PayRow {
   };
 }
 
-export function MyPaymentsPageClient() {
-  const [sel, setSel] = useState<PayRow | null>(null);
-  const [apiRows, setApiRows] = useState<MyPaymentApiRow[]>([]);
-  const [yearTotal, setYearTotal] = useState(0);
-  const [monthTotal, setMonthTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const sb = supabaseBrowser();
-    const session = sb ? (await sb.auth.getSession()).data.session : null;
+function applyPayload(
+  payload: { rows: MyPaymentApiRow[]; yearTotalKrw: number; monthTotalKrw: number },
+  setRows: (r: MyPaymentApiRow[]) => void,
+  setYear: (n: number) => void,
+  setMonth: (n: number) => void,
+) {
+  setRows(payload.rows);
+  setYear(payload.yearTotalKrw);
+  setMonth(payload.monthTotalKrw);
+}
 
-    if (!session?.access_token) {
-      setLoading(false);
+export function MyPaymentsPageClient() {
+  const { session } = useYeonunAuth();
+  const userId = session?.user?.id ?? null;
+
+  const initial = resolveInitialMyPayments(userId);
+
+  const [sel, setSel] = useState<PayRow | null>(null);
+  const [apiRows, setApiRows] = useState<MyPaymentApiRow[]>(() => initial?.rows ?? []);
+  const [yearTotal, setYearTotal] = useState(() => initial?.yearTotalKrw ?? 0);
+  const [monthTotal, setMonthTotal] = useState(() => initial?.monthTotalKrw ?? 0);
+  const [error, setError] = useState<string | null>(() => (!userId ? "auth" : null));
+  const [hydrated, setHydrated] = useState(() => Boolean(initial) || Boolean(userId));
+
+  const load = useCallback(async () => {
+    if (!userId || !session?.access_token) {
       setError("auth");
       setApiRows([]);
       setYearTotal(0);
       setMonthTotal(0);
+      setHydrated(true);
       return;
     }
-    try {
-      const res = await fetch("/api/my/payments", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const data = (await res.json()) as MyPaymentsPayload | { ok: false; error?: string };
-      if (!res.ok || !("ok" in data) || data.ok !== true) {
-        setError(typeof data === "object" && data && "error" in data ? String(data.error) : "load_failed");
-        setApiRows([]);
-        setYearTotal(0);
-        setMonthTotal(0);
-        return;
-      }
-      setApiRows(data.rows);
-      setYearTotal(data.yearTotalKrw);
-      setMonthTotal(data.monthTotalKrw);
-    } catch {
-      setError("load_failed");
-      setApiRows([]);
-    } finally {
-      setLoading(false);
+
+    setError(null);
+    const cached = readMyPaymentsCache(userId);
+    if (cached) {
+      applyPayload(cached, setApiRows, setYearTotal, setMonthTotal);
+      setHydrated(true);
     }
-  }, []);
+
+    const fresh = await preloadMyPayments();
+    if (fresh) {
+      applyPayload(fresh, setApiRows, setYearTotal, setMonthTotal);
+      setHydrated(true);
+      return;
+    }
+
+    if (!cached) {
+      setError("load_failed");
+    }
+    setHydrated(true);
+  }, [session?.access_token, userId]);
 
   useEffect(() => {
     void load();
@@ -177,9 +188,7 @@ export function MyPaymentsPageClient() {
   useEffect(() => {
     const onRefresh = () => void load();
     window.addEventListener(YEONUN_AUTH_SESSION_CHANGED, onRefresh);
-    return () => {
-      window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onRefresh);
-    };
+    return () => window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onRefresh);
   }, [load]);
 
   const detail = useMemo(() => sel?.detail ?? null, [sel]);
@@ -204,13 +213,15 @@ export function MyPaymentsPageClient() {
 
   const yLabel = new Date().getFullYear();
   const sheetTitle = detail ? "결제 상세" : "결제 내역";
+  const showAuth = !session;
+  const showList = !showAuth;
 
   return (
     <MySubpageSheet title={sheetTitle} ariaLabel={sheetTitle}>
       <div className="y-sub-scroll-page">
         {!detail ? (
           <>
-            {error === "auth" ? (
+            {showAuth ? (
               <div className="y-pay-history-empty" style={{ padding: "24px 16px", textAlign: "center" }}>
                 <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--y-mute)" }}>
                   로그인 후 결제 내역을 확인할 수 있어요.
@@ -221,17 +232,13 @@ export function MyPaymentsPageClient() {
               </div>
             ) : null}
 
-            {error && error !== "auth" ? (
+            {error === "load_failed" && hydrated ? (
               <p className="y-pay-history-foot" style={{ color: "#c62828" }}>
                 내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
               </p>
             ) : null}
 
-            {loading && !error ? (
-              <p className="y-pay-history-foot">불러오는 중…</p>
-            ) : null}
-
-            {!loading && !error ? (
+            {showList ? (
               <>
                 <div className="y-pay-history-total">
                   <div>
@@ -320,3 +327,4 @@ export function MyPaymentsPageClient() {
     </MySubpageSheet>
   );
 }
+

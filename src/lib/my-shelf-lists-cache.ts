@@ -68,6 +68,19 @@ export function writeVoiceListCache(userId: string, grouped: VoiceHistoryGrouped
   writeJson(voiceKey(userId), payload);
 }
 
+/** 종료 후 Haiku 부제목 생성 완료 시 목록 캐시·UI 동기화 */
+export function patchVoiceListCacheSubtitle(userId: string, sessionId: string, subtitle: string) {
+  const grouped = readVoiceListCache(userId);
+  if (!grouped) return;
+  const next = grouped.map((block) => ({
+    ...block,
+    rows: block.rows.map((row) =>
+      row.id === sessionId ? { ...row, subtitle: subtitle.trim() || null } : row,
+    ),
+  }));
+  writeVoiceListCache(userId, next);
+}
+
 export function clearMyShelfListsCache() {
   memFortune = null;
   memVoice = null;

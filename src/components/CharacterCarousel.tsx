@@ -1,58 +1,18 @@
-type CharKey = "yeon" | "byeol" | "yeo" | "un";
+"use client";
+
+import { useEffect } from "react";
 
 import { SheetLink } from "@/components/SheetLink";
+import { RoutePrefetcher } from "@/components/RoutePrefetcher";
+import { preloadContentCatalog } from "@/lib/content-catalog-cache";
+import {
+  CAROUSEL_CHAR,
+  CAROUSEL_CHAR_KEYS,
+  characterSheetHref,
+  type CarouselCharKey,
+} from "@/lib/characters/character-carousel-static";
 
-const CHAR: Record<
-  CharKey,
-  {
-    key: CharKey;
-    han: string;
-    spec: string;
-    name: string;
-    en: string;
-    quote: string;
-    tags: string;
-  }
-> = {
-  yeon: {
-    key: "yeon",
-    han: "蓮",
-    spec: "재회 · 연애 · 궁합",
-    name: "연화",
-    en: "YEONHWA · 蓮花",
-    quote: "오랜만이에요. 그 사람이 자꾸 떠오르시죠? 들여다봐 드릴게요.",
-    tags: "#재회 #짝사랑 #이별후 #그사람마음",
-  },
-  byeol: {
-    key: "byeol",
-    han: "星",
-    spec: "자미두수 · 신년운세",
-    name: "별하",
-    en: "BYEOLHA · 星河",
-    quote: "2026년에 어떤 별이 흐르는지, 같이 보러 갈까요?",
-    tags: "#자미두수 #2026운세 #토정비결 #올해",
-  },
-  yeo: {
-    key: "yeo",
-    han: "麗",
-    spec: "정통 사주 · 평생운",
-    name: "여연",
-    en: "YEOYEON · 麗淵",
-    quote: "바람이 닿지 않는 깊은 물처럼, 사주의 본질을 짚어드립니다.",
-    tags: "#평생운 #대운 #직업 #재물",
-  },
-  un: {
-    key: "un",
-    han: "雲",
-    spec: "작명 · 택일 · 꿈해몽",
-    name: "운서",
-    en: "UNSEO · 雲棲",
-    quote: "한 글자에 운명이 담깁니다. 천천히 풀어가시죠.",
-    tags: "#작명 #택일 #꿈해몽 #자녀사주",
-  },
-};
-
-function Motif({ k }: { k: CharKey }) {
+function Motif({ k }: { k: CarouselCharKey }) {
   if (k === "yeon") {
     return (
       <div className="yCharMotif" aria-hidden="true">
@@ -154,11 +114,40 @@ function Motif({ k }: { k: CharKey }) {
   );
 }
 
+function CardVisual({ k }: { k: CarouselCharKey }) {
+  const c = CAROUSEL_CHAR[k];
+  return (
+    <>
+      <div className="yCharVisual">
+        <div className="yCharHanBg" aria-hidden="true">
+          {c.han}
+        </div>
+        <Motif k={k} />
+        <div className="yCharNameBlock">
+          <span className="yCharSpecTag">{c.spec}</span>
+          <div className="yCharName">{c.name}</div>
+          <div className="yCharNameEn">{c.en}</div>
+        </div>
+      </div>
+      <div className="yCharMeta">
+        <p className="yCharQuote">{c.quote}</p>
+        <div className="yCharTags">{c.tags}</div>
+      </div>
+    </>
+  );
+}
+
 export function CharacterCarousel() {
-  const keys = Object.keys(CHAR) as CharKey[];
+  const prefetchRoutes = CAROUSEL_CHAR_KEYS.map((k) => characterSheetHref(k, "home"));
+
+  useEffect(() => {
+    void preloadContentCatalog();
+  }, []);
 
   return (
     <section aria-label="오늘의 인연 안내자">
+      <RoutePrefetcher routes={prefetchRoutes} />
+
       <div className="ySectionHead">
         <h2 className="ySectionTitle">
           <span className="hash">#</span> 오늘의 인연 안내자
@@ -167,29 +156,14 @@ export function CharacterCarousel() {
 
       <div className="yCarousel">
         <div className="yCarouselTrack">
-          {keys.map((k) => (
+          {CAROUSEL_CHAR_KEYS.map((k) => (
             <SheetLink
               key={k}
+              href={characterSheetHref(k, "home")}
               className={`yCharCard ${k}`}
-              href={`/characters/${k}?sheet=1&from=home`}
-              aria-label={`${CHAR[k].name} 상세로 이동`}
+              aria-label={`${CAROUSEL_CHAR[k].name} 상세로 이동`}
             >
-              <div className="yCharVisual">
-                <div className="yCharHanBg" aria-hidden="true">
-                  {CHAR[k].han}
-                </div>
-                <Motif k={k} />
-                <div className="yCharNameBlock">
-                  <span className="yCharSpecTag">{CHAR[k].spec}</span>
-                  <div className="yCharName">{CHAR[k].name}</div>
-                  <div className="yCharNameEn">{CHAR[k].en}</div>
-                </div>
-              </div>
-
-              <div className="yCharMeta">
-                <p className="yCharQuote">{CHAR[k].quote}</p>
-                <div className="yCharTags">{CHAR[k].tags}</div>
-              </div>
+              <CardVisual k={k} />
             </SheetLink>
           ))}
         </div>
@@ -197,4 +171,3 @@ export function CharacterCarousel() {
     </section>
   );
 }
-

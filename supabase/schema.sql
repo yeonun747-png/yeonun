@@ -320,6 +320,7 @@ alter table public.voice_sessions add column if not exists realtime_input_tokens
 alter table public.voice_sessions add column if not exists realtime_output_tokens int not null default 0;
 alter table public.voice_sessions add column if not exists realtime_total_tokens int not null default 0;
 alter table public.voice_sessions add column if not exists realtime_max_response_latency_ms int not null default 0;
+alter table public.voice_sessions add column if not exists archive_subtitle text null;
 
 create table if not exists public.voice_memory_entries (
   id uuid primary key default gen_random_uuid(),

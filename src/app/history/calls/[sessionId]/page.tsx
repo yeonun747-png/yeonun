@@ -3,8 +3,10 @@ import type { Metadata } from "next";
 
 import { TextChatDetailShell } from "@/components/history/TextChatDetailShell";
 import { TextChatDetailThread } from "@/components/history/TextChatDetailThread";
+import { VoiceCallReplayCta } from "@/components/history/VoiceCallReplayCta";
 import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { getVoiceSessionConversationDetail } from "@/lib/text-chat-history";
+import { buildVoiceArchiveReplayBrief } from "@/lib/voice-archive-replay-brief";
 import {
   formatKstYmdDots,
   formatTextChatListDayDot,
@@ -47,12 +49,25 @@ export default async function VoiceCallConversationPage({ params }: Props) {
 
   const title = `${detail.character_name}와 음성 상담 대화 · ${headerDay}`;
   const retentionLine = `이 대화 글은 ${retentionDots}까지 보관됩니다`;
-  const consultHref = `/meet?character_key=${encodeURIComponent(detail.character_key)}`;
+  const consultHref = `/call-dcc?character_key=${encodeURIComponent(detail.character_key)}`;
+  const voiceBrief = buildVoiceArchiveReplayBrief(detail.messages);
 
   return (
     <>
       <MyTabBackdrop />
-      <TextChatDetailShell title={title} retentionLine={retentionLine} consultHref={consultHref} listHref="/my?shelf=voice">
+      <TextChatDetailShell
+        title={title}
+        retentionLine={retentionLine}
+        consultHref={consultHref}
+        consultCta={
+          <VoiceCallReplayCta
+            characterKey={detail.character_key}
+            characterName={detail.character_name}
+            voiceBrief={voiceBrief}
+          />
+        }
+        listHref="/my?shelf=voice"
+      >
         <TextChatDetailThread grouped={grouped} characterHan={detail.character_han} />
       </TextChatDetailShell>
     </>

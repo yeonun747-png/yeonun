@@ -35,122 +35,23 @@ export class WithdrawalPendingError extends Error {
   }
 }
 
+/** 마이탭 다중 소셜 연동 비활성 — provider별 별도 auth 계정만 허용 */
+export class SocialLinkDisabledError extends Error {
+  constructor() {
+    super("social_link_disabled");
+  }
+}
+
 function syntheticEmail(provider: SocialProvider, providerId: string): string {
   return `${provider}.${providerId}@oauth.yeonun.kr`;
 }
 
-async function reassignSocialAccount(
-  targetAuthUserId: string,
-  fromAuthUserId: string,
-  socialRowId: string,
-  profile: OAuthProfile,
-): Promise<string | undefined> {
-  if (targetAuthUserId === fromAuthUserId) return undefined;
-
-  await mergeCreditWallets(targetAuthUserId, fromAuthUserId, {
-    memo: `소셜 계정 통합 (${profile.provider})`,
-  });
-
-  const sb = supabaseServer();
-  const { data: siblings } = await sb
-    .from("yeonun_social_users")
-    .select("id")
-    .eq("auth_user_id", fromAuthUserId)
-    .is("deleted_at", null);
-
-  for (const row of siblings ?? []) {
-    await sb
-      .from("yeonun_social_users")
-      .update({
-        auth_user_id: targetAuthUserId,
-        ...(row.id === socialRowId
-          ? {
-              name: profile.name,
-              email: profile.email,
-              profile_image: profile.profileImage,
-              last_login_at: new Date().toISOString(),
-            }
-          : {}),
-      })
-      .eq("id", row.id);
-  }
-
-  return fromAuthUserId;
-}
-
-/** 로그인·마이탭 연동 공통: 소셜을 target auth_user_id 에 연결 */
+/** @deprecated 마이탭 다중 연동 비활성 — Google·카카오·네이버는 각각 별도 로그인 */
 export async function linkSocialProviderToUser(
-  targetAuthUserId: string,
-  profile: OAuthProfile,
+  _targetAuthUserId: string,
+  _profile: OAuthProfile,
 ): Promise<UpsertSocialUserResult> {
-  const sb = supabaseServer();
-  const loginEmail = (profile.email || syntheticEmail(profile.provider, profile.providerId)).toLowerCase();
-
-  const { data: row, error: findErr } = await sb
-    .from("yeonun_social_users")
-    .select("*")
-    .eq("provider", profile.provider)
-    .eq("provider_id", profile.providerId)
-    .maybeSingle();
-
-  if (findErr) throw new Error(findErr.message);
-  if (row?.deleted_at) throw new WithdrawalPendingError();
-
-  let mergedFrom: string | undefined;
-
-  if (row) {
-    if (row.auth_user_id === targetAuthUserId) {
-      await sb
-        .from("yeonun_social_users")
-        .update({
-          name: profile.name,
-          email: profile.email,
-          profile_image: profile.profileImage,
-          last_login_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
-
-      return {
-        authUserId: targetAuthUserId,
-        loginEmail,
-        isNewUser: false,
-        socialUser: row as SocialUserRow,
-      };
-    }
-
-    mergedFrom = await reassignSocialAccount(targetAuthUserId, row.auth_user_id, row.id, profile);
-    const { data: updated } = await sb.from("yeonun_social_users").select("*").eq("id", row.id).single();
-
-    return {
-      authUserId: targetAuthUserId,
-      loginEmail,
-      isNewUser: false,
-      socialUser: (updated ?? row) as SocialUserRow,
-      mergedFromAuthUserId: mergedFrom,
-    };
-  }
-
-  const { data: inserted, error: insErr } = await sb
-    .from("yeonun_social_users")
-    .insert({
-      auth_user_id: targetAuthUserId,
-      provider: profile.provider,
-      provider_id: profile.providerId,
-      name: profile.name,
-      email: profile.email,
-      profile_image: profile.profileImage,
-    })
-    .select("*")
-    .single();
-
-  if (insErr) throw new Error(insErr.message);
-
-  return {
-    authUserId: targetAuthUserId,
-    loginEmail,
-    isNewUser: false,
-    socialUser: inserted as SocialUserRow,
-  };
+  throw new SocialLinkDisabledError();
 }
 
 export async function findAuthUserIdByVerifiedEmail(email: string): Promise<string | null> {
@@ -228,23 +129,6 @@ export async function upsertSocialUser(profile: OAuthProfile): Promise<UpsertSoc
       isNewUser: false,
       socialUser: row as SocialUserRow,
     };
-  }
-
-  /** 동일 실이메일로 이미 가입된 소셜 → 기존 auth 계정에 연결(크레딧 통합) */
-  if (profile.email) {
-    const existingAuthId = await findAuthUserIdByVerifiedEmail(profile.email);
-    if (existingAuthId) {
-      const linked = await linkSocialProviderToUser(existingAuthId, profile);
-      await sb.auth.admin.updateUserById(existingAuthId, {
-        user_metadata: {
-          name: profile.name,
-          avatar_url: profile.profileImage,
-          provider: profile.provider,
-          provider_id: profile.providerId,
-        },
-      });
-      return { ...linked, isNewUser: false };
-    }
   }
 
   let authUserId: string | null = null;

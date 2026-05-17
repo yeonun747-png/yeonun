@@ -31,7 +31,7 @@ async function warmupAudioAndMic() {
   }
 }
 
-/** 비회원도 첫 3분 무료 음성 상담 진입 가능(/call-dcc에서 시간 제한). */
+/** 비회원 3분 무료·크레딧 안내는 /call-dcc 화면에서 처리(채팅 상담과 동일) */
 export function MeetCallButton({ characterKey, className, children }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);

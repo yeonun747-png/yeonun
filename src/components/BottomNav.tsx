@@ -11,6 +11,8 @@ import {
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import { preloadContentCatalog } from "@/lib/content-catalog-cache";
 import { preloadHomeReviewsBlock } from "@/lib/home-reviews-cache";
+import { preloadMyPayments } from "@/lib/my-payments-cache";
+import { preloadReviewsPage } from "@/lib/reviews-page-cache";
 
 const PRIMARY_ROUTES = ["/content", "/meet", "/today", "/my"];
 
@@ -30,10 +32,12 @@ export function BottomNav() {
         onPointerEnter={() => {
           router.prefetch("/");
           void preloadHomeReviewsBlock();
+          void preloadReviewsPage();
         }}
         onFocus={() => {
           router.prefetch("/");
           void preloadHomeReviewsBlock();
+          void preloadReviewsPage();
         }}
         onClick={(e) => {
           // 같은 홈(/)에서 재클릭 시에도 “최초 접속 상태”로: 쿼리 제거 + 스크롤 최상단
@@ -198,8 +202,14 @@ export function BottomNav() {
         className={`y-bn-item ${isActive("/my") ? "active" : ""}`}
         href="/my"
         aria-label="마이"
-        onPointerEnter={() => router.prefetch("/my")}
-        onFocus={() => router.prefetch("/my")}
+        onPointerEnter={() => {
+          router.prefetch("/my");
+          void preloadMyPayments();
+        }}
+        onFocus={() => {
+          router.prefetch("/my");
+          void preloadMyPayments();
+        }}
         onClick={(e) => {
           if (pathname === "/my") {
             e.preventDefault();

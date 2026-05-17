@@ -34,8 +34,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
+  modal,
 }: Readonly<{
   children: React.ReactNode;
+  modal: React.ReactNode;
 }>) {
   return (
     <html lang="ko">
@@ -57,6 +59,7 @@ export default function RootLayout({
             <PrimaryTabScrollClient />
             <ContentCatalogPreloader />
             {children}
+            {modal}
             <YeonunToastHost />
           </WriteReviewSheetProvider>
           <Suspense fallback={null}>

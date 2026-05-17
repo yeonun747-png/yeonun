@@ -1,3 +1,5 @@
+import { resolveClaudeHaikuModel } from "@/lib/claude-haiku-model";
+
 /**
  * 채팅·음성 공통: 최근 N턴(질문·답변 단위)은 원문 유지,
  * 그보다 오래된 구간은 Claude Haiku로 요약해 system에 붙여 장기 상담 맥락 유지.
@@ -29,14 +31,10 @@ export function groupPriorIntoTurns(prior: DialogTurnMsg[]): DialogTurnMsg[][] {
   return turns;
 }
 
-function defaultHaikuModel(): string {
-  return String(process.env.CLAUDE_HAIKU_MODEL ?? "claude-3-5-haiku-20241022").trim() || "claude-3-5-haiku-20241022";
-}
-
 export async function summarizeOlderTurnsWithHaiku(olderDialogText: string, apiKey: string): Promise<string> {
   const trimmed = olderDialogText.trim();
   if (!trimmed) return "";
-  const model = defaultHaikuModel();
+  const model = resolveClaudeHaikuModel();
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {

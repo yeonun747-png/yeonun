@@ -7391,6 +7391,55 @@ button.y-dw-listen:disabled {
   color: var(--y-mute-2);
   margin: 0;
 }
+.rv-pagination {
+  padding: 20px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.rv-pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rv-page-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 100px;
+  border: 0.5px solid var(--y-line);
+  background: var(--y-card);
+  color: var(--y-ink);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.rv-page-btn--arrow {
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 8px;
+}
+.rv-page-btn.active {
+  background: var(--y-ink);
+  border-color: var(--y-ink);
+  color: #fff;
+}
+.rv-page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.rv-page-btn:not(:disabled):hover {
+  border-color: var(--y-rose);
+  color: var(--y-rose-deep);
+}
+.rv-page-btn.active:hover {
+  background: var(--y-ink);
+  color: #fff;
+}
 
 /* ===== 가격 섹션 (목업 y-price-*) ===== */
 .y-pricing-block {
@@ -10064,6 +10113,10 @@ button.y-my-menu-item {
   margin-bottom: 6px;
   font-weight: 600;
 }
+.y-call-caption-body--credit-low {
+  color: rgba(245, 218, 224, 0.95);
+  line-height: 1.55;
+}
 .y-call-controls {
   padding: 16px 24px 32px;
   background: rgba(0, 0, 0, 0.3);
@@ -10124,6 +10177,39 @@ button.y-my-menu-item {
   grid-template-columns: 1fr 1.6fr 1fr;
   gap: 10px;
   align-items: center;
+}
+.y-call-btns.y-call-btns--credit-low {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: unset;
+  gap: 10px;
+  align-items: stretch;
+}
+.y-call-btns--credit-low .y-call-credit-charge {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--y-rose);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(221, 88, 120, 0.35);
+  white-space: nowrap;
+}
+.y-call-btns--credit-low .y-call-credit-back {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 999px;
+  border: 0.5px solid rgba(245, 218, 224, 0.28);
+  background: rgba(245, 218, 224, 0.08);
+  color: rgba(245, 218, 224, 0.88);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
 }
 .y-call-ctrl {
   width: 56px;
@@ -13510,8 +13596,19 @@ a.y-vip-card--link {
   font-weight: 700;
   color: var(--y-ink);
   letter-spacing: -0.02em;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   line-height: 1.35;
+}
+.y-call-hist-subtitle {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--y-mute);
+  letter-spacing: -0.02em;
+  line-height: 1.45;
+  margin-bottom: 4px;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 .y-call-hist-time {
   font-size: 11.5px;
@@ -13695,6 +13792,7 @@ a.y-vip-card--link {
   justify-content: center;
   width: 100%;
   padding: 15px 18px;
+  border: none;
   border-radius: 999px;
   background: var(--y-rose);
   color: #fff;
@@ -13702,6 +13800,9 @@ a.y-vip-card--link {
   font-weight: 600;
   text-decoration: none;
   box-shadow: 0 4px 14px rgba(221, 88, 120, 0.28);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .y-tchat-thread {

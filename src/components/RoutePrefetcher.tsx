@@ -8,7 +8,11 @@ type IdleWindow = Window & {
   cancelIdleCallback?: (id: number) => void;
 };
 
-const MY_SHEET_PRIORITY = new Set(["/content", "/my", "/history/chats"]);
+const MY_SHEET_PRIORITY = new Set(["/content", "/my", "/history/chats", "/reviews"]);
+
+function isEagerSheetRoute(route: string) {
+  return route.startsWith("/characters/") && route.includes("sheet=1");
+}
 
 export function RoutePrefetcher({ routes }: { routes: string[] }) {
   const router = useRouter();
@@ -18,8 +22,8 @@ export function RoutePrefetcher({ routes }: { routes: string[] }) {
   useEffect(() => {
     if (!uniqueRoutes.length) return;
 
-    const priority = uniqueRoutes.filter((r) => MY_SHEET_PRIORITY.has(r));
-    const rest = uniqueRoutes.filter((r) => !MY_SHEET_PRIORITY.has(r));
+    const priority = uniqueRoutes.filter((r) => MY_SHEET_PRIORITY.has(r) || isEagerSheetRoute(r));
+    const rest = uniqueRoutes.filter((r) => !MY_SHEET_PRIORITY.has(r) && !isEagerSheetRoute(r));
 
     const prefetch = (list: string[]) => {
       for (const route of list) router.prefetch(route);

@@ -10,12 +10,15 @@ export function TextChatDetailShell({
   title,
   retentionLine,
   consultHref,
+  consultCta,
   listHref = "/history/chats",
   children,
 }: {
   title: string;
   retentionLine: string;
   consultHref: string;
+  /** 음성 보관함 등 — Link 대신 즉시 /call-dcc 이동용 */
+  consultCta?: ReactNode;
   /** 목록으로 직접 이동(fallback); 일반적으로 router.back()과 동일한 스택 동작 */
   listHref?: string;
   children: ReactNode;
@@ -57,9 +60,11 @@ export function TextChatDetailShell({
         <div className="y-tchat-detail-scroll">{children}</div>
         <footer className="y-tchat-detail-foot">
           <p className="y-tchat-detail-retention">{retentionLine}</p>
-          <Link href={consultHref} className="y-tchat-detail-cta">
-            이 주제로 다시 상담하기 →
-          </Link>
+          {consultCta ?? (
+            <Link href={consultHref} className="y-tchat-detail-cta">
+              이 주제로 다시 상담하기 →
+            </Link>
+          )}
         </footer>
       </div>
     </div>

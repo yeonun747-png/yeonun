@@ -5,7 +5,7 @@ import {
   type HomeReviewsBlockPayload,
 } from "@/lib/reviews-home-client";
 
-const STORAGE_KEY = "yeonun:home-reviews-block:v1";
+const STORAGE_KEY = "yeonun:home-reviews-block:v2";
 const MAX_AGE_MS = 1000 * 60 * 5;
 
 let memory: HomeReviewsBlockPayload | null = null;

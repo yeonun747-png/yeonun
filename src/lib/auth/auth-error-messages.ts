@@ -51,6 +51,8 @@ export function socialLinkErrorMessage(code: string | null): string | null {
       return "탈퇴 처리 중인 계정은 연동할 수 없습니다.";
     case "link_failed":
       return "로그인 연동에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+    case "link_disabled":
+      return "Google·카카오·네이버는 각각 별도 로그인으로 이용해 주세요. 로그아웃 후 원하는 방법으로 다시 로그인하세요.";
     default:
       return "연동 중 문제가 발생했습니다.";
   }
@@ -60,5 +62,5 @@ export function socialLinkSuccessMessage(provider: string | null): string | null
   if (!provider) return null;
   const p = provider as SocialProvider;
   const label = PROVIDER_LABEL_KO[p] ?? provider;
-  return `${label} 계정이 연결되었습니다. 크레딧은 하나로 합쳐집니다.`;
+  return `${label} 로그인 정보가 확인되었습니다.`;
 }

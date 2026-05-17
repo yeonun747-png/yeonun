@@ -30,6 +30,8 @@ import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
+import { ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
+import { hasVoiceConsultCredits } from "@/lib/voice-consult-credit-gate";
 
 /** 음성 무료 잔여(초). 없으면 첫 방문 시 충분히 크게 두고, 0이면 충전 유도 */
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
@@ -802,7 +804,8 @@ export function FortuneStreamModal() {
 
   const onVoiceContinue = useCallback(async () => {
     if (voiceContinueBusy) return;
-    if (readVoiceBalanceSec() <= 0) {
+    ensureConsultTrialCreditsIfEligible();
+    if (!hasVoiceConsultCredits()) {
       setVoicePayOpen(true);
       return;
     }
@@ -874,7 +877,6 @@ export function FortuneStreamModal() {
     }
   }, [
     voiceContinueBusy,
-    readVoiceBalanceSec,
     claudeStreamMode,
     claudeStreamHtml,
     persistVoiceBriefAndGoCall,

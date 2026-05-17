@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 
+import {
+  CLAUDE_HAIKU_MODEL_DEFAULT,
+  CLAUDE_HAIKU_MODEL_FALLBACK,
+  resolveClaudeHaikuModel,
+} from "@/lib/claude-haiku-model";
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-/** 기본: Haiku 4.5 (3.5 Haiku 일부 계정에서 비활성/오류 시 폴백) */
-const DEFAULT_SUMMARY_MODEL = "claude-haiku-4-5-20251001";
-const FALLBACK_SUMMARY_MODEL = "claude-3-5-haiku-20241022";
 
 function stripHtml(html: string): string {
   return String(html ?? "")
@@ -101,7 +103,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
   }
 
-  const primaryModel = String(process.env.FORTUNE_VOICE_SUMMARY_MODEL ?? DEFAULT_SUMMARY_MODEL).trim();
+  const primaryModel = String(process.env.FORTUNE_VOICE_SUMMARY_MODEL ?? resolveClaudeHaikuModel()).trim();
   const trimmed = plain.length > 48_000 ? `${plain.slice(0, 48_000)}…` : plain;
   const sourceLen = trimmed.length;
   const { target, low, high } = voiceSummaryTargetBand(sourceLen);
@@ -120,8 +122,8 @@ export async function POST(request: Request) {
 
   try {
     let result = await callAnthropicSummarize(apiKey, primaryModel, user, maxTokens);
-    if (!result.ok && primaryModel !== FALLBACK_SUMMARY_MODEL) {
-      result = await callAnthropicSummarize(apiKey, FALLBACK_SUMMARY_MODEL, user, maxTokens);
+    if (!result.ok && primaryModel !== CLAUDE_HAIKU_MODEL_FALLBACK) {
+      result = await callAnthropicSummarize(apiKey, CLAUDE_HAIKU_MODEL_FALLBACK, user, maxTokens);
     }
 
     if (result.ok) {

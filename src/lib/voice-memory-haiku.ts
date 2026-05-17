@@ -1,3 +1,4 @@
+import { resolveClaudeHaikuModel } from "@/lib/claude-haiku-model";
 import { rollMaxTranscriptChars } from "@/lib/voice-roll-triggers";
 
 export type HaikuMemoryItem = {
@@ -11,10 +12,6 @@ export type VoiceRollupHaikuResult = {
   compressed_bullets: string[];
   memories: HaikuMemoryItem[];
 };
-
-function defaultHaikuModel(): string {
-  return String(process.env.CLAUDE_HAIKU_MODEL ?? "claude-3-5-haiku-20241022").trim() || "claude-3-5-haiku-20241022";
-}
 
 function extractJsonObject(raw: string): unknown {
   const t = raw.trim();
@@ -35,7 +32,7 @@ export async function runVoiceRollupHaiku(opts: {
   dialogExcerpt: string;
   priorContinuity?: string;
 }): Promise<VoiceRollupHaikuResult> {
-  const model = defaultHaikuModel();
+  const model = resolveClaudeHaikuModel();
   const cap = rollMaxTranscriptChars();
   const excerpt = String(opts.dialogExcerpt ?? "").trim().slice(0, cap);
   if (excerpt.length < 80) {

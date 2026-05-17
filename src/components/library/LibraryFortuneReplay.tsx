@@ -17,6 +17,8 @@ import {
 } from "@/lib/fortune-saved-html-toc";
 import type { FortuneTocItem } from "@/lib/fortune-stream-client";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
+import { ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
+import { hasVoiceConsultCredits } from "@/lib/voice-consult-credit-gate";
 import { setVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
@@ -174,7 +176,8 @@ export function LibraryFortuneReplay(props: {
 
   const onVoiceContinue = useCallback(async () => {
     if (voiceContinueBusy) return;
-    if (readVoiceBalanceSec() <= 0) {
+    ensureConsultTrialCreditsIfEligible();
+    if (!hasVoiceConsultCredits()) {
       setVoicePayOpen(true);
       return;
     }
@@ -215,7 +218,6 @@ export function LibraryFortuneReplay(props: {
     }
   }, [
     voiceContinueBusy,
-    readVoiceBalanceSec,
     displayHtml,
     voiceConsultSummary,
     resultId,

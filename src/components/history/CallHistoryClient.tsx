@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import type { MyVoiceListSnapshot, VoiceHistoryGroupedBlock } from "@/hooks/useMyShelfListsPreload";
-import { voiceSnapshotWithCache } from "@/lib/my-shelf-lists-cache";
+import { patchVoiceListCacheSubtitle, voiceSnapshotWithCache } from "@/lib/my-shelf-lists-cache";
 import { VOICE_CALL_ARCHIVE_LIST_DAYS } from "@/lib/voice-call-history-public";
 
 import { ArchiveReviewAction, toCharacterReviewKey } from "@/components/reviews/ArchiveReviewAction";
@@ -70,6 +70,24 @@ export function CallHistoryClient({ voiceSnapshot }: { voiceSnapshot: MyVoiceLis
     setLoaded(next.settled);
   }, [voiceSnapshot, userId]);
 
+  useEffect(() => {
+    const onSubtitle = (ev: Event) => {
+      const d = (ev as CustomEvent<{ sessionId?: string; subtitle?: string }>).detail;
+      const sessionId = String(d?.sessionId ?? "").trim();
+      const subtitle = String(d?.subtitle ?? "").trim();
+      if (!sessionId || !subtitle) return;
+      setGrouped((prev) =>
+        prev.map((block) => ({
+          ...block,
+          rows: block.rows.map((row) => (row.id === sessionId ? { ...row, subtitle } : row)),
+        })),
+      );
+      if (userId) patchVoiceListCacheSubtitle(userId, sessionId, subtitle);
+    };
+    window.addEventListener("yeonun:voice-archive-subtitle", onSubtitle);
+    return () => window.removeEventListener("yeonun:voice-archive-subtitle", onSubtitle);
+  }, [userId]);
+
   const showSkeleton = !loadError && !loaded;
   const empty = loaded && !loadError && grouped.every((g) => g.rows.length === 0);
 
@@ -104,13 +122,14 @@ export function CallHistoryClient({ voiceSnapshot }: { voiceSnapshot: MyVoiceLis
                         href={`/history/calls/${row.id}`}
                         className="y-call-hist-row"
                         scroll={false}
-                        aria-label={`${row.consultantName}와 음성 상담 ${row.timeLine}, 대화 글 보기`}
+                        aria-label={`${row.consultantName}와 음성 상담 ${row.subtitle ? `${row.subtitle} ` : ""}${row.timeLine}, 대화 글 보기`}
                       >
                         <div className="y-call-hist-icon" aria-hidden>
                           <HeadphoneIcon />
                         </div>
                         <div className="y-call-hist-main">
                           <div className="y-call-hist-title">{row.consultantName}와 음성 상담</div>
+                          {row.subtitle ? <div className="y-call-hist-subtitle">{row.subtitle}</div> : null}
                           <div className="y-call-hist-time">{row.timeLine}</div>
                         </div>
                         <div className="y-archive-card-side">
@@ -123,7 +142,9 @@ export function CallHistoryClient({ voiceSnapshot }: { voiceSnapshot: MyVoiceLis
                               characterKey: toCharacterReviewKey(row.character_key),
                               productLine: `${row.consultantName} · 음성 상담`,
                               title: `${row.consultantName}와 음성 상담`,
-                              subline: `${row.timeLine} · ${row.badge}`,
+                              subline: row.subtitle
+                                ? `${row.subtitle} · ${row.timeLine} · ${row.badge}`
+                                : `${row.timeLine} · ${row.badge}`,
                             }}
                           />
                         </div>

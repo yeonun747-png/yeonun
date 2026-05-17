@@ -248,6 +248,7 @@ export async function getHomeReviewsBlockData(): Promise<HomeReviewsBlockPayload
     reviews,
     stats: {
       totalReadings: stats.totalReadings,
+      publishedReviewCount: stats.reviewCount,
       averageRatingDisplay: stats.averageRatingDisplay,
       guideCount: LAUNCH_GUIDE_COUNT,
     },
@@ -255,3 +256,28 @@ export async function getHomeReviewsBlockData(): Promise<HomeReviewsBlockPayload
 }
 
 export const getHomeReviewsBlockDataCached = cache(getHomeReviewsBlockData);
+
+/** 전체 리뷰 페이지 — 리뷰 목록 1회 조회로 통계까지 계산 */
+export async function getReviewsPageData() {
+  const [reviews, totalReadings] = await Promise.all([listPublishedReviewsCached(), fetchPaidOrdersCount()]);
+  const stats = computeDashboardStats(reviews, totalReadings);
+  return {
+    reviews,
+    stats: { ...stats, guideCount: LAUNCH_GUIDE_COUNT },
+    pageTitle: "전체 리뷰" as const,
+  };
+}
+
+export const getReviewsPageDataCached = cache(getReviewsPageData);
+
+export async function getReviewsPageDataForCharacter(characterKey: CharacterReviewKey) {
+  const reviews = await listPublishedReviewsByCharacterKeyCached(characterKey);
+  const stats = computeDashboardStats(reviews, LAUNCH_TOTAL_READINGS);
+  return {
+    reviews,
+    stats: { ...stats, guideCount: LAUNCH_GUIDE_COUNT },
+    pageTitle: `${characterLabel(characterKey)}의 리뷰` as const,
+  };
+}
+
+export const getReviewsPageDataForCharacterCached = cache(getReviewsPageDataForCharacter);

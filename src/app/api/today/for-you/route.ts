@@ -4,6 +4,7 @@ import { formatKstConsultHeaderKo, getKstParts } from "@/lib/datetime/kst";
 import { computeManseFromFormInput, getDayGanji, toHanjaGan, toHanjaJi, type CalendarType } from "@/lib/manse-ryeok";
 import { formatManseBriefKo } from "@/lib/today-for-you-manse";
 import { getTodayPublicIljin, getTodayPublicLuck } from "@/lib/today-kst-public";
+import { resolveTodayLlmModel } from "@/lib/today-llm-model";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -26,7 +27,7 @@ function readEnv(name: string): string {
 async function callAnthropicJson(system: string, user: string): Promise<string> {
   const apiKey = readEnv("ANTHROPIC_API_KEY");
   if (!apiKey) throw new Error("Missing env: ANTHROPIC_API_KEY");
-  const model = String(readEnv("TODAY_FOR_YOU_MODEL") || readEnv("VOICE_LLM_MODEL") || "claude-sonnet-4-6").trim();
+  const model = resolveTodayLlmModel(readEnv("TODAY_FOR_YOU_MODEL"), readEnv("TODAY_DAILY_WORDS_MODEL"));
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {

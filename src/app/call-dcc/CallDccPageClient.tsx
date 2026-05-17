@@ -13,6 +13,11 @@ import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile"
 import { spendCreditsWithAuth } from "@/lib/credit-client";
 import { YEONUN_CREDIT_UPDATE_EVENT, readWallet, ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import {
+  CREDIT_VOICE_MIN_TO_START,
+  hasVoiceConsultCredits,
+  voiceConsultCreditsShortfall,
+} from "@/lib/voice-consult-credit-gate";
+import {
   CREDIT_FREE_TRIAL_GRANT,
   CREDIT_VOICE_PER_MINUTE,
   CREDIT_VOICE_PER_SECOND,
@@ -52,6 +57,33 @@ function waveMeterLevelFromPeakRms(peak: number, rms: number): number {
   const combined = peak * 1.85 + rms * 6.5;
   const attenuated = combined * 0.38;
   return Math.max(0, Math.min(1, Math.pow(attenuated, 0.78)));
+}
+
+/** 종료·이탈 후 보관함 부제목(Haiku) — 페이지 이탈해도 요청 유지 */
+function queueVoiceArchiveSubtitle(sessionId: string) {
+  const sid = String(sessionId ?? "").trim();
+  if (!sid || typeof window === "undefined") return;
+  try {
+    void fetch(`/api/voice/sessions/${encodeURIComponent(sid)}/archive-subtitle`, {
+      method: "POST",
+      keepalive: true,
+    })
+      .then((r) => r.json().catch(() => ({})))
+      .then((j: { ok?: boolean; subtitle?: string | null }) => {
+        const subtitle = String(j?.subtitle ?? "").trim();
+        if (!j?.ok || !subtitle) return;
+        window.dispatchEvent(
+          new CustomEvent("yeonun:voice-archive-subtitle", {
+            detail: { sessionId: sid, subtitle },
+          }),
+        );
+      })
+      .catch(() => {
+        // ignore
+      });
+  } catch {
+    // ignore
+  }
 }
 
 function formatMmSs(totalSec: number): string {
@@ -239,8 +271,12 @@ export default function CallDccPageClient() {
   const responseCreatedAtRef = useRef<number | null>(null);
   /** response.done usage — 누적/스냅샷 혼용 대비해 직전 값 대비 델타만 서버에 보냄 */
   const lastUsageSnapshotRef = useRef({ in: 0, out: 0, tot: 0 });
-  /** 비회원 무료 3분 도달 시 한 번만 종료 */
+  /** 비회원 무료 3분 경과 시 한 번만 종료 */
   const guestCapDoneRef = useRef(false);
+  /** 통화 중 크레딧 소진 시 한 번만 종료(회원) */
+  const creditCapDoneRef = useRef(false);
+  /** 세션 시작 시 비회원 무료 통화 여부 — 종료 시 크레딧 미차감 */
+  const guestFreeCallRef = useRef(false);
   /** 세션 롤 등으로 상담 표시 시간이 리셋돼도, 무료 한도·크레딧 미터는 첫 통화 시작 시점부터 누적 */
   const voiceMeterWallStartMsRef = useRef<number | null>(null);
   /** 통화 시작 시점 로컬 지갑(회원 과금·표시 상한) */
@@ -248,25 +284,29 @@ export default function CallDccPageClient() {
 
   const voiceExternalId = voiceOverride || fetchedVoiceExternalId || null;
 
-  /** 로그인 없이 시작한 경우에만 통화 시간 상한 적용 */
   const [guestCapActive, setGuestCapActive] = useState(false);
-
-  useEffect(() => {
-    mutedRef.current = muted;
-  }, [muted]);
+  const [authReady, setAuthReady] = useState(false);
+  const [creditGateReady, setCreditGateReady] = useState(false);
+  const [creditBlocked, setCreditBlocked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const sync = async () => {
       const sb = supabaseBrowser();
       if (!sb) {
-        if (!cancelled) setGuestCapActive(true);
+        if (!cancelled) {
+          setGuestCapActive(true);
+          setAuthReady(true);
+        }
         return;
       }
       const {
         data: { session },
       } = await sb.auth.getSession();
-      if (!cancelled) setGuestCapActive(!session?.access_token);
+      if (!cancelled) {
+        setGuestCapActive(!session?.access_token);
+        setAuthReady(true);
+      }
     };
     void sync();
     const onAuth = () => void sync();
@@ -276,6 +316,29 @@ export default function CallDccPageClient() {
       window.removeEventListener(YEONUN_AUTH_SESSION_CHANGED, onAuth);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (!authReady) return;
+    if (guestCapActive) {
+      setCreditBlocked(false);
+      setCreditGateReady(true);
+      return;
+    }
+    ensureConsultTrialCreditsIfEligible();
+    setCreditBlocked(!hasVoiceConsultCredits());
+    setCreditGateReady(true);
+  }, [authReady, guestCapActive]);
+
+  useEffect(() => {
+    if (!authReady || guestCapActive) return;
+    const onCredit = () => setCreditBlocked(!hasVoiceConsultCredits());
+    window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
+    return () => window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
+  }, [authReady, guestCapActive]);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -383,8 +446,9 @@ export default function CallDccPageClient() {
     } catch {
       // ignore
     } finally {
-      /** 로그인: 서버 지갑 차감 · 비로그인: localStorage */
-      if (typeof window !== "undefined" && owedCredits > 0) {
+      queueVoiceArchiveSubtitle(id);
+      /** 비회원 3분 무료 통화는 크레딧 미차감 · 회원만 차감 */
+      if (typeof window !== "undefined" && owedCredits > 0 && !guestFreeCallRef.current) {
         await spendCreditsWithAuth(owedCredits, {
           kind: "spend_voice",
           ref_type: "voice_session",
@@ -423,6 +487,33 @@ export default function CallDccPageClient() {
       );
     })();
   }, [guestCapActive, sessionId, meterElapsedWallSec, finalizeVoiceSession, router, characterKey]);
+
+  /** 회원: 통화 중 크레딧 소진 시 종료(채팅과 동일) */
+  useEffect(() => {
+    if (guestCapActive || creditBlocked || !sessionId || voiceMeterWallStartMsRef.current == null) return;
+    const snap = billingWalletSnapshotRef.current;
+    if (!snap) return;
+    const now = Date.now();
+    const snapFreeRem = snap.freeExpiresAtMs < now ? 0 : Math.max(0, snap.free);
+    const snapPaidRem = Math.max(0, snap.paid);
+    const snapTotal = snapFreeRem + snapPaidRem;
+    if (snapTotal <= 0) return;
+    const owed = Math.floor(meterElapsedWallSec * CREDIT_VOICE_PER_SECOND);
+    if (owed < snapTotal) return;
+    if (creditCapDoneRef.current) return;
+    creditCapDoneRef.current = true;
+    try {
+      pcRef.current?.close();
+    } catch {
+      // ignore
+    }
+    setStatus("종료");
+    setUiError("크레딧이 부족해요. 충전 후 이어서 이용해 주세요.");
+    void (async () => {
+      await finalizeVoiceSession();
+      router.push("/checkout/credit");
+    })();
+  }, [guestCapActive, creditBlocked, sessionId, meterElapsedWallSec, finalizeVoiceSession, router]);
 
   const ensureAudioRunning = async (ctx: AudioContext) => {
     try {
@@ -528,7 +619,7 @@ export default function CallDccPageClient() {
 
   useEffect(() => {
     let cancelled = false;
-    if (voiceOverride) {
+    if (voiceOverride || !creditGateReady || (!guestCapActive && creditBlocked)) {
       return () => {
         cancelled = true;
       };
@@ -565,7 +656,10 @@ export default function CallDccPageClient() {
           endPostedRef.current = false;
           sessionIdRef.current = sid;
           setElapsedSec(0);
-          ensureConsultTrialCreditsIfEligible();
+          guestFreeCallRef.current = guestCapActive;
+          if (!guestCapActive) {
+            ensureConsultTrialCreditsIfEligible();
+          }
           voiceMeterWallStartMsRef.current = Date.now();
           const w = readWallet();
           billingWalletSnapshotRef.current = {
@@ -594,7 +688,7 @@ export default function CallDccPageClient() {
     return () => {
       cancelled = true;
     };
-  }, [characterKey, meta.name, voiceOverride, user?.id]);
+  }, [characterKey, meta.name, voiceOverride, user?.id, creditGateReady, creditBlocked, guestCapActive]);
 
   useEffect(() => {
     if (!sessionId || !voiceExternalId) return;
@@ -1103,9 +1197,16 @@ export default function CallDccPageClient() {
 
   const bars = useMemo(() => Array.from({ length: 12 }, (_, i) => i), []);
 
+  const showCreditShortage = creditGateReady && !guestCapActive && creditBlocked;
+  const creditNeedMore = voiceConsultCreditsShortfall();
+  const creditShortageCaption =
+    creditNeedMore > 0
+      ? `크레딧이 부족해요. ${creditNeedMore.toLocaleString("ko-KR")} 크레딧이 더 필요해요.`
+      : `크레딧이 부족해요. 음성 상담을 시작하려면 최소 ${CREDIT_VOICE_MIN_TO_START.toLocaleString("ko-KR")} 크레딧이 필요해요.`;
+
   return (
     <div className="yeonunPage" style={{ background: "#1A1815" }}>
-      <main className="y-call-root">
+      <main className={`y-call-root${showCreditShortage ? " y-call-root--credit-low" : ""}`}>
         <header className="y-call-header">
           <a
             className="y-call-back"
@@ -1145,7 +1246,13 @@ export default function CallDccPageClient() {
             <h1 className="y-call-name">{meta.name}</h1>
             <div className="y-call-status">
               <span className="y-call-status-text">
-                {ttsOutputActive ? `${meta.name}가 말하고 있어요` : rtcReady ? status : "연결 중…"}
+                {showCreditShortage
+                  ? "크레딧 충전 후 상담을 시작할 수 있어요"
+                  : ttsOutputActive
+                    ? `${meta.name}가 말하고 있어요`
+                    : rtcReady
+                      ? status
+                      : "연결 중…"}
               </span>
               <span className="pulse-dots" aria-hidden="true">
                 <span />
@@ -1212,29 +1319,55 @@ export default function CallDccPageClient() {
 
           <div className="y-call-caption" aria-label="자막">
             <div className="y-call-caption-head">내가 방금 한 말 (인식)</div>
-            <div className="y-call-caption-body">
-              {uiError ? uiError : lastUserText ? lastUserText : voiceExternalId ? "말하면 자동으로 인식됩니다…" : "음성 설정 확인 중…"}
+            <div className={`y-call-caption-body${showCreditShortage ? " y-call-caption-body--credit-low" : ""}`}>
+              {showCreditShortage
+                ? creditShortageCaption
+                : uiError
+                  ? uiError
+                  : lastUserText
+                    ? lastUserText
+                    : voiceExternalId
+                      ? "말하면 자동으로 인식됩니다…"
+                      : "음성 설정 확인 중…"}
             </div>
           </div>
         </section>
 
         <footer className="y-call-controls" aria-label="컨트롤">
-          <div className="y-call-meter">
-            <div>
-              <div className="y-call-meter-time">{formatMmSs(sessionId ? elapsedSec : 0)}</div>
-              <div className="y-call-meter-sub">상담 시간</div>
+          {!showCreditShortage ? (
+            <div className="y-call-meter">
+              <div>
+                <div className="y-call-meter-time">{formatMmSs(sessionId ? elapsedSec : 0)}</div>
+                <div className="y-call-meter-sub">상담 시간</div>
+              </div>
+              <div className="y-call-meter-info">
+                <div className="free">{creditLine.line1}</div>
+                <div>{creditLine.line2}</div>
+                {guestCapActive ? (
+                  <div className="y-call-meter-guest-hint">
+                    비회원 · 무료 최대 {DEFAULT_FREE_TRIAL_SEC / 60}분
+                  </div>
+                ) : null}
+              </div>
             </div>
-            <div className="y-call-meter-info">
-              <div className="free">{creditLine.line1}</div>
-              <div>{creditLine.line2}</div>
-              {guestCapActive ? (
-                <div className="y-call-meter-guest-hint">비회원 · 무료 최대 {DEFAULT_FREE_TRIAL_SEC / 60}분</div>
-              ) : null}
-            </div>
-          </div>
+          ) : null}
 
-          <div className="y-call-btns">
-            <button
+          {showCreditShortage ? (
+            <div className="y-call-btns y-call-btns--credit-low">
+              <button
+                type="button"
+                className="y-call-credit-charge"
+                onClick={() => router.push("/checkout/credit")}
+              >
+                크레딧 충전하기
+              </button>
+              <button type="button" className="y-call-credit-back" onClick={() => router.push("/meet")}>
+                돌아가기
+              </button>
+            </div>
+          ) : (
+            <div className="y-call-btns">
+              <button
               className={`y-call-ctrl${muted ? " muted" : ""}`}
               type="button"
               onClick={() => setMuted((v) => !v)}
@@ -1283,6 +1416,7 @@ export default function CallDccPageClient() {
               </svg>
             </button>
           </div>
+          )}
         </footer>
       </main>
     </div>

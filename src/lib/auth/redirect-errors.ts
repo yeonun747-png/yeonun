@@ -10,7 +10,12 @@ export type AuthErrorCode =
   | "link_failed"
   | "unknown";
 
-export type SocialLinkErrorCode = "cancelled" | "invalid_state" | "withdrawal_pending" | "link_failed";
+export type SocialLinkErrorCode =
+  | "cancelled"
+  | "invalid_state"
+  | "withdrawal_pending"
+  | "link_failed"
+  | "link_disabled";
 
 export function socialLinkErrorRedirectPath(returnTo: string, code: SocialLinkErrorCode): string {
   const url = new URL(returnTo.startsWith("/") ? returnTo : "/", "http://local");
