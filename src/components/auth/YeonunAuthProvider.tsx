@@ -7,6 +7,7 @@ import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 
 import { migrateLegacyChatConsultSessions, setChatConsultUserScope } from "@/lib/chat-consult-archive";
 import { setCreditAuthAccessToken, syncCreditsFromServer } from "@/lib/credit-client";
+import { syncLocalSajuToServerIfNeeded } from "@/lib/profile-push-to-server";
 import { syncProfileFromServer } from "@/lib/profile-sync-from-api";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -42,7 +43,10 @@ export function YeonunAuthProvider({ children }: { children: ReactNode }) {
         const tok = s?.access_token ?? null;
         setCreditAuthAccessToken(tok);
         if (tok) {
-          void syncProfileFromServer(tok);
+          void (async () => {
+            await syncProfileFromServer(tok);
+            await syncLocalSajuToServerIfNeeded(tok);
+          })();
           void syncCreditsFromServer();
         }
       }
@@ -55,7 +59,10 @@ export function YeonunAuthProvider({ children }: { children: ReactNode }) {
       const tok = s?.access_token ?? null;
       setCreditAuthAccessToken(tok);
       if (tok) {
-        void syncProfileFromServer(tok);
+        void (async () => {
+          await syncProfileFromServer(tok);
+          await syncLocalSajuToServerIfNeeded(tok);
+        })();
         void syncCreditsFromServer();
       } else {
         setCreditAuthAccessToken(null);

@@ -6,6 +6,8 @@ import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
 import { dispatchMissionsReconcile } from "@/lib/mission-reconcile";
+import { pushLocalSajuToServerProfile } from "@/lib/profile-push-to-server";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 type CalendarMode = "yang" | "eum";
 
@@ -90,7 +92,7 @@ export function SajuModal() {
     return Array.from({ length: last }, (_, i) => i + 1);
   }, [year, month]);
 
-  function save() {
+  async function save() {
     try {
       const payload = {
         name: name.trim() || "",
@@ -103,9 +105,12 @@ export function SajuModal() {
         gender,
       };
       localStorage.setItem(__YEONUN_SAJU_STORAGE_KEY__, JSON.stringify(payload));
-      // 같은 탭에서 /my 카드가 즉시 갱신되도록 커스텀 이벤트를 쏜다.
       window.dispatchEvent(new Event("yeonun:saju-updated"));
       dispatchMissionsReconcile();
+
+      const sb = supabaseBrowser();
+      const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+      if (token) void pushLocalSajuToServerProfile(token);
     } catch {
       // ignore
     }
