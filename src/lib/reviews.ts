@@ -7,11 +7,13 @@ import {
   LAUNCH_TOTAL_READINGS,
   SHOWCASE_REVIEWS_SEED,
 } from "@/lib/reviews-seed-data";
+import type { HomeReviewsBlockPayload } from "@/lib/reviews-home-client";
 import {
   buildProductLine,
   characterGlyph,
   characterLabel,
   computeDashboardStats,
+  computeDashboardStatsFromStars,
   formatReviewDate,
   formatTags,
   starsToDisplay,
@@ -192,10 +194,7 @@ export async function listPublishedReviewsByCharacterKey(
 
 export const listPublishedReviewsByCharacterKeyCached = cache(listPublishedReviewsByCharacterKey);
 
-export async function getReviewDashboardStats(): Promise<ReviewDashboardStats> {
-  const reviews = await listPublishedReviews();
-  let totalReadings = LAUNCH_TOTAL_READINGS;
-
+async function fetchPaidOrdersCount(): Promise<number> {
   try {
     const supabase = supabaseServer();
     const { count, error } = await supabase
@@ -204,14 +203,55 @@ export async function getReviewDashboardStats(): Promise<ReviewDashboardStats> {
       .eq("status", "paid");
 
     if (!error && typeof count === "number" && count > 0) {
-      totalReadings = Math.max(count, LAUNCH_TOTAL_READINGS);
+      return Math.max(count, LAUNCH_TOTAL_READINGS);
     }
   } catch {
-    // 런칭 수치 유지
+    /* 런칭 수치 유지 */
   }
+  return LAUNCH_TOTAL_READINGS;
+}
 
-  const stats = computeDashboardStats(reviews, totalReadings);
+async function fetchPublishedReviewStars(): Promise<number[]> {
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase.from("reviews").select("stars").eq("is_published", true);
+    if (error) {
+      if (shouldUseSeedFallback(error)) return seedFallback().map((r) => r.stars);
+      return seedFallback().map((r) => r.stars);
+    }
+    if (!data?.length) return seedFallback().map((r) => r.stars);
+    return data.map((r) => Number((r as { stars?: number }).stars) || 5);
+  } catch {
+    return seedFallback().map((r) => r.stars);
+  }
+}
+
+export async function getReviewDashboardStats(): Promise<ReviewDashboardStats> {
+  const [stars, totalReadings] = await Promise.all([fetchPublishedReviewStars(), fetchPaidOrdersCount()]);
+  const stats = computeDashboardStatsFromStars(stars, totalReadings);
   return { ...stats, guideCount: LAUNCH_GUIDE_COUNT };
 }
 
 export const getReviewDashboardStatsCached = cache(getReviewDashboardStats);
+
+/** 홈 탭 리뷰 블록 — 최대 3건 + 요약 통계만 */
+export async function getHomeReviewsBlockData(): Promise<HomeReviewsBlockPayload> {
+  const [reviews, stars, totalReadings] = await Promise.all([
+    listPublishedReviews({ limit: 3 }),
+    fetchPublishedReviewStars(),
+    fetchPaidOrdersCount(),
+  ]);
+  const stats = computeDashboardStatsFromStars(stars, totalReadings);
+  return {
+    v: 1,
+    fetchedAt: Date.now(),
+    reviews,
+    stats: {
+      totalReadings: stats.totalReadings,
+      averageRatingDisplay: stats.averageRatingDisplay,
+      guideCount: LAUNCH_GUIDE_COUNT,
+    },
+  };
+}
+
+export const getHomeReviewsBlockDataCached = cache(getHomeReviewsBlockData);

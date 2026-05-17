@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { HomeContentGrid } from "@/components/HomeContentGrid";
 import { HomeFaq } from "@/components/HomeFaq";
-import { HomeReviewsSection } from "@/components/reviews/HomeReviewsSection";
+import { HomeReviewsSectionClient } from "@/components/reviews/HomeReviewsSectionClient";
 import { getProductsBySlugsCached } from "@/lib/data/content";
 import type { Product } from "@/lib/data/content";
 import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
@@ -118,7 +118,7 @@ export async function HomeMoreSections() {
         fallbackSvgBySlug={thumbFallback}
       />
 
-      <HomeReviewsSection />
+      <HomeReviewsSectionClient />
 
       <div className="y-section-divider" />
 

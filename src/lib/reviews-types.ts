@@ -78,17 +78,12 @@ export function buildProductLine(characterKey: CharacterReviewKey, productLabel:
   return `${characterLabel(characterKey)} · ${productLabel}`;
 }
 
-export function computeDashboardStats(
-  reviews: ShowcaseReviewView[],
-  totalReadings: number,
-): ReviewDashboardStats {
-  const reviewCount = reviews.length;
-  const sum = reviews.reduce((acc, r) => acc + r.stars, 0);
-  const averageRating = reviewCount > 0 ? Math.round((sum / reviewCount) * 10) / 10 : 4.6;
+function buildDashboardStats(reviewCount: number, sumStars: number, starBuckets: number[], totalReadings: number): ReviewDashboardStats {
+  const averageRating = reviewCount > 0 ? Math.round((sumStars / reviewCount) * 10) / 10 : 4.6;
   const averageRatingDisplay = averageRating.toFixed(1);
 
   const dist = [5, 4, 3, 2, 1].map((star) => {
-    const count = reviews.filter((r) => r.stars === star).length;
+    const count = starBuckets[star] ?? 0;
     return {
       star,
       count,
@@ -98,9 +93,9 @@ export function computeDashboardStats(
 
   const filterCounts: Record<ReviewStarBucket, number> = {
     all: reviewCount,
-    "5": reviews.filter((r) => r.stars === 5).length,
-    "4": reviews.filter((r) => r.stars === 4).length,
-    "3": reviews.filter((r) => r.stars <= 3).length,
+    "5": starBuckets[5] ?? 0,
+    "4": starBuckets[4] ?? 0,
+    "3": (starBuckets[3] ?? 0) + (starBuckets[2] ?? 0) + (starBuckets[1] ?? 0),
   };
 
   return {
@@ -113,6 +108,30 @@ export function computeDashboardStats(
     starDistribution: dist,
     filterCounts,
   };
+}
+
+export function computeDashboardStatsFromStars(stars: number[], totalReadings: number): ReviewDashboardStats {
+  const buckets: number[] = [];
+  let sum = 0;
+  for (const raw of stars) {
+    const s = Math.max(1, Math.min(5, Math.round(raw)));
+    sum += s;
+    buckets[s] = (buckets[s] ?? 0) + 1;
+  }
+  return buildDashboardStats(stars.length, sum, buckets, totalReadings);
+}
+
+export function computeDashboardStats(
+  reviews: ShowcaseReviewView[],
+  totalReadings: number,
+): ReviewDashboardStats {
+  const buckets: number[] = [];
+  let sum = 0;
+  for (const r of reviews) {
+    sum += r.stars;
+    buckets[r.stars] = (buckets[r.stars] ?? 0) + 1;
+  }
+  return buildDashboardStats(reviews.length, sum, buckets, totalReadings);
 }
 
 export function matchesStarFilter(stars: number, filter: ReviewStarBucket): boolean {

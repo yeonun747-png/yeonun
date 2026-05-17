@@ -1,13 +1,41 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { ReviewCard } from "@/components/reviews/ReviewCard";
-import { getReviewDashboardStatsCached, listShowcaseReviewsCached } from "@/lib/reviews";
+import {
+  buildHomeReviewsSeedSnapshot,
+  type HomeReviewsBlockPayload,
+} from "@/lib/reviews-home-client";
+import { preloadHomeReviewsBlock, readHomeReviewsCache } from "@/lib/home-reviews-cache";
 
-export async function HomeReviewsSection() {
-  const [reviews, stats] = await Promise.all([
-    listShowcaseReviewsCached({ limit: 3 }),
-    getReviewDashboardStatsCached(),
-  ]);
+type Props = {
+  /** SSR 첫 페인트용(있으면 시드 대신 사용) */
+  serverSnapshot?: HomeReviewsBlockPayload | null;
+};
+
+export function HomeReviewsSectionClient({ serverSnapshot }: Props) {
+  const cached = typeof window !== "undefined" ? readHomeReviewsCache() : null;
+  const initial =
+    (cached?.reviews.length ? cached : null) ??
+    (serverSnapshot?.reviews.length ? serverSnapshot : null) ??
+    buildHomeReviewsSeedSnapshot();
+
+  const [block, setBlock] = useState<HomeReviewsBlockPayload>(initial);
+
+  useEffect(() => {
+    const cachedNow = readHomeReviewsCache();
+    if (cachedNow && cachedNow.fetchedAt > block.fetchedAt) {
+      setBlock(cachedNow);
+      return;
+    }
+    void preloadHomeReviewsBlock().then((next) => {
+      if (next?.reviews.length) setBlock(next);
+    });
+  }, [block.fetchedAt]);
+
+  const { reviews, stats } = block;
 
   return (
     <div className="y-reviews-block">

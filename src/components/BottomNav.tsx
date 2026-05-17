@@ -10,6 +10,7 @@ import {
 } from "@/components/PrimaryTabScrollClient";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import { preloadContentCatalog } from "@/lib/content-catalog-cache";
+import { preloadHomeReviewsBlock } from "@/lib/home-reviews-cache";
 
 const PRIMARY_ROUTES = ["/content", "/meet", "/today", "/my"];
 
@@ -26,8 +27,14 @@ export function BottomNav() {
         className={`y-bn-item ${isActive("/") ? "active" : ""}`}
         href="/"
         aria-label="홈"
-        onPointerEnter={() => router.prefetch("/")}
-        onFocus={() => router.prefetch("/")}
+        onPointerEnter={() => {
+          router.prefetch("/");
+          void preloadHomeReviewsBlock();
+        }}
+        onFocus={() => {
+          router.prefetch("/");
+          void preloadHomeReviewsBlock();
+        }}
         onClick={(e) => {
           // 같은 홈(/)에서 재클릭 시에도 “최초 접속 상태”로: 쿼리 제거 + 스크롤 최상단
           const hasQuery = typeof window !== "undefined" && window.location.search.length > 1;
