@@ -5160,6 +5160,33 @@ button.y-dw-listen:disabled {
   justify-content: center;
   border: 0.5px solid var(--y-line-2);
 }
+.y-my-profile-provider--naver-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--y-card-2);
+}
+.y-my-profile-avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.y-my-profile-provider-logo {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.y-my-profile-provider-logo-icon {
+  width: 22px !important;
+  height: 22px !important;
+}
 .y-my-profile-text {
   min-width: 0;
 }
