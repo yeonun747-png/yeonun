@@ -9,6 +9,12 @@ import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetP
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 import { getSiteUrl } from "@/lib/site-url";
 
+const SITE_TITLE = "연운 緣運 — 운명을, 듣다";
+const SITE_DESCRIPTION =
+  "천 년의 명리학과 4명의 인연 안내자. 한 번의 부름이면 운명이 답합니다.";
+const OG_IMAGE_PATH = "/og/yeonun_opengraph.png";
+const APP_ICON_PATH = "/logo/yeonun_app_icon_c_1024.svg";
+
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
   alternates: {
@@ -16,15 +22,31 @@ export const metadata: Metadata = {
       "application/rss+xml": [{ url: "/feed.xml", title: "연운 RSS" }],
     },
   },
-  title: "연운 緣運 — 운명을, 듣다",
-  description:
-    "천 년의 명리학과 4명의 인연 안내자. 한 번의 부름이면 운명이 답합니다.",
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  icons: {
+    icon: [{ url: APP_ICON_PATH, type: "image/svg+xml" }],
+    apple: [{ url: APP_ICON_PATH, type: "image/svg+xml" }],
+  },
   openGraph: {
-    title: "연운 緣運 — 운명을, 듣다",
-    description:
-      "천 년의 명리학과 4명의 인연 안내자. 한 번의 부름이면 운명이 답합니다.",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     locale: "ko_KR",
     type: "website",
+    images: [
+      {
+        url: OG_IMAGE_PATH,
+        width: 1730,
+        height: 909,
+        alt: SITE_TITLE,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [OG_IMAGE_PATH],
   },
   robots: {
     index: true,
