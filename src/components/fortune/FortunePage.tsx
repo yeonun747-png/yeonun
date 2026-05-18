@@ -39,7 +39,8 @@ import { parseProductFortuneQuestions } from "@/lib/product-fortune-questions";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import { scheduleFortuneVoiceSummaryParallel } from "@/lib/fortune-voice-summary-prefetch";
 import { useFortuneMenuCardExitLock } from "@/lib/fortune-menu-card-exit-lock";
-import { usePgPaymentReturnResume } from "@/lib/payment-pg-flow";
+import { FORTUNE_PG_ERROR_EVENT } from "@/lib/fortune-pg-events";
+import { registerPgPaymentHandlers, usePgPaymentReturnResume } from "@/lib/payment-pg-flow";
 import { YEON, UN } from "@/components/mascot/mascotAssets";
 import { happyPoolFor, pickFromPool } from "@/components/mascot/mascotClipPools";
 import { readFortuneExtraAnswers, writeFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
@@ -516,13 +517,24 @@ export function FortunePage({
     [go, layout.stepResult, product.slug, profile, resumePrefetchIfNeeded],
   );
 
-  usePgPaymentReturnResume(
-    useCallback(
-      (orderNo) => {
-        onPaid(orderNo);
+  const onPaidRef = useRef(onPaid);
+  onPaidRef.current = onPaid;
+
+  useEffect(() => {
+    return registerPgPaymentHandlers({
+      onSuccess: async (orderNo) => {
+        onPaidRef.current(orderNo || null);
       },
-      [onPaid],
-    ),
+      onError: (_code, pgMsg) => {
+        window.dispatchEvent(new CustomEvent(FORTUNE_PG_ERROR_EVENT, { detail: { msg: pgMsg } }));
+      },
+    });
+  }, []);
+
+  usePgPaymentReturnResume(
+    useCallback((orderNo) => {
+      onPaidRef.current(orderNo);
+    }, []),
   );
 
   const headerBackHref = useMemo(() => {

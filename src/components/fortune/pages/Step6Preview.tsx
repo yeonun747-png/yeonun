@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { launchFortune82PgPayment, registerPgPaymentHandlers } from "@/lib/payment-pg-flow";
+import { FORTUNE_PG_ERROR_EVENT } from "@/lib/fortune-pg-events";
+import { launchFortune82PgPayment } from "@/lib/payment-pg-flow";
 import { appendStubPayment } from "@/lib/payments-history-stub";
 import { spendCreditsWithAuth } from "@/lib/credit-client";
 import { spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
@@ -61,20 +62,14 @@ export function Step6Preview({
 
   const preview = previewText(prefetch, toc[0]?.title || product.title);
 
-  const onPaidRef = useRef(onPaid);
-  onPaidRef.current = onPaid;
-
   useEffect(() => {
-    return registerPgPaymentHandlers({
-      onSuccess: async (orderNo) => {
-        setStatus("idle");
-        onPaidRef.current(orderNo || null);
-      },
-      onError: (_code, pgMsg) => {
-        setStatus("error");
-        setMessage(pgMsg === "close" ? "결제가 취소되었습니다." : "결제에 실패했습니다. 다시 시도해 주세요.");
-      },
-    });
+    const onPgError = (e: Event) => {
+      const pgMsg = (e as CustomEvent<{ msg?: string }>).detail?.msg ?? "";
+      setStatus("error");
+      setMessage(pgMsg === "close" ? "결제가 취소되었습니다." : "결제에 실패했습니다. 다시 시도해 주세요.");
+    };
+    window.addEventListener(FORTUNE_PG_ERROR_EVENT, onPgError);
+    return () => window.removeEventListener(FORTUNE_PG_ERROR_EVENT, onPgError);
   }, []);
 
   const checkout = async (payMethod: "card" | "phone" | "credit") => {

@@ -29,7 +29,12 @@ export type PgPaymentHandlers = {
   onError: (code: string, msg: string) => void;
 };
 
-let handlersRef: PgPaymentHandlers | null = null;
+const handlerStack: PgPaymentHandlers[] = [];
+
+function activePgHandlers(): PgPaymentHandlers | null {
+  return handlerStack[handlerStack.length - 1] ?? null;
+}
+
 let paymentWindowRef: Window | null = null;
 let paymentPollTimer: ReturnType<typeof setInterval> | null = null;
 let paymentCloseWatchTimer: ReturnType<typeof setInterval> | null = null;
@@ -37,7 +42,8 @@ let paymentStoragePollTimer: ReturnType<typeof setInterval> | null = null;
 let paymentStorageListener: ((e: StorageEvent) => void) | null = null;
 let paymentFlowCompletedOrderNo: string | null = null;
 
-function stopPaymentWatchers() {
+/** PG 팝업 폴링·닫힘 감지만 중단 (storage 브리지는 유지) */
+function stopPaymentFlowTimers() {
   if (paymentPollTimer) {
     clearInterval(paymentPollTimer);
     paymentPollTimer = null;
@@ -46,6 +52,9 @@ function stopPaymentWatchers() {
     clearInterval(paymentCloseWatchTimer);
     paymentCloseWatchTimer = null;
   }
+}
+
+function stopPaymentStorageBridge() {
   if (paymentStoragePollTimer) {
     clearInterval(paymentStoragePollTimer);
     paymentStoragePollTimer = null;
@@ -54,6 +63,11 @@ function stopPaymentWatchers() {
     window.removeEventListener("storage", paymentStorageListener);
     paymentStorageListener = null;
   }
+}
+
+function stopPaymentWatchers() {
+  stopPaymentFlowTimers();
+  stopPaymentStorageBridge();
 }
 
 function consumePaymentSuccessFromStorage(): void {
@@ -83,14 +97,22 @@ async function finishPaymentFromOpener(orderNo: string, opts?: { maxAttempts?: n
   const oid = String(orderNo ?? "").trim();
   if (!oid || paymentFlowCompletedOrderNo === oid) return paymentFlowCompletedOrderNo === oid;
 
+  const handlers = activePgHandlers();
+  if (!handlers) return false;
+
   const ok = await waitFortune82PgPaidAndComplete(oid, { maxAttempts: opts?.maxAttempts ?? 12 });
   if (!ok) return false;
+
+  try {
+    await handlers.onSuccess(oid);
+  } catch {
+    return false;
+  }
 
   paymentFlowCompletedOrderNo = oid;
   stopPaymentWatchers();
   clearPaymentSuccessStorage();
   clearPgPendingSession(oid);
-  await handlersRef?.onSuccess(oid);
   try {
     paymentWindowRef?.close();
   } catch {
@@ -101,7 +123,8 @@ async function finishPaymentFromOpener(orderNo: string, opts?: { maxAttempts?: n
 }
 
 function startPaymentWatchers(orderNo: string) {
-  stopPaymentWatchers();
+  stopPaymentFlowTimers();
+  installPaymentStorageBridge();
   paymentFlowCompletedOrderNo = null;
 
   paymentPollTimer = setInterval(() => {
@@ -178,14 +201,14 @@ function assignWindowHandlers() {
   w.handlePaymentSuccess = async (oid: string) => {
     const done = await finishPaymentFromOpener(oid, { maxAttempts: 15 });
     if (!done && paymentFlowCompletedOrderNo !== oid) {
-      handlersRef?.onError("T104", "결제 확인에 실패했습니다. 고객센터로 문의해 주세요.");
+      activePgHandlers()?.onError("T104", "결제 확인에 실패했습니다. 고객센터로 문의해 주세요.");
     }
   };
 
   w.handlePaymentError = async (code: string, msg: string) => {
     stopPaymentWatchers();
     paymentFlowCompletedOrderNo = null;
-    handlersRef?.onError(code, msg);
+    activePgHandlers()?.onError(code, msg);
     try {
       paymentWindowRef?.close();
     } catch {
@@ -226,13 +249,13 @@ function installPaymentMessageListener() {
 }
 
 export function registerPgPaymentHandlers(handlers: PgPaymentHandlers): () => void {
-  handlersRef = handlers;
+  handlerStack.push(handlers);
   assignWindowHandlers();
   installPaymentMessageListener();
   installPaymentStorageBridge();
   return () => {
-    /** 핸들러 교체·prefetch 리렌더 시에도 PG 진행 중이면 watcher 유지 */
-    if (handlersRef === handlers) handlersRef = null;
+    const idx = handlerStack.lastIndexOf(handlers);
+    if (idx >= 0) handlerStack.splice(idx, 1);
   };
 }
 
