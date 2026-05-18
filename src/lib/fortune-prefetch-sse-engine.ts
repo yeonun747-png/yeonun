@@ -209,7 +209,13 @@ export function createFortunePrefetchPump(opts: FortunePrefetchPumpOptions): For
       return;
     }
     const n = toc.length;
-    const allSectionEnds = doneIdx.size >= n;
+    let allSectionEnds = true;
+    for (let i = 0; i < n; i++) {
+      if (!doneIdx.has(i)) {
+        allSectionEnds = false;
+        break;
+      }
+    }
     let allFilled = true;
     for (let i = 0; i < n; i++) {
       if (!String(sectionHtml[i] ?? "").trim()) {
@@ -217,6 +223,7 @@ export function createFortunePrefetchPump(opts: FortunePrefetchPumpOptions): For
         break;
       }
     }
+    /** EOF: `section_end` 전부 또는 업스트림이 `done` 없이 끊긴 경우(본문만 꽉 찬 경우) */
     if (allSectionEnds || allFilled) {
       sectionsDoneEvent = true;
       doneIdx = new Set(Array.from({ length: n }, (_, i) => i));

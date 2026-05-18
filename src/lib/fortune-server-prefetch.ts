@@ -7,6 +7,7 @@ import {
 } from "@/lib/fortune-menu-stream-payload";
 import { createFortunePrefetchPump } from "@/lib/fortune-prefetch-sse-engine";
 import {
+  inferFortunePrefetchComplete,
   normalizeFortunePrefetchSnapshot,
   type FortunePrefetchV1,
 } from "@/lib/fortune-prefetch-storage";
@@ -110,12 +111,7 @@ export async function readFortuneServerPrefetchSnapshot(requestId: string): Prom
   const payload = readPayload(data.payload);
   const status = String(data.status ?? "unknown");
   let snapshot = snapshotFromPayload(payload);
-  if (snapshot) {
-    snapshot =
-      status === "completed"
-        ? normalizeFortunePrefetchSnapshot({ ...snapshot, complete: true })
-        : normalizeFortunePrefetchSnapshot(snapshot);
-  }
+  if (snapshot) snapshot = normalizeFortunePrefetchSnapshot(snapshot);
   return {
     request_id: id,
     status,
@@ -127,14 +123,13 @@ export async function readFortuneServerPrefetchSnapshot(requestId: string): Prom
 async function persistPrefetchSnapshot(
   requestId: string,
   snapshot: FortunePrefetchV1,
-  status: "streaming" | "completed" | "failed",
   prefetchError?: string,
 ): Promise<void> {
   const supabase = supabaseServer();
   const { data } = await supabase.from("fortune_requests").select("payload").eq("id", requestId).maybeSingle();
   const prev = readPayload(data?.payload);
-  const normalized =
-    status === "completed" ? normalizeFortunePrefetchSnapshot({ ...snapshot, complete: true }) : normalizeFortunePrefetchSnapshot(snapshot);
+  const normalized = normalizeFortunePrefetchSnapshot(snapshot);
+  const status = prefetchError ? "failed" : normalized.complete ? "completed" : "streaming";
   const payload: FortuneRequestPrefetchPayload = {
     ...prev,
     prefetch_snapshot: normalized,
@@ -166,29 +161,23 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
   const profile = (payload.profile ?? clientBody?.profile ?? "solo") as DemoProfile;
 
   if (!upstream || typeof upstream !== "object") {
-    await persistPrefetchSnapshot(
-      id,
-      snapshotFromPayload(payload) ?? emptySnapshot(),
-      "failed",
-      "missing_upstream",
-    );
+    await persistPrefetchSnapshot(id, snapshotFromPayload(payload) ?? emptySnapshot(), "missing_upstream");
     return;
   }
 
   let lastDbFlush = 0;
   let pendingSnapshot: FortunePrefetchV1 | null = snapshotFromPayload(payload);
 
-  const flushDb = async (complete: boolean, failed?: string) => {
+  const flushDb = async (failed?: string) => {
     if (!pendingSnapshot) return;
-    const status = failed ? "failed" : complete ? "completed" : "streaming";
-    await persistPrefetchSnapshot(id, pendingSnapshot, status, failed);
+    await persistPrefetchSnapshot(id, pendingSnapshot, failed);
   };
 
-  const throttledDbFlush = async (complete: boolean) => {
+  const throttledDbFlush = async (forceFlush: boolean) => {
     const now = Date.now();
-    if (!complete && now - lastDbFlush < DB_FLUSH_MS) return;
+    if (!forceFlush && now - lastDbFlush < DB_FLUSH_MS) return;
     lastDbFlush = now;
-    await flushDb(complete);
+    await flushDb();
   };
 
   const pump = createFortunePrefetchPump({
@@ -197,12 +186,12 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
     scheduleSectionFix: false,
     onSnapshot: (snap) => {
       pendingSnapshot = normalizeFortunePrefetchSnapshot(snap);
-      void throttledDbFlush(pendingSnapshot.complete);
+      void throttledDbFlush(inferFortunePrefetchComplete(pendingSnapshot));
     },
   });
 
   if (pump.isAlreadyComplete) {
-    await flushDb(true);
+    await flushDb();
     return;
   }
 
@@ -217,7 +206,7 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
       await pump.pumpSseBody(res.body.getReader(), "sections");
       pump.finalizeMenuSectionsStream(false);
       if (pendingSnapshot) pendingSnapshot = normalizeFortunePrefetchSnapshot(pendingSnapshot);
-      await flushDb(true);
+      await flushDb();
       return;
     }
 
@@ -246,7 +235,7 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
           await pump.pumpSseBody(res.body.getReader(), "sections");
           pump.finalizeMenuSectionsStream(false);
           if (pendingSnapshot) pendingSnapshot = normalizeFortunePrefetchSnapshot(pendingSnapshot);
-          await flushDb(true);
+          await flushDb();
           return;
         }
       }
@@ -255,15 +244,15 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
         await pump.pumpSseBody(res.body.getReader(), "claude_html_stream");
         pump.finalizeClaudeHtmlStream(false);
         if (pendingSnapshot) pendingSnapshot = normalizeFortunePrefetchSnapshot(pendingSnapshot);
-        await flushDb(true);
+        await flushDb();
         return;
       }
     }
 
-    await flushDb(false, "upstream_failed");
+    await flushDb("upstream_failed");
   } catch (e) {
     const msg = e instanceof Error ? e.message : "prefetch_job_failed";
-    await flushDb(false, msg.slice(0, 500));
+    await flushDb(msg.slice(0, 500));
   }
 }
 

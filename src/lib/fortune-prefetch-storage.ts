@@ -29,24 +29,27 @@ function prefetchSectionCount(prefetch: FortunePrefetchV1): number {
   return Math.max(tocN, htmlN);
 }
 
-/** SSE `done` 없이 본문만 채워진 경우(서버 Tank·업스트림 조기 종료) 완료로 간주 */
+/** 모든 소메뉴에 `section_end`가 왔는지(인덱스 0..n-1 전부 `doneIdx`에 포함) */
+export function allFortunePrefetchSectionsEnded(prefetch: FortunePrefetchV1): boolean {
+  const n = prefetchSectionCount(prefetch);
+  if (n <= 0) return false;
+  const doneSet = new Set(prefetch.doneIdx);
+  for (let i = 0; i < n; i++) {
+    if (!doneSet.has(i)) return false;
+  }
+  return true;
+}
+
+/**
+ * 점사 완료 판정 — 섹션 모드는 `section_end` 전부 수신 후에만 true.
+ * (이전: 슬롯에 HTML만 있으면 완료로 보아 마지막 소메뉴 스트리밍 중 폴링이 끊김)
+ */
 export function inferFortunePrefetchComplete(prefetch: FortunePrefetchV1): boolean {
   if (prefetch.complete) return true;
   if (prefetch.claudeStreamMode) {
     return prefetch.claudeStreamHtml.trim().length >= 80;
   }
-  const n = prefetchSectionCount(prefetch);
-  if (n <= 0) return false;
-  let allFilled = true;
-  for (let i = 0; i < n; i++) {
-    if (!String(prefetch.sectionHtml[i] ?? "").trim()) {
-      allFilled = false;
-      break;
-    }
-  }
-  const doneSet = new Set(prefetch.doneIdx);
-  const allSectionEnds = doneSet.size >= n;
-  return allFilled || allSectionEnds;
+  return allFortunePrefetchSectionsEnded(prefetch);
 }
 
 export function normalizeFortunePrefetchSnapshot(prefetch: FortunePrefetchV1): FortunePrefetchV1 {

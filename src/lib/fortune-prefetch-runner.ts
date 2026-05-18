@@ -109,9 +109,10 @@ async function runFortuneServerPrefetchDetached(
     }
     const st = String(data.status ?? "");
     if (st === "completed") {
-      const cached = readFortunePrefetch(slug);
-      if (cached) notify(cached);
-      return "done";
+      const snap = data.snapshot?.v === 1 ? data.snapshot : readFortunePrefetch(slug);
+      if (snap) notify(snap);
+      if (snap && (snap.complete || inferFortunePrefetchComplete(snap))) return "done";
+      return "continue";
     }
     if (st === "failed") return "failed";
     return "continue";
