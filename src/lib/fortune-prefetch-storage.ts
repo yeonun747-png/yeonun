@@ -20,6 +20,37 @@ export type FortunePrefetchV1 = {
 export const fortunePrefetchStorageKey = (productSlug: string) =>
   `yeonun_fortune_prefetch_${productSlug.trim()}`;
 
+export const fortuneServerPrefetchRequestKey = (productSlug: string) =>
+  `yeonun_fortune_server_request_${productSlug.trim()}`;
+
+export function readServerPrefetchRequestId(productSlug: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(fortuneServerPrefetchRequestKey(productSlug));
+    return raw?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeServerPrefetchRequestId(productSlug: string, requestId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(fortuneServerPrefetchRequestKey(productSlug), requestId.trim());
+  } catch {
+    // ignore
+  }
+}
+
+export function clearServerPrefetchRequestId(productSlug: string) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(fortuneServerPrefetchRequestKey(productSlug));
+  } catch {
+    // ignore
+  }
+}
+
 export function readFortunePrefetch(productSlug: string): FortunePrefetchV1 | null {
   if (typeof window === "undefined") return null;
   try {

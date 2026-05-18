@@ -21,7 +21,7 @@ export function CharacterSheetRoute({
         <main style={{ paddingBottom: 180 }}>
           <FortuneExitScrollRestore />
           <CharacterDetailShell c={c} />
-          <CharacterDetailExtensions c={c} contentLinkExtra={contentLinkExtra} />
+          <CharacterDetailExtensions c={c} contentLinkExtra={contentLinkExtra} voiceCallFullPage />
         </main>
       </YeonunRoutedBottomSheetPortal>
     </>

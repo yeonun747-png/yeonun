@@ -15,6 +15,16 @@ function queryLiveSheetDom(selector: string): HTMLElement | null {
   return null;
 }
 
+/** 음성 상담 등 전체 화면 전환 전 — 시트 백드롭 스냅샷 제거 */
+export function clearSheetBackdropSnapshot() {
+  try {
+    sessionStorage.removeItem(MY_SHEET_SCROLL_Y_KEY);
+    sessionStorage.removeItem(SHEET_BACKDROP_HTML_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function rememberSheetBackdropScrollY() {
   try {
     const currentSheet = queryLiveSheetDom(".y-modal.open");

@@ -24,6 +24,7 @@ import {
 } from "@/lib/credit-policy";
 import { clearVoiceManseMeta, readVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
+import { clearSheetBackdropSnapshot } from "@/components/my/MySheetBackdropFrame";
 import { resolveVoiceUserRef } from "@/lib/voice-user-ref";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { rollMaxAssistantResponses, rollWallMs } from "@/lib/voice-roll-triggers";
@@ -204,6 +205,10 @@ function extractAssistantFromResponseDone(ev: unknown): string {
 }
 
 export default function CallDccPageClient() {
+  useLayoutEffect(() => {
+    clearSheetBackdropSnapshot();
+  }, []);
+
   const { user } = useYeonunAuth();
   const router = useRouter();
   const sp = useSearchParams();

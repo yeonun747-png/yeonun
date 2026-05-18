@@ -1,0 +1,266 @@
+import { absoluteUrl } from "@/lib/site-url";
+import { fetchFortuneMenuStreamUpstream } from "@/lib/fortune-menu-stream-upstream";
+import {
+  buildFortuneMenuCloudwaysBody,
+  type FortuneMenuCloudwaysBody,
+  type FortuneMenuStreamClientBody,
+} from "@/lib/fortune-menu-stream-payload";
+import { createFortunePrefetchPump } from "@/lib/fortune-prefetch-sse-engine";
+import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
+import { supabaseServer } from "@/lib/supabase/server";
+
+export type FortuneRequestPrefetchPayload = {
+  cloudways_upstream?: FortuneMenuCloudwaysBody;
+  profile?: string;
+  client_body?: FortuneMenuStreamClientBody;
+  product_slug?: string;
+  prefetch_snapshot?: FortunePrefetchV1;
+  prefetch_error?: string;
+  order_no?: string;
+};
+
+const DB_FLUSH_MS = 600;
+
+function readPayload(raw: unknown): FortuneRequestPrefetchPayload {
+  if (!raw || typeof raw !== "object") return {};
+  return raw as FortuneRequestPrefetchPayload;
+}
+
+function snapshotFromPayload(payload: FortuneRequestPrefetchPayload): FortunePrefetchV1 | null {
+  const s = payload.prefetch_snapshot;
+  if (!s || s.v !== 1) return null;
+  return s;
+}
+
+async function resolveOrderId(orderNo: string | undefined): Promise<string | null> {
+  const no = String(orderNo ?? "").trim();
+  if (!no) return null;
+  try {
+    const supabase = supabaseServer();
+    const { data } = await supabase.from("orders").select("id").eq("order_no", no).maybeSingle();
+    return data?.id ? String(data.id) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function createFortuneServerPrefetchJob(
+  clientBody: FortuneMenuStreamClientBody,
+): Promise<{ ok: true; request_id: string } | { ok: false; error: string; status: number }> {
+  const built = await buildFortuneMenuCloudwaysBody(clientBody);
+  if (!built.ok) {
+    return { ok: false, error: built.error, status: built.status };
+  }
+
+  const { upstream, product_slug, profile } = built;
+  const order_id = await resolveOrderId(clientBody.order_no);
+
+  const supabase = supabaseServer();
+  const { data, error } = await supabase
+    .from("fortune_requests")
+    .insert({
+      product_slug,
+      order_id,
+      status: "streaming",
+      model: String(upstream.model ?? "claude-sonnet-4-6"),
+      payload: {
+        cloudways_upstream: upstream,
+        profile,
+        client_body: clientBody,
+        product_slug,
+        order_no: clientBody.order_no,
+      } satisfies FortuneRequestPrefetchPayload,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error || !data?.id) {
+    return {
+      ok: false,
+      error: error?.message ?? "insert fortune_requests failed",
+      status: 500,
+    };
+  }
+
+  return { ok: true, request_id: String(data.id) };
+}
+
+export async function readFortuneServerPrefetchSnapshot(requestId: string): Promise<{
+  request_id: string;
+  status: string;
+  snapshot: FortunePrefetchV1 | null;
+  error: string | null;
+}> {
+  const id = requestId.trim();
+  const supabase = supabaseServer();
+  const { data, error } = await supabase
+    .from("fortune_requests")
+    .select("status,payload")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { request_id: id, status: "unknown", snapshot: null, error: error?.message ?? "not_found" };
+  }
+
+  const payload = readPayload(data.payload);
+  return {
+    request_id: id,
+    status: String(data.status ?? "unknown"),
+    snapshot: snapshotFromPayload(payload),
+    error: payload.prefetch_error ?? null,
+  };
+}
+
+async function persistPrefetchSnapshot(
+  requestId: string,
+  snapshot: FortunePrefetchV1,
+  status: "streaming" | "completed" | "failed",
+  prefetchError?: string,
+): Promise<void> {
+  const supabase = supabaseServer();
+  const { data } = await supabase.from("fortune_requests").select("payload").eq("id", requestId).maybeSingle();
+  const prev = readPayload(data?.payload);
+  const payload: FortuneRequestPrefetchPayload = {
+    ...prev,
+    prefetch_snapshot: snapshot,
+    ...(prefetchError ? { prefetch_error: prefetchError } : {}),
+  };
+  await supabase
+    .from("fortune_requests")
+    .update({ status, payload })
+    .eq("id", requestId);
+}
+
+/** Cloudways SSE drain → `fortune_requests.payload.prefetch_snapshot` (클라이언트 signal 무시) */
+export async function runFortuneServerPrefetchJob(requestId: string): Promise<void> {
+  const id = requestId.trim();
+  if (!id) return;
+
+  const supabase = supabaseServer();
+  const { data: row } = await supabase
+    .from("fortune_requests")
+    .select("status,payload")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!row) return;
+
+  const payload = readPayload(row.payload);
+  const upstream = payload.cloudways_upstream;
+  const clientBody = payload.client_body;
+  const profile = (payload.profile ?? clientBody?.profile ?? "solo") as DemoProfile;
+
+  if (!upstream || typeof upstream !== "object") {
+    await persistPrefetchSnapshot(
+      id,
+      snapshotFromPayload(payload) ?? emptySnapshot(),
+      "failed",
+      "missing_upstream",
+    );
+    return;
+  }
+
+  let lastDbFlush = 0;
+  let pendingSnapshot: FortunePrefetchV1 | null = snapshotFromPayload(payload);
+
+  const flushDb = async (complete: boolean, failed?: string) => {
+    if (!pendingSnapshot) return;
+    const status = failed ? "failed" : complete ? "completed" : "streaming";
+    await persistPrefetchSnapshot(id, pendingSnapshot, status, failed);
+  };
+
+  const throttledDbFlush = async (complete: boolean) => {
+    const now = Date.now();
+    if (!complete && now - lastDbFlush < DB_FLUSH_MS) return;
+    lastDbFlush = now;
+    await flushDb(complete);
+  };
+
+  const pump = createFortunePrefetchPump({
+    profile,
+    initial: snapshotFromPayload(payload),
+    scheduleSectionFix: false,
+    onSnapshot: (snap) => {
+      pendingSnapshot = snap;
+      void throttledDbFlush(snap.complete);
+    },
+  });
+
+  if (pump.isAlreadyComplete) {
+    await flushDb(true);
+    return;
+  }
+
+  try {
+    let res = await fetchFortuneMenuStreamUpstream(upstream);
+    const menuStreamOk =
+      res.ok &&
+      res.body &&
+      (res.headers.get("content-type") ?? "").toLowerCase().includes("text/event-stream");
+
+    if (menuStreamOk && res.body) {
+      await pump.pumpSseBody(res.body.getReader(), "sections");
+      pump.finalizeMenuSectionsStream(false);
+      await flushDb(pump.sectionsDoneEvent);
+      return;
+    }
+
+    if (clientBody) {
+      res = await fetch(absoluteUrl("/api/fortune/chat-stream"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify(clientBody),
+        cache: "no-store",
+      });
+
+      if (res.status === 501 && clientBody.product_slug) {
+        res = await fetch(absoluteUrl("/api/fortune/two-stage-demo"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+          body: JSON.stringify({
+            product_slug: clientBody.product_slug,
+            profile,
+            manse_context: clientBody.manse_ryeok_text,
+            character_key: clientBody.character_key,
+            order_no: clientBody.order_no,
+          }),
+          cache: "no-store",
+        });
+        if (res.ok && res.body) {
+          await pump.pumpSseBody(res.body.getReader(), "sections");
+          await flushDb(pump.sectionsDoneEvent);
+          return;
+        }
+      }
+
+      if (res.ok && res.body) {
+        await pump.pumpSseBody(res.body.getReader(), "claude_html_stream");
+        pump.finalizeClaudeHtmlStream(false);
+        await flushDb(pump.claudeDoneEvent);
+        return;
+      }
+    }
+
+    await flushDb(false, "upstream_failed");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "prefetch_job_failed";
+    await flushDb(false, msg.slice(0, 500));
+  }
+}
+
+function emptySnapshot(): FortunePrefetchV1 {
+  return {
+    v: 1,
+    sectionsMode: true,
+    complete: false,
+    toc: [],
+    toc_groups: null,
+    sectionHtml: {},
+    doneIdx: [],
+    claudeStreamMode: false,
+    claudeStreamHtml: "",
+    updatedAt: Date.now(),
+  };
+}

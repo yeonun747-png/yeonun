@@ -21,9 +21,12 @@ const DEFAULT_SPECIALTIES = [
 export async function CharacterDetailExtensions({
   c,
   contentLinkExtra,
+  voiceCallFullPage = false,
 }: {
   c: Character;
   contentLinkExtra: string;
+  /** 인터셉트 바텀시트에서 음성 상담 — /call-dcc 전체 화면 전환 */
+  voiceCallFullPage?: boolean;
 }) {
   const charReviewKey = (parseCharacterReviewKey(c.key) ?? "yeon") as CharacterReviewKey;
 
@@ -127,7 +130,7 @@ export async function CharacterDetailExtensions({
       </section>
 
       <div className="y-chd-foot">
-        <MeetCallButton className="y-chd-call-btn" characterKey={c.key}>
+        <MeetCallButton className="y-chd-call-btn" characterKey={c.key} fullPageTransition={voiceCallFullPage}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
             <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3v5z" />

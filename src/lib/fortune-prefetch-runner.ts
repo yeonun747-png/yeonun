@@ -1,6 +1,13 @@
 "use client";
 
-import { readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import {
+  readFortunePrefetch,
+  readServerPrefetchRequestId,
+  writeFortunePrefetch,
+  writeServerPrefetchRequestId,
+  type FortunePrefetchV1,
+} from "@/lib/fortune-prefetch-storage";
+import { buildFortunePrefetchStreamBody } from "@/lib/fortune-prefetch-stream-body";
 import { runFortunePrefetch, type RunFortunePrefetchArgs } from "@/lib/fortune-ux/runFortunePrefetch";
 
 type Listener = (prefetch: FortunePrefetchV1) => void;
@@ -12,6 +19,15 @@ type ActiveRun = {
 };
 
 const activeBySlug = new Map<string, ActiveRun>();
+
+const SERVER_PREFETCH_POLL_MS = 1200;
+
+function useServerTankPrefetch(): boolean {
+  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_FORTUNE_SERVER_PREFETCH === "0") {
+    return false;
+  }
+  return true;
+}
 
 export function isFortunePrefetchActive(productSlug: string): boolean {
   const slug = productSlug.trim();
@@ -36,7 +52,93 @@ export function subscribeFortunePrefetch(productSlug: string, listener: Listener
   };
 }
 
-/** 컴포넌트 언마운트·결제 팝업에도 끊기지 않는 백그라운드 점사 스트림 */
+async function runFortuneServerPrefetchDetached(
+  args: Omit<RunFortunePrefetchArgs, "signal" | "onPatch"> & { onPatch?: (prefetch: FortunePrefetchV1) => void },
+  ac: AbortController,
+  listeners: Set<Listener>,
+): Promise<void> {
+  const slug = args.productSlug.trim();
+  const streamBody = buildFortunePrefetchStreamBody(args);
+
+  const notify = (prefetch: FortunePrefetchV1) => {
+    writeFortunePrefetch(slug, prefetch);
+    for (const fn of listeners) fn(prefetch);
+    args.onPatch?.(prefetch);
+  };
+
+  const cached = readFortunePrefetch(slug);
+  if (cached?.complete) {
+    notify(cached);
+    return;
+  }
+
+  let requestId = readServerPrefetchRequestId(slug);
+
+  if (!requestId) {
+    const startRes = await fetch("/api/fortune/prefetch-start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(streamBody),
+      signal: ac.signal,
+    });
+    if (!startRes.ok) {
+      throw new Error(`prefetch-start failed: ${startRes.status}`);
+    }
+    const started = (await startRes.json()) as { request_id?: string };
+    requestId = String(started.request_id ?? "").trim();
+    if (!requestId) throw new Error("prefetch-start missing request_id");
+    writeServerPrefetchRequestId(slug, requestId);
+  }
+
+  const pollOnce = async (): Promise<"done" | "failed" | "continue"> => {
+    if (ac.signal.aborted) return "done";
+    const url = `/api/fortune/prefetch-snapshot?request_id=${encodeURIComponent(requestId!)}`;
+    const res = await fetch(url, { cache: "no-store", signal: ac.signal });
+    if (!res.ok) return "continue";
+    const data = (await res.json()) as {
+      status?: string;
+      snapshot?: FortunePrefetchV1 | null;
+      error?: string | null;
+    };
+    if (data.snapshot?.v === 1) {
+      notify(data.snapshot);
+      if (data.snapshot.complete) return "done";
+    }
+    const st = String(data.status ?? "");
+    if (st === "completed") return "done";
+    if (st === "failed") return "failed";
+    return "continue";
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const finish = (err?: unknown) => {
+      if (timer) clearInterval(timer);
+      ac.signal.removeEventListener("abort", onAbort);
+      if (err) reject(err);
+      else resolve();
+    };
+
+    const onAbort = () => finish();
+
+    const tick = async () => {
+      try {
+        const r = await pollOnce();
+        if (r === "done" || r === "failed") finish();
+      } catch (e) {
+        if (ac.signal.aborted) finish();
+        else finish(e);
+      }
+    };
+
+    ac.signal.addEventListener("abort", onAbort);
+    void tick();
+    timer = setInterval(() => void tick(), SERVER_PREFETCH_POLL_MS);
+  });
+}
+
+/** 컴포넌트 언마운트·결제 팝업에도 끊기지 않는 백그라운드 점사 — 기본은 서버 Tank + 스냅샷 폴링 */
 export function runFortunePrefetchDetached(
   args: Omit<RunFortunePrefetchArgs, "signal" | "onPatch"> & { onPatch?: (prefetch: FortunePrefetchV1) => void },
 ): Promise<void> {
@@ -55,13 +157,26 @@ export function runFortunePrefetchDetached(
   if (args.onPatch) listeners.add(args.onPatch);
 
   const ac = new AbortController();
-  const promise = runFortunePrefetch({
-    ...args,
-    signal: ac.signal,
-    onPatch: (prefetch) => {
-      for (const fn of listeners) fn(prefetch);
-    },
-  }).finally(() => {
+
+  const promise = (async () => {
+    if (useServerTankPrefetch()) {
+      try {
+        await runFortuneServerPrefetchDetached(args, ac, listeners);
+        return;
+      } catch {
+        if (ac.signal.aborted) return;
+        /* 서버 Tank 실패 시 브라우저 스트림 폴백 */
+      }
+    }
+
+    await runFortunePrefetch({
+      ...args,
+      signal: ac.signal,
+      onPatch: (prefetch) => {
+        for (const fn of listeners) fn(prefetch);
+      },
+    });
+  })().finally(() => {
     const cur = activeBySlug.get(slug);
     if (cur?.ac === ac) activeBySlug.delete(slug);
   });
