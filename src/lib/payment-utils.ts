@@ -2,6 +2,7 @@
  * 포춘82 PG 연동 유틸 (reunionf82 동일 규칙)
  */
 
+/** PG oid — AI + 연월일시분초 + _ + 타임스탬프 (예: AI20260112163927_1768203567) */
 export function generateOrderId(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -11,7 +12,7 @@ export function generateOrderId(): string {
   const minute = String(now.getMinutes()).padStart(2, "0");
   const second = String(now.getSeconds()).padStart(2, "0");
   const dateTime = `${year}${month}${day}${hour}${minute}${second}`;
-  return `YN${dateTime}_${Date.now()}`;
+  return `AI${dateTime}_${Date.now()}`;
 }
 
 export function formatPaymentCode(code: number | string | null | undefined): string {

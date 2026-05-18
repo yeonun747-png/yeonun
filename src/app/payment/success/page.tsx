@@ -3,29 +3,14 @@
 import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { waitFortune82PgPaidAndComplete } from "@/lib/payment-pg-flow";
+
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const oid = searchParams.get("oid");
 
   useEffect(() => {
     if (typeof window === "undefined" || !oid) return;
-
-    const callComplete = async (attempt: number): Promise<boolean> => {
-      const res = await fetch("/api/payment/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ order_no: oid }),
-      });
-      const data = await res.json().catch(() => ({}));
-      return Boolean(res.ok && data?.success);
-    };
-
-    const runCompleteWithRetry = async () => {
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        if (await callComplete(attempt)) return;
-        if (attempt < 3) await new Promise((r) => setTimeout(r, 800 * attempt));
-      }
-    };
 
     const callOpenerFunction = async () => {
       if (window.opener && !window.opener.closed) {
@@ -42,7 +27,7 @@ function PaymentSuccessContent() {
       return false;
     };
 
-    runCompleteWithRetry().then(() => {
+    void waitFortune82PgPaidAndComplete(oid).then(() => {
       try {
         localStorage.setItem("payment_success_oid", oid);
         localStorage.setItem("payment_success_timestamp", Date.now().toString());

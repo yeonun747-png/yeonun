@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
 import { grantPurchaseCredits, isLoggedInUserId } from "@/lib/credit-server";
+import { checkFortune82PaymentStatus, isFortune82PaymentPaid } from "@/lib/payment-fortune82-pcheck";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (order.status === "paid") {
-      return NextResponse.json({ success: true, order, already_paid: true });
+      return NextResponse.json({ success: true, order, already_paid: true, pg_check: "Y" });
+    }
+
+    const pcheck = await checkFortune82PaymentStatus(orderNo);
+    if (!isFortune82PaymentPaid(pcheck)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "PG 결제가 완료되지 않았습니다.",
+          pg_check: pcheck.code,
+          pg_raw: pcheck.raw.slice(0, 200),
+        },
+        { status: 402 },
+      );
     }
 
     const paidAt = new Date().toISOString();
@@ -144,6 +158,7 @@ export async function POST(request: NextRequest) {
       payment,
       fortune_request: fortuneRequest,
       is_credit_topup: isCreditTopup,
+      pg_check: pcheck.code,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "결제 완료 처리 중 오류가 발생했습니다.";

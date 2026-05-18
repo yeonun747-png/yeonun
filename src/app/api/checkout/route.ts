@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
-import { formatPaymentCode } from "@/lib/payment-utils";
+import { formatPaymentCode, generateOrderId } from "@/lib/payment-utils";
 import { supabaseServer } from "@/lib/supabase/server";
 
 const CREDIT_TOPUP_PRODUCT_PRESETS: Record<
@@ -30,12 +30,6 @@ const CREDIT_TOPUP_PRODUCT_PRESETS: Record<
     tags: ["#크레딧", "#충전", "#보너스"],
   },
 };
-
-function orderNo() {
-  const d = new Date();
-  const ymd = d.toISOString().slice(0, 10).replace(/-/g, "");
-  return `YN${ymd}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-}
 
 function isCreditTopupProduct(product_slug: string) {
   return product_slug.startsWith("credit-package") || product_slug.includes("voice-credit") || product_slug.startsWith("credit");
@@ -90,7 +84,7 @@ export async function POST(request: Request) {
   }
 
   const supabase = supabaseServer();
-  const order_no = orderNo();
+  const order_no = generateOrderId();
   const isCreditTopup = isCreditTopupProduct(product_slug);
   if (isCreditTopup) {
     await ensureCreditTopupProductExists(supabase, product_slug, body.title, clientAmount);

@@ -17,6 +17,59 @@ export type PgPaymentHandlers = {
 let handlersRef: PgPaymentHandlers | null = null;
 let paymentWindowRef: Window | null = null;
 
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** PG pcheck Y 확인 후 /api/payment/complete — 성공 페이지·opener 공통 */
+export async function waitFortune82PgPaidAndComplete(
+  oid: string,
+  opts?: { maxAttempts?: number },
+): Promise<boolean> {
+  const orderNo = String(oid ?? "").trim();
+  if (!orderNo) return false;
+  const maxAttempts = Math.max(1, opts?.maxAttempts ?? 15);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const statusRes = await fetch(`/api/payment/status?oid=${encodeURIComponent(orderNo)}`, {
+      cache: "no-store",
+    });
+    const statusData = (await statusRes.json().catch(() => ({}))) as {
+      success?: boolean;
+      status?: string;
+      pg_check?: string;
+      pg_paid?: boolean;
+      db_paid?: boolean;
+    };
+
+    if (statusData.db_paid || statusData.status === "success") {
+      return true;
+    }
+
+    if (statusData.pg_paid || statusData.pg_check === "Y") {
+      const completeRes = await fetch("/api/payment/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_no: orderNo }),
+      });
+      const completeData = (await completeRes.json().catch(() => ({}))) as { success?: boolean };
+      if (completeRes.ok && completeData.success) {
+        return true;
+      }
+    }
+
+    if (statusData.pg_check === "E" && attempt >= 4) {
+      return false;
+    }
+
+    if (attempt < maxAttempts) {
+      await sleep(Math.min(4000, 500 + attempt * 400));
+    }
+  }
+
+  return false;
+}
+
 function assignWindowHandlers() {
   if (typeof window === "undefined") return;
   const w = window as Window & {
@@ -26,16 +79,12 @@ function assignWindowHandlers() {
 
   w.handlePaymentSuccess = async (oid: string) => {
     try {
-      const statusRes = await fetch(`/api/payment/status?oid=${encodeURIComponent(oid)}`, { cache: "no-store" });
-      const statusData = await statusRes.json().catch(() => ({}));
-      if (!statusRes.ok || statusData.status !== "success") {
-        await fetch("/api/payment/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ order_no: oid }),
-        });
+      const ok = await waitFortune82PgPaidAndComplete(oid);
+      if (ok) {
+        await handlersRef?.onSuccess(oid);
+      } else {
+        handlersRef?.onError("T104", "결제 확인에 실패했습니다. 고객센터로 문의해 주세요.");
       }
-      await handlersRef?.onSuccess(oid);
     } finally {
       try {
         paymentWindowRef?.close();
