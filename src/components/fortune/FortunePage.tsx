@@ -38,6 +38,7 @@ import { computeManseFromFormInput, type ManseRyeokData } from "@/lib/manse-ryeo
 import { parseProductFortuneQuestions } from "@/lib/product-fortune-questions";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import { scheduleFortuneVoiceSummaryParallel } from "@/lib/fortune-voice-summary-prefetch";
+import { usePgPaymentReturnResume } from "@/lib/payment-pg-flow";
 import { YEON, UN } from "@/components/mascot/mascotAssets";
 import { happyPoolFor, pickFromPool } from "@/components/mascot/mascotClipPools";
 import { readFortuneExtraAnswers, writeFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
@@ -487,16 +488,28 @@ export function FortunePage({
     window.setTimeout(() => setGuideTextOverride(null), 1300);
   };
 
-  const onPaid = (orderNo: string | null) => {
-    setPendingOrderNo(orderNo);
-    /** STEP6 백그라운드 prefetch를 끊지 않음 — 결제 후 별도 스트림을 켜면 본문이 비워졌다가 2~3초 뒤 처음부터 다시 채워짐 */
-    const p = readFortunePrefetch(product.slug) || prefetch;
-    const next = fortuneResultFromPrefetch(p, profile, orderNo, true);
-    if (next) setResult(next);
-    else setResult(null);
-    setResultStreamEnabled(false);
-    go(layout.stepResult);
-  };
+  const onPaid = useCallback(
+    (orderNo: string | null) => {
+      setPendingOrderNo(orderNo);
+      /** STEP6 백그라운드 prefetch를 끊지 않음 — 결제 후 별도 스트림을 켜면 본문이 비워졌다가 2~3초 뒤 처음부터 다시 채워짐 */
+      const p = readFortunePrefetch(product.slug) || prefetch;
+      const next = fortuneResultFromPrefetch(p, profile, orderNo, true);
+      if (next) setResult(next);
+      else setResult(null);
+      setResultStreamEnabled(false);
+      go(layout.stepResult);
+    },
+    [go, layout.stepResult, prefetch, product.slug, profile],
+  );
+
+  usePgPaymentReturnResume(
+    useCallback(
+      (orderNo) => {
+        onPaid(orderNo);
+      },
+      [onPaid],
+    ),
+  );
 
   const headerBackHref = useMemo(() => {
     const appendFc = (href: string) => {

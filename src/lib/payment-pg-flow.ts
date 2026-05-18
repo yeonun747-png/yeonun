@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import {
   clearPaymentSuccessStorage,
   isTrustedPaymentOpenerMessage,
@@ -87,7 +89,7 @@ async function finishPaymentFromOpener(orderNo: string, opts?: { maxAttempts?: n
   paymentFlowCompletedOrderNo = oid;
   stopPaymentWatchers();
   clearPaymentSuccessStorage();
-  clearPgPendingSession();
+  clearPgPendingSession(oid);
   await handlersRef?.onSuccess(oid);
   try {
     paymentWindowRef?.close();
@@ -327,15 +329,78 @@ export async function launchFortune82PgPayment(params: LaunchPgPaymentParams): P
   startPaymentWatchers(orderNo);
 }
 
-/** 성공 URL을 직접 연 경우(부모 창 없음) 복귀 경로 */
-export function resolvePaymentSuccessFallbackHref(orderNo: string): string | null {
-  const pending = readPgPendingSession();
-  if (pending && pending.orderNo === orderNo) {
-    const sep = pending.returnHref.includes("?") ? "&" : "?";
-    return `${pending.returnHref}${sep}order_no=${encodeURIComponent(orderNo)}`;
+function appendPgReturnQuery(href: string, orderNo: string): string {
+  const sep = href.includes("?") ? "&" : "?";
+  return `${href}${sep}order_no=${encodeURIComponent(orderNo)}&pg_return=1`;
+}
+
+/** PG 성공 페이지 → 결과/결제 화면 자동 복귀 URL (opener 없어도 동작) */
+export function resolvePaymentSuccessFallbackHref(orderNo: string, slugFromUrl?: string | null): string | null {
+  const oid = String(orderNo ?? "").trim();
+  if (!oid) return null;
+
+  const pending = readPgPendingSession(oid);
+  if (pending && pending.orderNo === oid) {
+    return appendPgReturnQuery(pending.returnHref, oid);
   }
-  if (pending?.productSlug) {
-    return `/fortune/${pending.productSlug}?order_no=${encodeURIComponent(orderNo)}`;
+
+  const slug = String(slugFromUrl ?? pending?.productSlug ?? "").trim();
+  if (slug) {
+    return appendPgReturnQuery(`/fortune/${slug}`, oid);
+  }
+
+  return null;
+}
+
+/** localStorage·URL slug 없을 때 API로 상품 slug 조회 */
+export async function resolvePaymentSuccessRedirectHref(
+  orderNo: string,
+  slugFromUrl?: string | null,
+): Promise<string | null> {
+  const direct = resolvePaymentSuccessFallbackHref(orderNo, slugFromUrl);
+  if (direct) return direct;
+
+  const oid = String(orderNo ?? "").trim();
+  if (!oid) return null;
+
+  try {
+    const res = await fetch(`/api/payment/status?oid=${encodeURIComponent(oid)}`, { cache: "no-store" });
+    const data = (await res.json().catch(() => ({}))) as { product_slug?: string };
+    const slug = String(data.product_slug ?? "").trim();
+    if (slug) return appendPgReturnQuery(`/fortune/${slug}`, oid);
+  } catch {
+    /* ignore */
   }
   return null;
+}
+
+/** PG 성공 URL 리다이렉트 후 `?order_no=&pg_return=1` 로 복귀했을 때 결제 완료·다음 화면 진행 */
+export function usePgPaymentReturnResume(onResume: (orderNo: string) => void | Promise<void>): void {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("pg_return") !== "1") return;
+    const orderNo = params.get("order_no")?.trim();
+    if (!orderNo) return;
+
+    let cancelled = false;
+    void (async () => {
+      const res = await fetch(`/api/payment/status?oid=${encodeURIComponent(orderNo)}`, { cache: "no-store" });
+      const data = (await res.json().catch(() => ({}))) as { db_paid?: boolean; pg_paid?: boolean };
+      let ok = Boolean(data.db_paid || data.pg_paid);
+      if (!ok) ok = await waitFortune82PgPaidAndComplete(orderNo, { maxAttempts: 10 });
+      if (!ok || cancelled) return;
+
+      await onResume(orderNo);
+
+      if (cancelled) return;
+      params.delete("pg_return");
+      const qs = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onResume]);
 }

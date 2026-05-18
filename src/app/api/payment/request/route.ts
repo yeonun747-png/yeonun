@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     const origin = resolvePaymentOrigin(body.successOrigin);
     const oid = orderNo;
-    const successUrl = `${origin}/payment/success?oid=${encodeURIComponent(oid)}`;
+    const successUrl = `${origin}/payment/success?oid=${encodeURIComponent(oid)}&slug=${encodeURIComponent(productSlug)}`;
     const failUrl = `${origin}/payment/error?code=T001&msg=close`;
 
     if (process.env.NODE_ENV === "development") {

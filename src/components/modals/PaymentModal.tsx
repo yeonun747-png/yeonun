@@ -15,7 +15,11 @@ import {
   YEONUN_CREDIT_UPDATE_EVENT,
 } from "@/lib/credit-balance-local";
 import { firstChargeTotalCredits } from "@/lib/credit-policy";
-import { launchFortune82PgPayment, registerPgPaymentHandlers } from "@/lib/payment-pg-flow";
+import {
+  launchFortune82PgPayment,
+  registerPgPaymentHandlers,
+  usePgPaymentReturnResume,
+} from "@/lib/payment-pg-flow";
 import { appendStubPayment } from "@/lib/payments-history-stub";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
@@ -56,82 +60,89 @@ export function PaymentModal() {
     if (isCreditTopup && method === "credit") setMethod("card");
   }, [isCreditTopup, method]);
 
+  const handlePgPaid = useCallback(
+    async (orderNo: string) => {
+      setStatus("loading");
+      setMessage("");
+      try {
+        const sb = supabaseBrowser();
+        const session = sb ? (await sb.auth.getSession()).data.session : null;
+        if (session?.access_token) {
+          appendStubPayment({
+            productSlug: product,
+            title,
+            amountKrw: price,
+            method: "card",
+          });
+        }
+
+        if (isCreditTopup) {
+          if (session?.access_token) {
+            await pullCreditsAfterPurchase();
+          } else {
+            const walletBefore = readWallet();
+            let credits =
+              isVoiceCreditLegacy
+                ? Math.max(0, voicePackageMinutes) * 390
+                : Number.isFinite(grantBase) && grantBase > 0
+                  ? Math.floor(grantBase)
+                  : Math.floor(price);
+            if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
+              credits = firstChargeTotalCredits(credits);
+            }
+            applyPurchasedCredits(credits);
+            if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
+              markFirstCreditPurchaseDone();
+            }
+          }
+          setStatus("idle");
+          router.replace(pathname);
+          return;
+        }
+
+        const next = new URLSearchParams(sp.toString());
+        next.set("modal", profile === "pair" ? "partner_info" : "fortune_stream");
+        next.set("product", product);
+        next.set("title", title);
+        next.set("price", String(price));
+        next.set("character_key", character_key);
+        next.set("profile", profile);
+        if (orderNo) next.set("order_no", orderNo);
+        setStatus("idle");
+        router.replace(`${pathname}?${next.toString()}`);
+      } catch (e) {
+        setStatus("error");
+        setMessage(e instanceof Error ? e.message : "결제 반영 중 오류가 발생했습니다.");
+      }
+    },
+    [
+      character_key,
+      firstVoiceCreditBonus,
+      grantBase,
+      isCreditTopup,
+      isVoiceCreditLegacy,
+      pathname,
+      price,
+      product,
+      profile,
+      router,
+      sp,
+      title,
+      voicePackageMinutes,
+    ],
+  );
+
   useEffect(() => {
     return registerPgPaymentHandlers({
-      onSuccess: async (orderNo) => {
-        setStatus("loading");
-        setMessage("");
-        try {
-          const sb = supabaseBrowser();
-          const session = sb ? (await sb.auth.getSession()).data.session : null;
-          if (session?.access_token) {
-            appendStubPayment({
-              productSlug: product,
-              title,
-              amountKrw: price,
-              method: "card",
-            });
-          }
-
-          if (isCreditTopup) {
-            if (session?.access_token) {
-              await pullCreditsAfterPurchase();
-            } else {
-              const walletBefore = readWallet();
-              let credits =
-                isVoiceCreditLegacy
-                  ? Math.max(0, voicePackageMinutes) * 390
-                  : Number.isFinite(grantBase) && grantBase > 0
-                    ? Math.floor(grantBase)
-                    : Math.floor(price);
-              if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
-                credits = firstChargeTotalCredits(credits);
-              }
-              applyPurchasedCredits(credits);
-              if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
-                markFirstCreditPurchaseDone();
-              }
-            }
-            setStatus("idle");
-            router.replace(pathname);
-            return;
-          }
-
-          const next = new URLSearchParams(sp.toString());
-          next.set("modal", profile === "pair" ? "partner_info" : "fortune_stream");
-          next.set("product", product);
-          next.set("title", title);
-          next.set("price", String(price));
-          next.set("character_key", character_key);
-          next.set("profile", profile);
-          if (orderNo) next.set("order_no", orderNo);
-          setStatus("idle");
-          router.replace(`${pathname}?${next.toString()}`);
-        } catch (e) {
-          setStatus("error");
-          setMessage(e instanceof Error ? e.message : "결제 반영 중 오류가 발생했습니다.");
-        }
-      },
+      onSuccess: handlePgPaid,
       onError: (_code, pgMsg) => {
         setStatus("error");
         setMessage(pgMsg === "close" ? "결제가 취소되었습니다." : "결제에 실패했습니다. 다시 시도해 주세요.");
       },
     });
-  }, [
-    character_key,
-    firstVoiceCreditBonus,
-    grantBase,
-    isCreditTopup,
-    isVoiceCreditLegacy,
-    pathname,
-    price,
-    product,
-    profile,
-    router,
-    sp,
-    title,
-    voicePackageMinutes,
-  ]);
+  }, [handlePgPaid]);
+
+  usePgPaymentReturnResume(handlePgPaid);
 
   const creditBlocked = useMemo(
     () => !isCreditTopup && method === "credit" && creditBal < price,

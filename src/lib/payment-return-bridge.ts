@@ -51,20 +51,9 @@ export function clearPaymentSuccessStorage(): void {
   }
 }
 
-export function writePgPendingSession(session: PgPendingSession): void {
-  if (typeof window === "undefined") return;
+function parsePgPendingSession(raw: string | null): PgPendingSession | null {
+  if (!raw) return null;
   try {
-    sessionStorage.setItem(PAYMENT_PENDING_SESSION_KEY, JSON.stringify(session));
-  } catch {
-    /* ignore */
-  }
-}
-
-export function readPgPendingSession(): PgPendingSession | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(PAYMENT_PENDING_SESSION_KEY);
-    if (!raw) return null;
     const o = JSON.parse(raw) as PgPendingSession;
     if (!o?.orderNo || !o?.productSlug || !o?.returnHref) return null;
     return o;
@@ -73,9 +62,47 @@ export function readPgPendingSession(): PgPendingSession | null {
   }
 }
 
-export function clearPgPendingSession(): void {
+/** 부모 탭·PG 팝업·모바일 새 탭 모두에서 읽을 수 있도록 localStorage에도 기록 */
+export function writePgPendingSession(session: PgPendingSession): void {
+  if (typeof window === "undefined") return;
+  const payload = JSON.stringify(session);
+  try {
+    sessionStorage.setItem(PAYMENT_PENDING_SESSION_KEY, payload);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.setItem(PAYMENT_PENDING_SESSION_KEY, payload);
+    localStorage.setItem(`${PAYMENT_PENDING_SESSION_KEY}:${session.orderNo}`, payload);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readPgPendingSession(orderNo?: string): PgPendingSession | null {
+  if (typeof window === "undefined") return null;
+  const key = orderNo?.trim();
+  try {
+    if (key) {
+      const byOrder = parsePgPendingSession(localStorage.getItem(`${PAYMENT_PENDING_SESSION_KEY}:${key}`));
+      if (byOrder && byOrder.orderNo === key) return byOrder;
+    }
+    const fromLocal = parsePgPendingSession(localStorage.getItem(PAYMENT_PENDING_SESSION_KEY));
+    if (fromLocal && (!key || fromLocal.orderNo === key)) return fromLocal;
+    const fromSession = parsePgPendingSession(sessionStorage.getItem(PAYMENT_PENDING_SESSION_KEY));
+    if (fromSession && (!key || fromSession.orderNo === key)) return fromSession;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPgPendingSession(orderNo?: string): void {
   try {
     sessionStorage.removeItem(PAYMENT_PENDING_SESSION_KEY);
+    localStorage.removeItem(PAYMENT_PENDING_SESSION_KEY);
+    const key = orderNo?.trim();
+    if (key) localStorage.removeItem(`${PAYMENT_PENDING_SESSION_KEY}:${key}`);
   } catch {
     /* ignore */
   }
