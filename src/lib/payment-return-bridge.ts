@@ -3,6 +3,84 @@
 export const YEONUN_PAYMENT_SUCCESS_MSG = "yeonun:payment:success";
 export const YEONUN_PAYMENT_ERROR_MSG = "yeonun:payment:error";
 
+export const PAYMENT_SUCCESS_OID_KEY = "payment_success_oid";
+export const PAYMENT_SUCCESS_TS_KEY = "payment_success_timestamp";
+export const PAYMENT_SUCCESS_SIGNAL_KEY = "payment_success_signal";
+export const PAYMENT_PENDING_SESSION_KEY = "yeonun_pg_pending_v1";
+
+export type PgPendingSession = {
+  orderNo: string;
+  productSlug: string;
+  returnHref: string;
+};
+
+/** 결제 팝업이 다른 탭에 기록한 성공 신호 — 부모 창 storage 이벤트·폴링용 */
+export function signalPaymentSuccessStorage(oid: string): void {
+  if (typeof window === "undefined") return;
+  const id = String(oid ?? "").trim();
+  if (!id) return;
+  try {
+    localStorage.setItem(PAYMENT_SUCCESS_OID_KEY, id);
+    localStorage.setItem(PAYMENT_SUCCESS_TS_KEY, Date.now().toString());
+    localStorage.setItem(PAYMENT_SUCCESS_SIGNAL_KEY, `${id}:${Date.now()}:${Math.random().toString(16).slice(2)}`);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readPaymentSuccessOidFromStorage(maxAgeMs = 30 * 60 * 1000): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const oid = localStorage.getItem(PAYMENT_SUCCESS_OID_KEY)?.trim();
+    if (!oid) return null;
+    const ts = Number(localStorage.getItem(PAYMENT_SUCCESS_TS_KEY) ?? 0);
+    if (ts > 0 && Date.now() - ts > maxAgeMs) return null;
+    return oid;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPaymentSuccessStorage(): void {
+  try {
+    localStorage.removeItem(PAYMENT_SUCCESS_OID_KEY);
+    localStorage.removeItem(PAYMENT_SUCCESS_TS_KEY);
+    localStorage.removeItem(PAYMENT_SUCCESS_SIGNAL_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function writePgPendingSession(session: PgPendingSession): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(PAYMENT_PENDING_SESSION_KEY, JSON.stringify(session));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readPgPendingSession(): PgPendingSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(PAYMENT_PENDING_SESSION_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw) as PgPendingSession;
+    if (!o?.orderNo || !o?.productSlug || !o?.returnHref) return null;
+    return o;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPgPendingSession(): void {
+  try {
+    sessionStorage.removeItem(PAYMENT_PENDING_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 const LOCAL_PAYMENT_ORIGINS = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",

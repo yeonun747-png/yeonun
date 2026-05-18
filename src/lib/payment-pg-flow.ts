@@ -1,7 +1,14 @@
 "use client";
 
 import {
+  clearPaymentSuccessStorage,
   isTrustedPaymentOpenerMessage,
+  PAYMENT_SUCCESS_OID_KEY,
+  PAYMENT_SUCCESS_SIGNAL_KEY,
+  readPaymentSuccessOidFromStorage,
+  readPgPendingSession,
+  clearPgPendingSession,
+  writePgPendingSession,
   YEONUN_PAYMENT_ERROR_MSG,
   YEONUN_PAYMENT_SUCCESS_MSG,
 } from "@/lib/payment-return-bridge";
@@ -24,6 +31,8 @@ let handlersRef: PgPaymentHandlers | null = null;
 let paymentWindowRef: Window | null = null;
 let paymentPollTimer: ReturnType<typeof setInterval> | null = null;
 let paymentCloseWatchTimer: ReturnType<typeof setInterval> | null = null;
+let paymentStoragePollTimer: ReturnType<typeof setInterval> | null = null;
+let paymentStorageListener: ((e: StorageEvent) => void) | null = null;
 let paymentFlowCompletedOrderNo: string | null = null;
 
 function stopPaymentWatchers() {
@@ -35,6 +44,36 @@ function stopPaymentWatchers() {
     clearInterval(paymentCloseWatchTimer);
     paymentCloseWatchTimer = null;
   }
+  if (paymentStoragePollTimer) {
+    clearInterval(paymentStoragePollTimer);
+    paymentStoragePollTimer = null;
+  }
+  if (paymentStorageListener && typeof window !== "undefined") {
+    window.removeEventListener("storage", paymentStorageListener);
+    paymentStorageListener = null;
+  }
+}
+
+function consumePaymentSuccessFromStorage(): void {
+  const oid = readPaymentSuccessOidFromStorage();
+  if (!oid || paymentFlowCompletedOrderNo === oid) return;
+  void finishPaymentFromOpener(oid, { maxAttempts: 15 });
+}
+
+function installPaymentStorageBridge(): void {
+  if (typeof window === "undefined") return;
+  if (!paymentStorageListener) {
+    paymentStorageListener = (e: StorageEvent) => {
+      if (e.key === PAYMENT_SUCCESS_OID_KEY || e.key === PAYMENT_SUCCESS_SIGNAL_KEY) {
+        consumePaymentSuccessFromStorage();
+      }
+    };
+    window.addEventListener("storage", paymentStorageListener);
+  }
+  if (!paymentStoragePollTimer) {
+    paymentStoragePollTimer = setInterval(consumePaymentSuccessFromStorage, 1200);
+  }
+  consumePaymentSuccessFromStorage();
 }
 
 /** PG가 reunion.fortune82.com 등으로내도 연운(opener)에서 pcheck 후 다음 화면 진행 */
@@ -47,6 +86,8 @@ async function finishPaymentFromOpener(orderNo: string, opts?: { maxAttempts?: n
 
   paymentFlowCompletedOrderNo = oid;
   stopPaymentWatchers();
+  clearPaymentSuccessStorage();
+  clearPgPendingSession();
   await handlersRef?.onSuccess(oid);
   try {
     paymentWindowRef?.close();
@@ -186,8 +227,12 @@ export function registerPgPaymentHandlers(handlers: PgPaymentHandlers): () => vo
   handlersRef = handlers;
   assignWindowHandlers();
   installPaymentMessageListener();
+  installPaymentStorageBridge();
   return () => {
-    if (handlersRef === handlers) handlersRef = null;
+    if (handlersRef === handlers) {
+      handlersRef = null;
+      stopPaymentWatchers();
+    }
   };
 }
 
@@ -274,5 +319,23 @@ export async function launchFortune82PgPayment(params: LaunchPgPaymentParams): P
   }
   if (document.body.contains(form)) document.body.removeChild(form);
 
+  if (typeof window !== "undefined") {
+    const returnHref = `${window.location.pathname}${window.location.search}`;
+    writePgPendingSession({ orderNo, productSlug, returnHref });
+  }
+
   startPaymentWatchers(orderNo);
+}
+
+/** 성공 URL을 직접 연 경우(부모 창 없음) 복귀 경로 */
+export function resolvePaymentSuccessFallbackHref(orderNo: string): string | null {
+  const pending = readPgPendingSession();
+  if (pending && pending.orderNo === orderNo) {
+    const sep = pending.returnHref.includes("?") ? "&" : "?";
+    return `${pending.returnHref}${sep}order_no=${encodeURIComponent(orderNo)}`;
+  }
+  if (pending?.productSlug) {
+    return `/fortune/${pending.productSlug}?order_no=${encodeURIComponent(orderNo)}`;
+  }
+  return null;
 }
