@@ -39,6 +39,35 @@ export function readMyPaymentsCache(userId: string | null | undefined): MyPaymen
   }
 }
 
+export function invalidateMyPaymentsCache(userId?: string | null): void {
+  if (userId) {
+    const key = cacheKey(userId);
+    memory.delete(key);
+    inflight.delete(key);
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(key);
+      } catch {
+        /* ignore */
+      }
+    }
+    return;
+  }
+  memory.clear();
+  inflight.clear();
+  if (typeof window === "undefined") return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k?.startsWith(STORAGE_PREFIX)) keys.push(k);
+    }
+    keys.forEach((k) => sessionStorage.removeItem(k));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function writeMyPaymentsCache(userId: string, payload: MyPaymentsPayload) {
   const key = cacheKey(userId);
   const entry: MyPaymentsCachePayload = {

@@ -14042,6 +14042,19 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   height: 56px;
 }
 
+/** 메뉴 카드 스텝7 실시간 점사: 헤더·본문 링크 이탈 차단 */
+.y-fortune-v2-root[data-fortune-menu-card-result-lock="1"] .y-fortune-v2-header-link {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.y-fortune-v2-root[data-fortune-menu-card-result-lock="1"] .y-fortune-v2-result-html a {
+  pointer-events: none;
+  cursor: default;
+  text-decoration: none;
+  color: inherit;
+}
+
 .y-fortune-v2-stage {
   max-width: 430px;
   min-height: calc(100svh - 56px);

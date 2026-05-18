@@ -15,7 +15,7 @@ import {
   waitFortune82PgPaidAndComplete,
 } from "@/lib/payment-pg-flow";
 
-type SuccessPhase = "loading" | "redirect" | "error";
+const PAGE_BG = "#faf8f5";
 
 async function completePaymentOnServer(oid: string): Promise<boolean> {
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -31,12 +31,15 @@ async function completePaymentOnServer(oid: string): Promise<boolean> {
   return false;
 }
 
+function PaymentSuccessBlank() {
+  return <div className="min-h-screen" style={{ background: PAGE_BG }} aria-hidden />;
+}
+
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const oid = searchParams.get("oid");
   const slugFromUrl = searchParams.get("slug");
   const ranRef = useRef(false);
-  const [phase, setPhase] = useState<SuccessPhase>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,7 +59,6 @@ function PaymentSuccessContent() {
 
       if (!ok) {
         setErrorMsg("결제 확인에 실패했습니다. 잠시 후 다시 시도하거나 고객센터로 문의해 주세요.");
-        setPhase("error");
         return;
       }
 
@@ -67,56 +69,42 @@ function PaymentSuccessContent() {
         ok: true,
       });
 
+      const hasOpener = Boolean(window.opener && !window.opener.closed);
+      if (hasOpener) {
+        window.setTimeout(() => {
+          try {
+            window.close();
+          } catch {
+            /* ignore */
+          }
+        }, 120);
+        return;
+      }
+
       const returnHref = await resolvePaymentSuccessRedirectHref(oid, slugFromUrl);
       if (returnHref) {
-        setPhase("redirect");
         window.location.replace(returnHref);
         return;
       }
 
       setErrorMsg("결제는 완료되었습니다. 앱에서 주문 내역을 확인해 주세요.");
-      setPhase("error");
     })();
   }, [oid, slugFromUrl]);
 
-  if (!oid) {
+  if (errorMsg) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "#faf8f5" }}>
-        <div className="text-center max-w-md">
-          <p className="text-[var(--y-ink2)] mb-4">결제 완료 페이지입니다. 주문 정보가 전달되지 않았습니다.</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: PAGE_BG }}>
+        <p className="text-center text-[var(--y-ink2)] max-w-md text-sm">{errorMsg}</p>
       </div>
     );
   }
 
-  if (phase === "error") {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "#faf8f5" }}>
-        <p className="text-center text-[var(--y-ink2)] max-w-md">{errorMsg ?? "결제 처리 중 문제가 발생했습니다."}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "#faf8f5" }}>
-      <p className="text-sm text-[var(--y-mute)]">
-        {phase === "redirect" ? "결제 완료. 결과 화면으로 이동합니다…" : "결제를 확인하고 있어요…"}
-      </p>
-    </div>
-  );
-}
-
-function PaymentSuccessFallback() {
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "#faf8f5" }}>
-      <p className="text-sm text-[var(--y-mute)]">결제를 확인하고 있어요…</p>
-    </div>
-  );
+  return <PaymentSuccessBlank />;
 }
 
 export default function PaymentSuccessPage() {
   return (
-    <Suspense fallback={<PaymentSuccessFallback />}>
+    <Suspense fallback={<PaymentSuccessBlank />}>
       <PaymentSuccessContent />
     </Suspense>
   );

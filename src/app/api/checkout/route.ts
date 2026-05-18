@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
+import { isLoggedInUserId } from "@/lib/credit-server";
 import { formatPaymentCode, generateOrderId } from "@/lib/payment-utils";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -62,6 +63,20 @@ async function ensureCreditTopupProductExists(
   );
 }
 
+async function resolveCheckoutUserRef(request: Request, bodyUserRef: unknown): Promise<string> {
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (token) {
+    const supabase = supabaseServer();
+    const { data } = await supabase.auth.getUser(token);
+    if (data?.user?.id && isLoggedInUserId(data.user.id)) {
+      return data.user.id;
+    }
+  }
+  const ref = String(bodyUserRef ?? "").trim();
+  return isLoggedInUserId(ref) ? ref : "guest";
+}
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     product_slug?: string;
@@ -84,6 +99,7 @@ export async function POST(request: Request) {
   }
 
   const supabase = supabaseServer();
+  const user_ref = await resolveCheckoutUserRef(request, body.user_ref);
   const order_no = generateOrderId();
   const isCreditTopup = isCreditTopupProduct(product_slug);
   if (isCreditTopup) {
@@ -129,7 +145,7 @@ export async function POST(request: Request) {
     .from("orders")
     .insert({
       order_no,
-      user_ref: body.user_ref ?? "guest",
+      user_ref,
       product_slug,
       status: "pending",
       amount_krw,
@@ -190,7 +206,7 @@ export async function POST(request: Request) {
     : await supabase
         .from("fortune_requests")
         .insert({
-          user_ref: body.user_ref ?? "guest",
+          user_ref,
           product_slug,
           order_id: order.id,
           status: "queued",

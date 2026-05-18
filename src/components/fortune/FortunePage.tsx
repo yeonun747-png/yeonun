@@ -28,9 +28,9 @@ import type { Character } from "@/lib/data/characters";
 import type { Product } from "@/lib/data/content";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { fortunePrefetchStorageKey, readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import { abortFortunePrefetch, isFortunePrefetchActive, runFortunePrefetchDetached } from "@/lib/fortune-prefetch-runner";
 import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
 import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
-import { runFortunePrefetch } from "@/lib/fortune-ux/runFortunePrefetch";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { pushLocalSajuToServerProfile } from "@/lib/profile-push-to-server";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -38,6 +38,7 @@ import { computeManseFromFormInput, type ManseRyeokData } from "@/lib/manse-ryeo
 import { parseProductFortuneQuestions } from "@/lib/product-fortune-questions";
 import { joinSectionHtmlForLibrarySave } from "@/lib/fortune-saved-html-toc";
 import { scheduleFortuneVoiceSummaryParallel } from "@/lib/fortune-voice-summary-prefetch";
+import { useFortuneMenuCardExitLock } from "@/lib/fortune-menu-card-exit-lock";
 import { usePgPaymentReturnResume } from "@/lib/payment-pg-flow";
 import { YEON, UN } from "@/components/mascot/mascotAssets";
 import { happyPoolFor, pickFromPool } from "@/components/mascot/mascotClipPools";
@@ -179,7 +180,6 @@ export function FortunePage({
   const [pillarTalkTick, setPillarTalkTick] = useState(0);
   const [stageReady, setStageReady] = useState(false);
   const [guideTop, setGuideTop] = useState<number | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const savedResultRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [mascot, setMascot] = useState<"yeon" | "un">(() =>
@@ -201,6 +201,20 @@ export function FortunePage({
     onPatch: setPrefetch,
   });
 
+  /** 결제·페이지 전환 후에도 미완료 prefetch 스트림 재개(저장소 비우지 않음) */
+  const resumePrefetchIfNeeded = useCallback(() => {
+    const cached = readFortunePrefetch(product.slug);
+    if (!cached || cached.complete || isFortunePrefetchActive(product.slug)) return;
+    void runFortunePrefetchDetached({
+      productSlug: product.slug,
+      title: product.title,
+      characterKey: product.character_key,
+      profile,
+      orderNo: pendingOrderNo,
+      onPatch: setPrefetch,
+    });
+  }, [pendingOrderNo, product.character_key, product.slug, product.title, profile]);
+
   /** `slug`가 바뀔 때만 랜덤 교체. 초기 마운트는 useState 초깃값 유지 — yeon 고정 후 이펙트에서 바뀌며 걷기·정면에서 캐릭터가 바뀌어 보이던 현상 방지 */
   useLayoutEffect(() => {
     const prev = prevFortuneSlugForMascotRef.current;
@@ -219,7 +233,6 @@ export function FortunePage({
       /** 저장 생년 없음 → 스텝1만: 우상(tr). (스텝0이 잠깐 0일 때 `step` 이펙트가 tl로 덮지 않도록 1→타 스텝 이탈 시만 tl 리셋) */
       setStep1MascotCorner("tr");
     }
-    return () => abortRef.current?.abort();
   }, [menuCardEntry, product.slug]);
 
   /** 어젯밤 꿈: sessionStorage에 남은 꿈 본문은 `/fortune/dream-lastnight`에 다시 들어올 때 비움(같은 방문 안 스텝2↔3 뒤로는 유지). */
@@ -239,13 +252,15 @@ export function FortunePage({
 
   useEffect(() => {
     if (step !== layout.stepPreview || prefetch?.complete) return undefined;
+    resumePrefetchIfNeeded();
     const t = window.setInterval(() => setPrefetch(readFortunePrefetch(product.slug)), 800);
     return () => window.clearInterval(t);
-  }, [layout.stepPreview, prefetch?.complete, product.slug, step]);
+  }, [layout.stepPreview, prefetch?.complete, product.slug, resumePrefetchIfNeeded, step]);
 
   /** 프리뷰 스텝에서만 prefetch state를 폴링하므로, 결과 스텝에서는 sessionStorage 증분을 result에 반영해야 함 */
   useEffect(() => {
     if (step !== layout.stepResult || result?.complete) return undefined;
+    resumePrefetchIfNeeded();
     const t = window.setInterval(() => {
       const p = readFortunePrefetch(product.slug);
       const next = fortuneResultFromPrefetch(p, profile, pendingOrderNo, true);
@@ -255,7 +270,7 @@ export function FortunePage({
       }
     }, 400);
     return () => window.clearInterval(t);
-  }, [layout.stepResult, pendingOrderNo, product.slug, profile, result?.complete, step]);
+  }, [layout.stepResult, pendingOrderNo, product.slug, profile, result?.complete, resumePrefetchIfNeeded, step]);
 
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -398,9 +413,7 @@ export function FortunePage({
 
   const startPrefetch = useCallback(
     (payload: FortuneFlowForm) => {
-      abortRef.current?.abort();
-      const ac = new AbortController();
-      abortRef.current = ac;
+      abortFortunePrefetch(product.slug);
       persistYeonunSajuV1(payload);
       void (async () => {
         const sb = supabaseBrowser();
@@ -413,16 +426,16 @@ export function FortunePage({
         // ignore
       }
       setPrefetch(null);
-      void runFortunePrefetch({
+      void runFortunePrefetchDetached({
         productSlug: product.slug,
         title: product.title,
         characterKey: product.character_key,
         profile,
-        signal: ac.signal,
+        orderNo: pendingOrderNo,
         onPatch: setPrefetch,
       });
     },
-    [product.character_key, product.slug, product.title, profile],
+    [pendingOrderNo, product.character_key, product.slug, product.title, profile],
   );
 
   const computeAndStart = useCallback(
@@ -491,15 +504,16 @@ export function FortunePage({
   const onPaid = useCallback(
     (orderNo: string | null) => {
       setPendingOrderNo(orderNo);
-      /** STEP6 백그라운드 prefetch를 끊지 않음 — 결제 후 별도 스트림을 켜면 본문이 비워졌다가 2~3초 뒤 처음부터 다시 채워짐 */
+      /** STEP6 백그라운드 prefetch 유지 — Step7에서 동일 스트림 이어받기 */
       const p = readFortunePrefetch(product.slug) || prefetch;
       const next = fortuneResultFromPrefetch(p, profile, orderNo, true);
       if (next) setResult(next);
       else setResult(null);
-      setResultStreamEnabled(false);
+      resumePrefetchIfNeeded();
+      setResultStreamEnabled(true);
       go(layout.stepResult);
     },
-    [go, layout.stepResult, prefetch, product.slug, profile],
+    [go, layout.stepResult, prefetch, product.slug, profile, resumePrefetchIfNeeded],
   );
 
   usePgPaymentReturnResume(
@@ -541,6 +555,9 @@ export function FortunePage({
   }, [backRaw, menuCardEntry, product.slug, themeKey]);
 
   const onBack = useCallback(() => {
+    if (menuCardEntry && step === layout.stepResult && (!result || !result.complete)) {
+      return;
+    }
     if (step === 0) {
       router.back();
       return;
@@ -552,7 +569,7 @@ export function FortunePage({
     }
     const prev = Math.max(0, step - 1) as FortuneStep;
     go(prev, "back");
-  }, [go, headerBackHref, menuCardEntry, router, step, stored]);
+  }, [go, headerBackHref, layout.stepResult, menuCardEntry, result, router, step, stored]);
 
   const onPillarTalk = useCallback((text: string) => {
     setGuideTextOverride(text);
@@ -579,8 +596,15 @@ export function FortunePage({
   /** 점사 결과 스텝에서는 마스코트 미표시 */
   const showFortuneMascot = menuCardEntry && step < layout.stepResult;
 
-  /** 결과: 스트림이 끝난 뒤에만 헤더 뒤로 = 하단 「나가기」와 동일 목적지 */
-  const showFortuneResultHeaderExit = step === layout.stepResult && Boolean(result?.complete);
+  /** 메뉴 카드 스텝7 실시간 점사: 스트림 완료 전까지 모든 이탈 경로 차단 */
+  const menuCardResultLocked =
+    menuCardEntry && step === layout.stepResult && (!result || !result.complete);
+
+  useFortuneMenuCardExitLock(menuCardResultLocked);
+
+  /** 결과: 스트림 완료 후에만 헤더 나가기(메뉴 카드 잠금 해제 후) */
+  const showFortuneResultHeaderExit =
+    step === layout.stepResult && Boolean(result?.complete) && !menuCardResultLocked;
 
   return (
     <div
@@ -589,6 +613,7 @@ export function FortunePage({
       data-step={step}
       data-fortune-preview={step === layout.stepPreview ? "1" : undefined}
       data-fortune-menu-card={menuCardEntry ? "1" : undefined}
+      data-fortune-menu-card-result-lock={menuCardResultLocked ? "1" : undefined}
       data-extra-inputs={layout.hasProductExtras && step === 2 ? "1" : undefined}
       data-extra-slug={layout.hasProductExtras && step === 2 ? product.slug : undefined}
       style={guideTop == null ? undefined : ({ "--fortune-v2-guide-top": `${guideTop}px` } as CSSProperties)}
@@ -616,7 +641,11 @@ export function FortunePage({
           <h1>{product.title}</h1>
           <p>{headerSubtitle}</p>
         </div>
-        <Link className="y-fortune-v2-header-link" href={headerBackHref} aria-label="상품으로 이동" />
+        {menuCardResultLocked ? (
+          <span className="y-fortune-v2-header-link" aria-hidden />
+        ) : (
+          <Link className="y-fortune-v2-header-link" href={headerBackHref} aria-label="상품으로 이동" prefetch={false} />
+        )}
       </header>
       <main
         className={`y-fortune-v2-stage y-fortune-v2-stage--${direction} ${stageReady ? "is-ready" : "is-walking"} ${stageBottomScreenUi ? "y-fortune-v2-stage--bottom-screen-ui" : ""} ${stageLockedViewport ? "y-fortune-v2-stage--locked-viewport" : ""} ${stageAnchorTop ? "y-fortune-v2-stage--anchor-top" : ""}`}
@@ -676,7 +705,12 @@ export function FortunePage({
           <Step6Preview product={product} prefetch={prefetch} onPaid={onPaid} />
         ) : null}
         {step === layout.stepResult && result ? (
-          <Step7Result product={product} result={result} exitHref={headerBackHref} />
+          <Step7Result
+            product={product}
+            result={result}
+            exitHref={headerBackHref}
+            blockExit={menuCardResultLocked}
+          />
         ) : null}
         {step === layout.stepResult && !result ? (
           <div className="y-fortune-v2-result-loading">

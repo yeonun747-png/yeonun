@@ -67,7 +67,7 @@ export async function GET(request: Request) {
 
   const { data: orderRows, error: oErr } = await supabase
     .from("orders")
-    .select("id, order_no, product_slug, amount_krw, created_at")
+    .select("id, order_no, product_slug, amount_krw, created_at, status, updated_at")
     .eq("user_ref", uid);
 
   if (oErr) {
@@ -131,6 +131,36 @@ export async function GET(request: Request) {
   let monthTotalKrw = 0;
 
   const paymentApiRows: MyPaymentApiRow[] = [];
+
+  const orderIdsWithPaidPayment = new Set(
+    payments.map((p) => p.order_id).filter((id): id is string => Boolean(id)),
+  );
+
+  /** orders만 paid이고 payments 행이 없/누락된 경우(크레딧 PG 등) 보완 */
+  for (const ord of orders) {
+    if (ord.status !== "paid" || orderIdsWithPaidPayment.has(ord.id)) continue;
+    const paidAt = ord.updated_at ?? ord.created_at;
+    if (!paidAt || new Date(paidAt) < new Date(cutoff)) continue;
+
+    const d = new Date(paidAt);
+    if (Number.isFinite(d.getTime())) {
+      if (d.getFullYear() === y0) yearTotalKrw += ord.amount_krw;
+      if (d.getFullYear() === y0 && d.getMonth() === m0) monthTotalKrw += ord.amount_krw;
+    }
+
+    paymentApiRows.push({
+      kind: "payment",
+      id: `order-${ord.id}`,
+      orderId: ord.id,
+      orderNo: ord.order_no,
+      productSlug: ord.product_slug ?? "",
+      title: titleFromPayload(null, ord.product_slug ?? ""),
+      paidAt,
+      method: "card",
+      amountKrw: ord.amount_krw,
+      paymentStatus: "paid",
+    });
+  }
 
   for (const p of payments) {
     const ord = p.order_id ? orderMap.get(p.order_id) : undefined;

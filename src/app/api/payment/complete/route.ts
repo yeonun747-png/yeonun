@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
 import { grantPurchaseCredits, isLoggedInUserId } from "@/lib/credit-server";
 import { checkFortune82PaymentStatus, isFortune82PaymentPaid } from "@/lib/payment-fortune82-pcheck";
+import { ensureOrderPaidPaymentRecord } from "@/lib/payment-complete-db";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (order.status === "paid") {
-      return NextResponse.json({ success: true, order, already_paid: true, pg_check: "Y" });
+      const paidAt = new Date().toISOString();
+      const { payment: backfill } = await ensureOrderPaidPaymentRecord(supabase, order, paidAt);
+      return NextResponse.json({
+        success: true,
+        order,
+        payment: backfill,
+        already_paid: true,
+        pg_check: "Y",
+      });
     }
 
     const pcheck = await checkFortune82PaymentStatus(orderNo);
@@ -62,15 +71,10 @@ export async function POST(request: NextRequest) {
     }
 
     const paidAt = new Date().toISOString();
-    const { data: payment, error: payErr } = await supabase
-      .from("payments")
-      .update({ status: "paid", paid_at: paidAt })
-      .eq("order_id", order.id)
-      .select("id,status,raw_payload")
-      .maybeSingle();
+    const { payment, error: payErr } = await ensureOrderPaidPaymentRecord(supabase, order, paidAt);
 
     if (payErr) {
-      return NextResponse.json({ success: false, error: payErr.message }, { status: 500 });
+      return NextResponse.json({ success: false, error: payErr }, { status: 500 });
     }
 
     await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);

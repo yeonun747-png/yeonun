@@ -78,10 +78,13 @@ export function Step7Result({
   product,
   result,
   exitHref,
+  blockExit = false,
 }: {
   product: Product;
   result: FortuneResultState;
   exitHref: string;
+  /** 메뉴 카드 실시간 점사 중 나가기·이탈 UI 비활성 */
+  blockExit?: boolean;
 }) {
   const [page, setPage] = useState(0);
   const toc = useMemo(() => enrichTocWithMenuMedia(result.toc, product), [result.toc, product]);
@@ -182,11 +185,7 @@ export function Step7Result({
               <span className="y-fortune-v2-step7-next-anchor" />
             </span>
           </button>
-        ) : result.complete ? (
-          <Link href={exitHref} className="y-fortune-v2-result-exit-btn">
-            나가기 (점사는 자동 저장되요)
-          </Link>
-        ) : (
+        ) : blockExit || !result.complete ? (
           <span
             className="y-fortune-v2-result-exit-btn y-fortune-v2-result-exit-btn--waiting"
             role="status"
@@ -195,6 +194,10 @@ export function Step7Result({
           >
             나가기 (점사는 자동 저장되요)
           </span>
+        ) : (
+          <Link href={exitHref} className="y-fortune-v2-result-exit-btn" prefetch={false}>
+            나가기 (점사는 자동 저장되요)
+          </Link>
         )}
       </div>
 

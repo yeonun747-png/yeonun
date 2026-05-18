@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { pullCreditsAfterPurchase, spendCreditsWithAuth } from "@/lib/credit-client";
+import { invalidateMyPaymentsCache, preloadMyPayments } from "@/lib/my-payments-cache";
 import {
   applyPurchasedCredits,
   markFirstCreditPurchaseDone,
@@ -79,6 +80,8 @@ export function PaymentModal() {
         if (isCreditTopup) {
           if (session?.access_token) {
             await pullCreditsAfterPurchase();
+            invalidateMyPaymentsCache(session.user.id);
+            void preloadMyPayments();
           } else {
             const walletBefore = readWallet();
             let credits =
@@ -211,9 +214,14 @@ export function PaymentModal() {
 
       const userRef = session?.user?.id ?? "guest";
 
+      const checkoutHeaders: HeadersInit = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        checkoutHeaders.Authorization = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: checkoutHeaders,
         body: JSON.stringify({
           product_slug: product,
           title,
