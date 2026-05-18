@@ -231,10 +231,8 @@ export function registerPgPaymentHandlers(handlers: PgPaymentHandlers): () => vo
   installPaymentMessageListener();
   installPaymentStorageBridge();
   return () => {
-    if (handlersRef === handlers) {
-      handlersRef = null;
-      stopPaymentWatchers();
-    }
+    /** 핸들러 교체·prefetch 리렌더 시에도 PG 진행 중이면 watcher 유지 */
+    if (handlersRef === handlers) handlersRef = null;
   };
 }
 

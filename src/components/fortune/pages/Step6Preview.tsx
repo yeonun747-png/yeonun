@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { launchFortune82PgPayment, registerPgPaymentHandlers } from "@/lib/payment-pg-flow";
 import { appendStubPayment } from "@/lib/payments-history-stub";
@@ -61,18 +61,21 @@ export function Step6Preview({
 
   const preview = previewText(prefetch, toc[0]?.title || product.title);
 
+  const onPaidRef = useRef(onPaid);
+  onPaidRef.current = onPaid;
+
   useEffect(() => {
     return registerPgPaymentHandlers({
       onSuccess: async (orderNo) => {
         setStatus("idle");
-        onPaid(orderNo || null);
+        onPaidRef.current(orderNo || null);
       },
       onError: (_code, pgMsg) => {
         setStatus("error");
         setMessage(pgMsg === "close" ? "결제가 취소되었습니다." : "결제에 실패했습니다. 다시 시도해 주세요.");
       },
     });
-  }, [onPaid]);
+  }, []);
 
   const checkout = async (payMethod: "card" | "phone" | "credit") => {
     if (status === "loading") return;

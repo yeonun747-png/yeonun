@@ -505,7 +505,7 @@ export function FortunePage({
     (orderNo: string | null) => {
       setPendingOrderNo(orderNo);
       /** STEP6 백그라운드 prefetch 유지 — Step7에서 동일 스트림 이어받기 */
-      const p = readFortunePrefetch(product.slug) || prefetch;
+      const p = readFortunePrefetch(product.slug);
       const next = fortuneResultFromPrefetch(p, profile, orderNo, true);
       if (next) setResult(next);
       else setResult(null);
@@ -513,7 +513,7 @@ export function FortunePage({
       setResultStreamEnabled(true);
       go(layout.stepResult);
     },
-    [go, layout.stepResult, prefetch, product.slug, profile, resumePrefetchIfNeeded],
+    [go, layout.stepResult, product.slug, profile, resumePrefetchIfNeeded],
   );
 
   usePgPaymentReturnResume(
