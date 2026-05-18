@@ -39,7 +39,10 @@ export function truncateStringByBytes(str: string, maxBytes: number): string {
 
 export function resolvePaymentOrigin(clientOrigin?: string | null): string {
   const productionOrigin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.yeonun.com").replace(/\/$/, "");
-  const raw = typeof clientOrigin === "string" ? clientOrigin.trim() : "";
+  const raw = typeof clientOrigin === "string" ? clientOrigin.trim().replace(/\/$/, "") : "";
+  if (raw && /fortune82\.com/i.test(raw)) {
+    return productionOrigin;
+  }
   if (
     raw &&
     (raw.startsWith("http://localhost") ||
@@ -48,7 +51,7 @@ export function resolvePaymentOrigin(clientOrigin?: string | null): string {
       raw === "https://yeonun.com" ||
       raw === "https://www.yeonun.com")
   ) {
-    return raw.replace(/\/$/, "");
+    return raw;
   }
   return productionOrigin;
 }

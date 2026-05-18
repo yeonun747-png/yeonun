@@ -1,16 +1,31 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 
+import {
+  canonicalPaymentReturnUrl,
+  postPaymentResultToOpener,
+  shouldRedirectPaymentReturnToCanonical,
+  YEONUN_PAYMENT_SUCCESS_MSG,
+} from "@/lib/payment-return-bridge";
 import { waitFortune82PgPaidAndComplete } from "@/lib/payment-pg-flow";
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const oid = searchParams.get("oid");
+  const ranRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !oid) return;
+    if (typeof window === "undefined" || !oid || ranRef.current) return;
+
+    if (shouldRedirectPaymentReturnToCanonical()) {
+      const qs = window.location.search || `?oid=${encodeURIComponent(oid)}`;
+      window.location.replace(canonicalPaymentReturnUrl("/payment/success", qs));
+      return;
+    }
+
+    ranRef.current = true;
 
     const callOpenerFunction = async () => {
       if (window.opener && !window.opener.closed) {
@@ -21,19 +36,25 @@ function PaymentSuccessContent() {
             return true;
           }
         } catch {
-          /* ignore */
+          /* cross-origin — postMessage 폴백 */
         }
       }
       return false;
     };
 
-    void waitFortune82PgPaidAndComplete(oid).then(() => {
+    void waitFortune82PgPaidAndComplete(oid).then(async (ok) => {
       try {
         localStorage.setItem("payment_success_oid", oid);
         localStorage.setItem("payment_success_timestamp", Date.now().toString());
       } catch {
         /* ignore */
       }
+
+      postPaymentResultToOpener({
+        type: YEONUN_PAYMENT_SUCCESS_MSG,
+        oid,
+        ok,
+      });
 
       let functionCalled = false;
       const tryClose = () => {
@@ -45,14 +66,13 @@ function PaymentSuccessContent() {
         }
       };
 
-      callOpenerFunction().then((result) => {
-        functionCalled = result;
-        if (result) window.setTimeout(tryClose, 300);
-      });
+      const direct = await callOpenerFunction();
+      functionCalled = direct;
+      if (direct) window.setTimeout(tryClose, 300);
 
       const messageInterval = window.setInterval(() => {
         if (!functionCalled && window.opener && !window.opener.closed) {
-          callOpenerFunction().then((result) => {
+          void callOpenerFunction().then((result) => {
             if (result) functionCalled = true;
           });
         }
@@ -79,11 +99,19 @@ function PaymentSuccessContent() {
     );
   }
 
-  return null;
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "#faf8f5" }}>
+      <p className="text-sm text-[var(--y-mute)]">결제를 확인하고 있어요…</p>
+    </div>
+  );
 }
 
 function PaymentSuccessFallback() {
-  return null;
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "#faf8f5" }}>
+      <p className="text-sm text-[var(--y-mute)]">결제를 확인하고 있어요…</p>
+    </div>
+  );
 }
 
 export default function PaymentSuccessPage() {

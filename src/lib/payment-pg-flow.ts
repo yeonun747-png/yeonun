@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  isTrustedPaymentOpenerMessage,
+  YEONUN_PAYMENT_ERROR_MSG,
+  YEONUN_PAYMENT_SUCCESS_MSG,
+} from "@/lib/payment-return-bridge";
+
 export type PgPaymentMethod = "card" | "phone";
 
 export type LaunchPgPaymentParams = {
@@ -106,9 +112,40 @@ function assignWindowHandlers() {
   };
 }
 
+function installPaymentMessageListener() {
+  if (typeof window === "undefined") return;
+  const w = window as Window & { __yeonunPaymentMsgInstalled?: boolean };
+  if (w.__yeonunPaymentMsgInstalled) return;
+  w.__yeonunPaymentMsgInstalled = true;
+
+  window.addEventListener("message", (event: MessageEvent) => {
+    if (!isTrustedPaymentOpenerMessage(event)) return;
+    const data = event.data as {
+      type?: string;
+      oid?: string;
+      ok?: boolean;
+      code?: string;
+      msg?: string;
+    };
+    if (data.type === YEONUN_PAYMENT_SUCCESS_MSG && data.oid) {
+      const w2 = window as Window & { handlePaymentSuccess?: (oid: string) => Promise<void> };
+      if (typeof w2.handlePaymentSuccess === "function") {
+        void w2.handlePaymentSuccess(String(data.oid));
+      }
+    }
+    if (data.type === YEONUN_PAYMENT_ERROR_MSG) {
+      const w2 = window as Window & { handlePaymentError?: (code: string, msg: string) => Promise<void> };
+      if (typeof w2.handlePaymentError === "function") {
+        void w2.handlePaymentError(String(data.code ?? "UNKNOWN"), String(data.msg ?? "Payment failed"));
+      }
+    }
+  });
+}
+
 export function registerPgPaymentHandlers(handlers: PgPaymentHandlers): () => void {
   handlersRef = handlers;
   assignWindowHandlers();
+  installPaymentMessageListener();
   return () => {
     if (handlersRef === handlers) handlersRef = null;
   };
@@ -126,7 +163,9 @@ export async function launchFortune82PgPayment(params: LaunchPgPaymentParams): P
       order_no: orderNo,
       product_slug: productSlug,
       title,
-      successOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
+      successOrigin:
+        (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim() ||
+        (typeof window !== "undefined" ? window.location.origin : undefined),
     }),
   });
 

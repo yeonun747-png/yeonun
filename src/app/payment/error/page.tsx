@@ -1,15 +1,33 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+
+import {
+  canonicalPaymentReturnUrl,
+  postPaymentResultToOpener,
+  shouldRedirectPaymentReturnToCanonical,
+  YEONUN_PAYMENT_ERROR_MSG,
+} from "@/lib/payment-return-bridge";
 
 function PaymentErrorContent() {
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
   const msg = searchParams.get("msg");
+  const ranRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || ranRef.current) return;
+
+    if (shouldRedirectPaymentReturnToCanonical()) {
+      const qs = window.location.search || "";
+      window.location.replace(canonicalPaymentReturnUrl("/payment/error", qs));
+      return;
+    }
+
+    ranRef.current = true;
+    const errCode = code || "UNKNOWN";
+    const errMsg = msg || "Payment failed";
 
     const callOpenerFunction = async () => {
       if (window.opener && !window.opener.closed) {
@@ -18,24 +36,30 @@ function PaymentErrorContent() {
             handlePaymentError?: (code: string, msg: string) => Promise<void>;
           };
           if (typeof opener.handlePaymentError === "function") {
-            await opener.handlePaymentError(code || "UNKNOWN", msg || "Payment failed");
+            await opener.handlePaymentError(errCode, errMsg);
             return true;
           }
         } catch {
-          /* ignore */
+          /* cross-origin */
         }
       }
       return false;
     };
 
+    postPaymentResultToOpener({
+      type: YEONUN_PAYMENT_ERROR_MSG,
+      code: errCode,
+      msg: errMsg,
+    });
+
     window.setTimeout(() => {
       let functionCalled = false;
-      callOpenerFunction().then((result) => {
+      void callOpenerFunction().then((result) => {
         functionCalled = result;
       });
       const interval = window.setInterval(() => {
         if (!functionCalled && window.opener && !window.opener.closed) {
-          callOpenerFunction().then((r) => {
+          void callOpenerFunction().then((r) => {
             if (r) functionCalled = true;
           });
         }
