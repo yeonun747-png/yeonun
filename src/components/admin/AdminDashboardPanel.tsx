@@ -231,10 +231,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
   const weekDelta = deltaLabel(ops.weekRevenueKrw, ops.weekRevenuePrevKrw, "직전 7일");
   const dauDelta = deltaLabel(ops.yesterdayDau, ops.yesterdayDauPrev, "전일");
   const signupDelta = deltaLabel(ops.yesterdaySignups, ops.yesterdaySignupsPrev, "전일");
-  const dateLabel = useMemo(
-    () => new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" }),
-    [],
-  );
+  const dateLabel = data.aggregationLabel;
   const chartTitle =
     period === "30d" ? "30일 결제 매출" : period === "7d" ? "7일 결제 매출" : "7일 결제 매출 (어제 포함)";
   const starMax = Math.max(...data.reviews.starCounts, 1);

@@ -1,4 +1,5 @@
 import { isFortuneMenuCatalogProductSlug } from "@/lib/credit-package-products";
+import { formatKstConsultHeaderKo, getKstParts, kstAddDays, kstStartOfDay } from "@/lib/datetime/kst";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export type AdminDashboardPeriod = "yesterday" | "7d" | "30d";
@@ -45,6 +46,8 @@ export type AdminDashboardOpsKpis = {
 };
 
 export type AdminDashboardData = {
+  /** 집계 달력 기준 (어드민 KPI·어제/7일/30일) */
+  aggregationLabel: string;
   statusKpis: {
     products: number;
     characters: number;
@@ -81,25 +84,23 @@ type ChatSessionRow = { user_ref?: string | null; started_at: string; character_
 type SocialRow = { provider: string; created_at: string };
 type ProductRow = { slug: string; title: string; price_krw: number; character_key: string };
 
-function startOfDay(d: Date): Date {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
-function addDays(d: Date, n: number): Date {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-
 function inRange(iso: string, from: Date, to: Date): boolean {
   const t = new Date(iso).getTime();
   return t >= from.getTime() && t < to.getTime();
 }
 
-function fmtMd(d: Date): string {
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+function fmtMdKst(d: Date): string {
+  const { month, day } = getKstParts(d);
+  return `${month}/${day}`;
+}
+
+/** 1~5 정수 별점만 인정 (0·null·NaN은 낮은 별점 알림·분포에서 제외) */
+function normalizeReviewStar(stars: unknown): number | null {
+  const n = Number(stars);
+  if (!Number.isFinite(n)) return null;
+  const s = Math.round(n);
+  if (s < 1 || s > 5) return null;
+  return s;
 }
 
 function countDistinctUserRefs(
@@ -213,12 +214,12 @@ function buildProductRank(
 function buildDailyRevenue(orders: OrderRow[], today: Date, dayCount: number): { label: string; krw: number }[] {
   const out: { label: string; krw: number }[] = [];
   for (let i = dayCount - 1; i >= 0; i--) {
-    const from = addDays(today, -i);
-    const to = addDays(from, 1);
+    const from = kstAddDays(today, -i);
+    const to = kstAddDays(from, 1);
     const krw = orders
       .filter((o) => inRange(o.created_at, from, to))
       .reduce((s, o) => s + Number(o.amount_krw || 0), 0);
-    out.push({ label: i === 0 ? "오늘" : fmtMd(from), krw });
+    out.push({ label: i === 0 ? "오늘" : fmtMdKst(from), krw });
   }
   return out;
 }
@@ -240,10 +241,10 @@ function buildSlice(
   let chartDays: number;
 
   if (period === "yesterday") {
-    from = addDays(today, -1);
+    from = kstAddDays(today, -1);
     const to = today;
-    prevFrom = addDays(today, -2);
-    prevTo = addDays(today, -1);
+    prevFrom = kstAddDays(today, -2);
+    prevTo = kstAddDays(today, -1);
     chartDays = 7;
     const periodOrders = orders.filter((o) => inRange(o.created_at, from, to));
     const prevOrders = orders.filter((o) => inRange(o.created_at, prevFrom, prevTo));
@@ -279,16 +280,16 @@ function buildSlice(
   }
 
   if (period === "7d") {
-    from = addDays(today, -7);
+    from = kstAddDays(today, -7);
     const to = today;
-    prevFrom = addDays(today, -14);
-    prevTo = addDays(today, -7);
+    prevFrom = kstAddDays(today, -14);
+    prevTo = kstAddDays(today, -7);
     chartDays = 7;
   } else {
-    from = addDays(today, -30);
+    from = kstAddDays(today, -30);
     const to = today;
-    prevFrom = addDays(today, -60);
-    prevTo = addDays(today, -30);
+    prevFrom = kstAddDays(today, -60);
+    prevTo = kstAddDays(today, -30);
     chartDays = 30;
   }
 
@@ -332,15 +333,16 @@ function buildSlice(
 
 export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
   const sb = supabaseServer();
-  const today = startOfDay(new Date());
-  const since30 = addDays(today, -30).toISOString();
-  const yesterday = addDays(today, -1);
+  const now = new Date();
+  const today = kstStartOfDay(now);
+  const since30 = kstAddDays(today, -30).toISOString();
+  const yesterday = kstAddDays(today, -1);
 
   const [productsRes, charactersRes, reviewsRes, ordersRes, socialRes, voiceRes, fortuneRes, chatRes, chatSessionsRes, paymentsProbe, llmErrRes] =
     await Promise.all([
       sb.from("products").select("slug,title,price_krw,character_key"),
       sb.from("characters").select("key", { count: "exact", head: true }),
-      sb.from("reviews").select("stars,created_at"),
+      sb.from("reviews").select("stars,created_at,is_published,product_slug,user_mask"),
       sb
         .from("orders")
         .select("amount_krw,status,created_at,product_slug")
@@ -384,24 +386,28 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
   const socials = (socialRes.data ?? []) as SocialRow[];
   const voices = (voiceRes.data ?? []) as VoiceRow[];
   const fortunes = (fortuneRes.data ?? []) as FortuneRow[];
-  const reviews = (reviewsRes.data ?? []) as { stars: number }[];
+  const reviews = (reviewsRes.data ?? []) as {
+    stars: number;
+    is_published?: boolean;
+    product_slug?: string;
+    user_mask?: string;
+  }[];
 
   const chatYesterday = (chatRes.data ?? []).filter((m: { created_at: string }) =>
     inRange(m.created_at, yesterday, today),
   ).length;
   const chat7d = (chatRes.data ?? []).filter((m: { created_at: string }) =>
-    inRange(m.created_at, addDays(today, -7), today),
+    inRange(m.created_at, kstAddDays(today, -7), today),
   ).length;
   const chat30d = (chatRes.data ?? []).length;
 
   const starCounts: [number, number, number, number, number] = [0, 0, 0, 0, 0];
   let starSum = 0;
   for (const r of reviews) {
-    const s = Math.min(5, Math.max(1, Math.round(Number(r.stars) || 0)));
-    if (s >= 1 && s <= 5) {
-      starCounts[s - 1]++;
-      starSum += s;
-    }
+    const s = normalizeReviewStar(r.stars);
+    if (s == null) continue;
+    starCounts[s - 1]++;
+    starSum += s;
   }
   const reviewTotal = starCounts.reduce((a, b) => a + b, 0);
 
@@ -419,7 +425,7 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
     "7d": buildSlice("7d", today, orders, socials, voices, fortunes, chatSessions, chat7d, products),
     "30d": buildSlice("30d", today, orders, socials, voices, fortunes, chatSessions, chat30d, products),
   };
-  const dayBeforeYesterday = addDays(today, -2);
+  const dayBeforeYesterday = kstAddDays(today, -2);
 
   const llmVoiceErrYesterday = voices.filter(
     (v) => inRange(v.started_at, yesterday, today) && String(v.status ?? "").toLowerCase() === "error",
@@ -446,7 +452,10 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
     llmErrorChat: llmChatErrYesterday,
   };
 
-  const lowStars = reviews.filter((r) => Number(r.stars) <= 2).length;
+  const lowStarReviews = reviews.filter((r) => {
+    const s = normalizeReviewStar(r.stars);
+    return s !== null && s <= 2;
+  });
   const failedFortune = llmFortuneErrYesterday;
 
   const alerts: AdminDashboardData["alerts"] = [];
@@ -458,11 +467,18 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
       time: "어제",
     });
   }
-  if (lowStars > 0) {
+  if (lowStarReviews.length > 0) {
+    const sample = lowStarReviews
+      .slice(0, 2)
+      .map((r) => `${r.product_slug ?? "?"} · ${r.user_mask ?? "—"} · ★${normalizeReviewStar(r.stars)}`)
+      .join(" / ");
     alerts.push({
       tone: "warn",
-      title: `낮은 별점(★1~2) 후기 ${lowStars}건`,
-      desc: "Reviews 탭에서 내용을 확인하세요.",
+      title: `낮은 별점(★1~2) 후기 ${lowStarReviews.length}건`,
+      desc:
+        lowStarReviews.length === 1
+          ? `Reviews 탭 — ${sample}`
+          : `Reviews 탭에서 확인 — ${sample}${lowStarReviews.length > 2 ? " …" : ""}`,
       time: "누적",
     });
   }
@@ -473,7 +489,7 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
       tone: "ok",
       title: `어제 결제 매출 전일 대비 +${pct}%`,
       desc: "orders.status=paid · amount_krw 합계",
-      time: fmtMd(yesterday),
+      time: fmtMdKst(yesterday),
     });
   }
   if (alerts.length === 0) {
@@ -481,11 +497,12 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
       tone: "ok",
       title: "특이 알림 없음",
       desc: "운영 상태가 정상 범위입니다.",
-      time: fmtMd(today),
+      time: fmtMdKst(today),
     });
   }
 
   return {
+    aggregationLabel: formatKstConsultHeaderKo(now),
     statusKpis: {
       products: catalogCount,
       characters: charactersRes.count ?? 0,

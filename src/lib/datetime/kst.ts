@@ -52,6 +52,18 @@ export function addKstCalendarDays(kstDateKey: string, deltaDays: number): strin
   return formatKstDateKey(new Date(ms));
 }
 
+/** KST 달력 00:00:00 (서버 TZ·Vercel UTC와 무관). */
+export function kstStartOfDay(date: Date = new Date()): Date {
+  const key = formatKstDateKey(date);
+  return new Date(`${key}T00:00:00+09:00`);
+}
+
+/** `anchor` KST 날짜의 자정에서 ±n일 (집계 구간용). */
+export function kstAddDays(anchor: Date, deltaDays: number): Date {
+  const key = addKstCalendarDays(formatKstDateKey(anchor), deltaDays);
+  return new Date(`${key}T00:00:00+09:00`);
+}
+
 export function formatKstConsultHeaderEn(date: Date = new Date()): string {
   const { year, day } = getKstParts(date);
   const wd = new Intl.DateTimeFormat("en-US", { timeZone: KST_IANA, weekday: "short" }).format(date);
