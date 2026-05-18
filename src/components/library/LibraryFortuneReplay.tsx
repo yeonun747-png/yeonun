@@ -27,6 +27,8 @@ import { setVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
 import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
 import {
   filterTaekilFortuneResult,
+  needsTaekilLibraryReplayFilter,
+  normalizeTaekilPurpose,
   readTaekilInputsFromAnswers,
   TAEKIL_GOODDAY_SLUG,
 } from "@/lib/taekil-goodday";
@@ -57,6 +59,8 @@ export function LibraryFortuneReplay(props: {
   voiceConsultSummary?: string | null;
   /** fortune_requests.payload.profile — 궁합 음성 시 상대 만세력 주입 */
   profile: "single" | "pair";
+  /** DB 저장 목적(taekil-goodday) — localStorage 없을 때 보관함 필터용 */
+  taekilPurposeStored?: string | null;
 }) {
   const {
     heroTitle,
@@ -75,6 +79,7 @@ export function LibraryFortuneReplay(props: {
     resultId,
     voiceConsultSummary,
     profile,
+    taekilPurposeStored,
   } = props;
 
   const router = useRouter();
@@ -147,28 +152,41 @@ export function LibraryFortuneReplay(props: {
     [router, voiceBriefTitle, productSlug, profile, characterKey],
   );
 
+  const storedTocCount = useMemo(() => {
+    if (tocSections?.length) return tocSections.length;
+    if (tocGroups?.length) return flattenTocGroupsToFlatItems(tocGroups).length;
+    return 0;
+  }, [tocSections, tocGroups]);
+
   const taekilPurpose = useMemo(() => {
     if (productSlug !== TAEKIL_GOODDAY_SLUG) return null;
-    return readTaekilInputsFromAnswers(readFortuneExtraAnswers(productSlug)).purpose;
-  }, [productSlug]);
+    return (
+      normalizeTaekilPurpose(taekilPurposeStored) ??
+      readTaekilInputsFromAnswers(readFortuneExtraAnswers(productSlug)).purpose
+    );
+  }, [productSlug, taekilPurposeStored]);
+
+  const shouldTaekilReplayFilter = Boolean(
+    taekilPurpose && needsTaekilLibraryReplayFilter(storedTocCount),
+  );
 
   const tocSectionsDisplay = useMemo(() => {
-    if (!tocSections?.length || !taekilPurpose) return tocSections;
+    if (!shouldTaekilReplayFilter || !tocSections?.length || !taekilPurpose) return tocSections;
     return filterTaekilFortuneResult(
       { toc: tocSections, tocGroups: tocGroups ?? null, sectionHtml: {}, doneIdx: [] },
       taekilPurpose,
     ).toc;
-  }, [tocSections, tocGroups, taekilPurpose]);
+  }, [tocSections, tocGroups, taekilPurpose, shouldTaekilReplayFilter]);
 
   const tocGroupsDisplay = useMemo(() => {
-    if (!tocGroups?.length || !taekilPurpose) return tocGroups;
+    if (!shouldTaekilReplayFilter || !tocGroups?.length || !taekilPurpose) return tocGroups;
     const flat = tocSections?.length ? tocSections : flattenTocGroupsToFlatItems(tocGroups);
     if (!flat.length) return tocGroups;
     return filterTaekilFortuneResult(
       { toc: flat, tocGroups, sectionHtml: {}, doneIdx: [] },
       taekilPurpose,
     ).tocGroups;
-  }, [tocSections, tocGroups, taekilPurpose]);
+  }, [tocSections, tocGroups, taekilPurpose, shouldTaekilReplayFilter]);
 
   /** 레거시 저장본에 빠진 대제목(main_title) 접두사 보정 — 신규 저장은 본문에 이미 포함 */
   const tocFlatForInject = useMemo((): FortuneTocItem[] | null => {
@@ -206,8 +224,10 @@ export function LibraryFortuneReplay(props: {
     if (!tocForBody.length) return null;
     const sourceToc =
       tocFlatForInject && tocFlatForInject.length > 0 ? tocFlatForInject : tocForBody;
-    const splitAll = splitJoinedLibraryHtmlToSectionHtml(displayHtml, sourceToc) ?? {};
-    if (!taekilPurpose || productSlug !== TAEKIL_GOODDAY_SLUG || !tocSections?.length) {
+    const splitAll = splitJoinedLibraryHtmlToSectionHtml(displayHtml, sourceToc);
+    if (!splitAll || Object.keys(splitAll).length === 0) return null;
+
+    if (!shouldTaekilReplayFilter || !tocSections?.length || !taekilPurpose) {
       return splitAll;
     }
     return filterTaekilFortuneResult(
@@ -219,7 +239,19 @@ export function LibraryFortuneReplay(props: {
       },
       taekilPurpose,
     ).sectionHtml;
-  }, [displayHtml, tocForBody, tocFlatForInject, taekilPurpose, productSlug, tocSections, tocGroups]);
+  }, [
+    displayHtml,
+    tocForBody,
+    tocFlatForInject,
+    taekilPurpose,
+    shouldTaekilReplayFilter,
+    tocSections,
+    tocGroups,
+  ]);
+
+  const hasSectionChunks = Boolean(
+    sectionHtmlReplay && Object.keys(sectionHtmlReplay).length > 0 && tocForBody.length,
+  );
 
   const onVoiceContinue = useCallback(async () => {
     if (voiceContinueBusy) return;
@@ -385,7 +417,7 @@ export function LibraryFortuneReplay(props: {
               <div className="y-fs-body y-fs-body--visible">
                 <article id="y-fs-section-0" className="y-fs-section y-fs-section--active">
                   <div className="y-fs-section-inner">
-                    {sectionHtmlReplay && tocForBody.length ? (
+                    {hasSectionChunks && sectionHtmlReplay ? (
                       <div className="y-fs-html y-fs-html--claude-stream" id="y-fs-h-0">
                         <FortuneResultSectionChunks
                           toc={tocForBody}

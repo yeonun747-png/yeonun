@@ -22,6 +22,55 @@ export type PgPaymentHandlers = {
 
 let handlersRef: PgPaymentHandlers | null = null;
 let paymentWindowRef: Window | null = null;
+let paymentPollTimer: ReturnType<typeof setInterval> | null = null;
+let paymentCloseWatchTimer: ReturnType<typeof setInterval> | null = null;
+let paymentFlowCompletedOrderNo: string | null = null;
+
+function stopPaymentWatchers() {
+  if (paymentPollTimer) {
+    clearInterval(paymentPollTimer);
+    paymentPollTimer = null;
+  }
+  if (paymentCloseWatchTimer) {
+    clearInterval(paymentCloseWatchTimer);
+    paymentCloseWatchTimer = null;
+  }
+}
+
+/** PG가 reunion.fortune82.com 등으로내도 연운(opener)에서 pcheck 후 다음 화면 진행 */
+async function finishPaymentFromOpener(orderNo: string, opts?: { maxAttempts?: number }): Promise<boolean> {
+  const oid = String(orderNo ?? "").trim();
+  if (!oid || paymentFlowCompletedOrderNo === oid) return paymentFlowCompletedOrderNo === oid;
+
+  const ok = await waitFortune82PgPaidAndComplete(oid, { maxAttempts: opts?.maxAttempts ?? 12 });
+  if (!ok) return false;
+
+  paymentFlowCompletedOrderNo = oid;
+  stopPaymentWatchers();
+  await handlersRef?.onSuccess(oid);
+  try {
+    paymentWindowRef?.close();
+  } catch {
+    /* ignore */
+  }
+  paymentWindowRef = null;
+  return true;
+}
+
+function startPaymentWatchers(orderNo: string) {
+  stopPaymentWatchers();
+  paymentFlowCompletedOrderNo = null;
+
+  paymentPollTimer = setInterval(() => {
+    void finishPaymentFromOpener(orderNo, { maxAttempts: 3 });
+  }, 2000);
+
+  paymentCloseWatchTimer = setInterval(() => {
+    if (!paymentWindowRef || paymentWindowRef.closed) {
+      void finishPaymentFromOpener(orderNo, { maxAttempts: 15 });
+    }
+  }, 600);
+}
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -84,24 +133,15 @@ function assignWindowHandlers() {
   };
 
   w.handlePaymentSuccess = async (oid: string) => {
-    try {
-      const ok = await waitFortune82PgPaidAndComplete(oid);
-      if (ok) {
-        await handlersRef?.onSuccess(oid);
-      } else {
-        handlersRef?.onError("T104", "결제 확인에 실패했습니다. 고객센터로 문의해 주세요.");
-      }
-    } finally {
-      try {
-        paymentWindowRef?.close();
-      } catch {
-        /* ignore */
-      }
-      paymentWindowRef = null;
+    const done = await finishPaymentFromOpener(oid, { maxAttempts: 15 });
+    if (!done && paymentFlowCompletedOrderNo !== oid) {
+      handlersRef?.onError("T104", "결제 확인에 실패했습니다. 고객센터로 문의해 주세요.");
     }
   };
 
   w.handlePaymentError = async (code: string, msg: string) => {
+    stopPaymentWatchers();
+    paymentFlowCompletedOrderNo = null;
     handlersRef?.onError(code, msg);
     try {
       paymentWindowRef?.close();
@@ -164,7 +204,7 @@ export async function launchFortune82PgPayment(params: LaunchPgPaymentParams): P
       product_slug: productSlug,
       title,
       successOrigin:
-        (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim() ||
+        (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.yeonun.com").trim() ||
         (typeof window !== "undefined" ? window.location.origin : undefined),
     }),
   });
@@ -233,4 +273,6 @@ export async function launchFortune82PgPayment(params: LaunchPgPaymentParams): P
     /* ignore */
   }
   if (document.body.contains(form)) document.body.removeChild(form);
+
+  startPaymentWatchers(orderNo);
 }

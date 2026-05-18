@@ -43,6 +43,10 @@ import { happyPoolFor, pickFromPool } from "@/components/mascot/mascotClipPools"
 import { readFortuneExtraAnswers, writeFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
 import { fortuneProductHasExtraInputs, getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { getFortuneStepLayout, type FortuneStepLayout } from "@/lib/fortune-step-layout";
+import {
+  readTaekilInputsFromAnswers,
+  TAEKIL_GOODDAY_SLUG,
+} from "@/lib/taekil-goodday";
 
 function defaultForm(): FortuneFlowForm {
   return {
@@ -340,6 +344,12 @@ export function FortunePage({
           html,
           toc_sections: result.toc,
           ...(result.tocGroups ? { toc_groups: result.tocGroups } : {}),
+          ...(product.slug === TAEKIL_GOODDAY_SLUG
+            ? {
+                taekil_purpose:
+                  readTaekilInputsFromAnswers(readFortuneExtraAnswers(product.slug)).purpose ?? undefined,
+              }
+            : {}),
         }),
       });
       const j = (await res.json().catch(() => ({}))) as {

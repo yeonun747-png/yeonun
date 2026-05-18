@@ -27,7 +27,11 @@ import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
 import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
-import { readTaekilStreamBodyFields } from "@/lib/taekil-goodday";
+import {
+  readTaekilInputsFromAnswers,
+  readTaekilStreamBodyFields,
+  TAEKIL_GOODDAY_SLUG,
+} from "@/lib/taekil-goodday";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
@@ -614,6 +618,12 @@ export function FortuneStreamModal() {
           html,
           ...(toc.length > 0 ? { toc_sections: toc } : {}),
           ...(tocGroups && tocGroups.length > 0 ? { toc_groups: tocGroups } : {}),
+          ...(product === TAEKIL_GOODDAY_SLUG
+            ? {
+                taekil_purpose:
+                  readTaekilInputsFromAnswers(readFortuneExtraAnswers(product)).purpose ?? undefined,
+              }
+            : {}),
         }),
       });
       const j = (await res.json().catch(() => ({}))) as {

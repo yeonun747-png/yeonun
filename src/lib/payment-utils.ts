@@ -37,21 +37,22 @@ export function truncateStringByBytes(str: string, maxBytes: number): string {
   return result;
 }
 
+/**
+ * PG 성공/실패 리다이렉트 origin — 운영은 항상 연운 canonical.
+ * (포춘82는 form successUrl 대신 payment_code 가맹점 URL로 보내는 경우가 있어,
+ *  클라이언트 origin·fortune82 도메인은 절대 사용하지 않음)
+ */
 export function resolvePaymentOrigin(clientOrigin?: string | null): string {
-  const productionOrigin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.yeonun.com").replace(/\/$/, "");
+  const canonical = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.yeonun.com").replace(/\/$/, "");
   const raw = typeof clientOrigin === "string" ? clientOrigin.trim().replace(/\/$/, "") : "";
-  if (raw && /fortune82\.com/i.test(raw)) {
-    return productionOrigin;
-  }
   if (
     raw &&
     (raw.startsWith("http://localhost") ||
       raw.startsWith("https://localhost") ||
-      raw === productionOrigin ||
-      raw === "https://yeonun.com" ||
-      raw === "https://www.yeonun.com")
+      raw.startsWith("http://127.0.0.1") ||
+      raw.startsWith("https://127.0.0.1"))
   ) {
     return raw;
   }
-  return productionOrigin;
+  return canonical;
 }

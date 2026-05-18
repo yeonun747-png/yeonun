@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     /** 점사 SSE 목차 스냅샷 — 보관함 재생 시 모달과 동일 TOC UI */
     toc_sections?: unknown;
     toc_groups?: unknown;
+    taekil_purpose?: string;
   };
 
   const product_slug = String(body.product_slug ?? "").trim();
@@ -50,6 +51,9 @@ export async function POST(request: Request) {
     source: "fortune_stream_modal",
     ...(Array.isArray(body.toc_sections) ? { toc_sections: body.toc_sections } : {}),
     ...(Array.isArray(body.toc_groups) ? { toc_groups: body.toc_groups } : {}),
+    ...(typeof body.taekil_purpose === "string" && body.taekil_purpose.trim()
+      ? { taekil_purpose: body.taekil_purpose.trim() }
+      : {}),
   };
 
   const authUserId = await optionalMyUserId(request);

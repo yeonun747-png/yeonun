@@ -5,6 +5,20 @@ import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 
 export const TAEKIL_GOODDAY_SLUG = "taekil-goodday";
 
+/** 6대×2소 전체 소메뉴 수 */
+export const TAEKIL_FLAT_SECTION_COUNT_FULL = 12;
+
+/** 목적별 5-1/5-2 분기 후 스트림·저장본 소메뉴 수 */
+export const TAEKIL_FLAT_SECTION_COUNT_FILTERED = 11;
+
+/**
+ * 보관함 재생 시 taekil 필터 적용 여부.
+ * 스트림이 이미 11개로 저장한 본문에 12칸 기준 필터를 다시 쓰면 6-1 본문이 빠져 목차만 보임.
+ */
+export function needsTaekilLibraryReplayFilter(storedSectionCount: number): boolean {
+  return storedSectionCount === TAEKIL_FLAT_SECTION_COUNT_FULL;
+}
+
 export const PURPOSE = {
   WEDDING: "wedding",
   MOVING: "moving",

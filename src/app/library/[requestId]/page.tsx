@@ -123,6 +123,7 @@ export default async function LibraryFortuneDetailPage({ params }: Props) {
             resultId={detail.result_id}
             voiceConsultSummary={detail.voice_consult_summary}
             profile={detail.payload.profile === "pair" ? "pair" : "single"}
+            taekilPurposeStored={detail.payload.taekil_purpose ?? null}
           />
         </div>
       </main>
