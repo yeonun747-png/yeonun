@@ -6,7 +6,10 @@ import {
   type FortuneMenuStreamClientBody,
 } from "@/lib/fortune-menu-stream-payload";
 import { createFortunePrefetchPump } from "@/lib/fortune-prefetch-sse-engine";
-import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import {
+  normalizeFortunePrefetchSnapshot,
+  type FortunePrefetchV1,
+} from "@/lib/fortune-prefetch-storage";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -105,10 +108,18 @@ export async function readFortuneServerPrefetchSnapshot(requestId: string): Prom
   }
 
   const payload = readPayload(data.payload);
+  const status = String(data.status ?? "unknown");
+  let snapshot = snapshotFromPayload(payload);
+  if (snapshot) {
+    snapshot =
+      status === "completed"
+        ? normalizeFortunePrefetchSnapshot({ ...snapshot, complete: true })
+        : normalizeFortunePrefetchSnapshot(snapshot);
+  }
   return {
     request_id: id,
-    status: String(data.status ?? "unknown"),
-    snapshot: snapshotFromPayload(payload),
+    status,
+    snapshot,
     error: payload.prefetch_error ?? null,
   };
 }
@@ -122,9 +133,11 @@ async function persistPrefetchSnapshot(
   const supabase = supabaseServer();
   const { data } = await supabase.from("fortune_requests").select("payload").eq("id", requestId).maybeSingle();
   const prev = readPayload(data?.payload);
+  const normalized =
+    status === "completed" ? normalizeFortunePrefetchSnapshot({ ...snapshot, complete: true }) : normalizeFortunePrefetchSnapshot(snapshot);
   const payload: FortuneRequestPrefetchPayload = {
     ...prev,
-    prefetch_snapshot: snapshot,
+    prefetch_snapshot: normalized,
     ...(prefetchError ? { prefetch_error: prefetchError } : {}),
   };
   await supabase
@@ -183,8 +196,8 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
     initial: snapshotFromPayload(payload),
     scheduleSectionFix: false,
     onSnapshot: (snap) => {
-      pendingSnapshot = snap;
-      void throttledDbFlush(snap.complete);
+      pendingSnapshot = normalizeFortunePrefetchSnapshot(snap);
+      void throttledDbFlush(pendingSnapshot.complete);
     },
   });
 
@@ -203,7 +216,8 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
     if (menuStreamOk && res.body) {
       await pump.pumpSseBody(res.body.getReader(), "sections");
       pump.finalizeMenuSectionsStream(false);
-      await flushDb(pump.sectionsDoneEvent);
+      if (pendingSnapshot) pendingSnapshot = normalizeFortunePrefetchSnapshot(pendingSnapshot);
+      await flushDb(true);
       return;
     }
 
@@ -230,7 +244,9 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
         });
         if (res.ok && res.body) {
           await pump.pumpSseBody(res.body.getReader(), "sections");
-          await flushDb(pump.sectionsDoneEvent);
+          pump.finalizeMenuSectionsStream(false);
+          if (pendingSnapshot) pendingSnapshot = normalizeFortunePrefetchSnapshot(pendingSnapshot);
+          await flushDb(true);
           return;
         }
       }
@@ -238,7 +254,8 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
       if (res.ok && res.body) {
         await pump.pumpSseBody(res.body.getReader(), "claude_html_stream");
         pump.finalizeClaudeHtmlStream(false);
-        await flushDb(pump.claudeDoneEvent);
+        if (pendingSnapshot) pendingSnapshot = normalizeFortunePrefetchSnapshot(pendingSnapshot);
+        await flushDb(true);
         return;
       }
     }

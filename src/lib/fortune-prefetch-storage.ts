@@ -20,6 +20,41 @@ export type FortunePrefetchV1 = {
 export const fortunePrefetchStorageKey = (productSlug: string) =>
   `yeonun_fortune_prefetch_${productSlug.trim()}`;
 
+function prefetchSectionCount(prefetch: FortunePrefetchV1): number {
+  const tocN = prefetch.toc.length;
+  const htmlKeys = Object.keys(prefetch.sectionHtml)
+    .map((k) => Number(k))
+    .filter((n) => Number.isFinite(n) && n >= 0);
+  const htmlN = htmlKeys.length ? Math.max(...htmlKeys) + 1 : 0;
+  return Math.max(tocN, htmlN);
+}
+
+/** SSE `done` 없이 본문만 채워진 경우(서버 Tank·업스트림 조기 종료) 완료로 간주 */
+export function inferFortunePrefetchComplete(prefetch: FortunePrefetchV1): boolean {
+  if (prefetch.complete) return true;
+  if (prefetch.claudeStreamMode) {
+    return prefetch.claudeStreamHtml.trim().length >= 80;
+  }
+  const n = prefetchSectionCount(prefetch);
+  if (n <= 0) return false;
+  let allFilled = true;
+  for (let i = 0; i < n; i++) {
+    if (!String(prefetch.sectionHtml[i] ?? "").trim()) {
+      allFilled = false;
+      break;
+    }
+  }
+  const doneSet = new Set(prefetch.doneIdx);
+  const allSectionEnds = doneSet.size >= n;
+  return allFilled || allSectionEnds;
+}
+
+export function normalizeFortunePrefetchSnapshot(prefetch: FortunePrefetchV1): FortunePrefetchV1 {
+  if (!inferFortunePrefetchComplete(prefetch)) return prefetch;
+  if (prefetch.complete) return prefetch;
+  return { ...prefetch, complete: true, updatedAt: Date.now() };
+}
+
 export const fortuneServerPrefetchRequestKey = (productSlug: string) =>
   `yeonun_fortune_server_request_${productSlug.trim()}`;
 
@@ -58,7 +93,7 @@ export function readFortunePrefetch(productSlug: string): FortunePrefetchV1 | nu
     if (!raw) return null;
     const j = JSON.parse(raw) as FortunePrefetchV1;
     if (j?.v !== 1) return null;
-    return j;
+    return normalizeFortunePrefetchSnapshot(j);
   } catch {
     return null;
   }
@@ -67,7 +102,8 @@ export function readFortunePrefetch(productSlug: string): FortunePrefetchV1 | nu
 export function writeFortunePrefetch(productSlug: string, payload: FortunePrefetchV1) {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(fortunePrefetchStorageKey(productSlug), JSON.stringify(payload));
+    const normalized = normalizeFortunePrefetchSnapshot(payload);
+    sessionStorage.setItem(fortunePrefetchStorageKey(productSlug), JSON.stringify(normalized));
   } catch {
     // ignore quota
   }

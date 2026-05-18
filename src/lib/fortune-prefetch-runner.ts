@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  inferFortunePrefetchComplete,
+  normalizeFortunePrefetchSnapshot,
   readFortunePrefetch,
   readServerPrefetchRequestId,
   writeFortunePrefetch,
@@ -60,7 +62,8 @@ async function runFortuneServerPrefetchDetached(
   const slug = args.productSlug.trim();
   const streamBody = buildFortunePrefetchStreamBody(args);
 
-  const notify = (prefetch: FortunePrefetchV1) => {
+  const notify = (raw: FortunePrefetchV1) => {
+    const prefetch = normalizeFortunePrefetchSnapshot(raw);
     writeFortunePrefetch(slug, prefetch);
     for (const fn of listeners) fn(prefetch);
     args.onPatch?.(prefetch);
@@ -102,10 +105,14 @@ async function runFortuneServerPrefetchDetached(
     };
     if (data.snapshot?.v === 1) {
       notify(data.snapshot);
-      if (data.snapshot.complete) return "done";
+      if (data.snapshot.complete || inferFortunePrefetchComplete(data.snapshot)) return "done";
     }
     const st = String(data.status ?? "");
-    if (st === "completed") return "done";
+    if (st === "completed") {
+      const cached = readFortunePrefetch(slug);
+      if (cached) notify(cached);
+      return "done";
+    }
     if (st === "failed") return "failed";
     return "continue";
   };

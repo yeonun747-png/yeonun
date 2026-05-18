@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FortuneResultState } from "@/components/fortune/fortuneFlowTypes";
-import { fortunePrefetchStorageKey, readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import {
+  fortunePrefetchStorageKey,
+  inferFortunePrefetchComplete,
+  readFortunePrefetch,
+  type FortunePrefetchV1,
+} from "@/lib/fortune-prefetch-storage";
 import {
   abortFortunePrefetch,
   isFortunePrefetchActive,
@@ -23,7 +28,8 @@ export function fortuneResultFromPrefetch(
   if (!prefetch) return null;
   const hasSections = Object.keys(prefetch.sectionHtml).length > 0;
   const hasClaude = prefetch.claudeStreamHtml.trim().length > 0;
-  if (!prefetch.complete && !allowPartial) return null;
+  const complete = inferFortunePrefetchComplete(prefetch);
+  if (!complete && !allowPartial) return null;
   if (!hasSections && !hasClaude) return null;
   return {
     toc: prefetch.toc.length ? prefetch.toc : demoTocSections(profile),
@@ -32,7 +38,7 @@ export function fortuneResultFromPrefetch(
     doneIdx: [...prefetch.doneIdx],
     claudeHtml: prefetch.claudeStreamHtml,
     claudeMode: prefetch.claudeStreamMode,
-    complete: prefetch.complete,
+    complete,
     orderNo,
   };
 }
@@ -68,7 +74,7 @@ export function useFortuneResultStream(args: {
       if (next) {
         setResult(next);
         setPhaseTracked(next.complete ? "done" : "streaming");
-      } else if (!prefetch.complete) {
+      } else if (!inferFortunePrefetchComplete(prefetch)) {
         setPhaseTracked("streaming");
       }
     },
