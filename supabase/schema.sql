@@ -128,6 +128,7 @@ create table if not exists public.reviews (
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
@@ -168,6 +169,7 @@ for each row execute function public.set_updated_at();
 create or replace function public.products_assign_payment_code()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 declare
   nxt int;
@@ -175,9 +177,11 @@ begin
   if new.payment_code is not null then
     return new;
   end if;
-  select coalesce(max(p.payment_code), 999) + 1 into nxt from public.products p;
-  if nxt > 9999 then
-    nxt := 9999;
+  select coalesce(max(p.payment_code), 999) + 1 into nxt
+  from public.products p
+  where p.payment_code >= 1000 and p.payment_code < 9000;
+  if nxt >= 9000 then
+    raise exception 'payment_code pool exhausted (1000-8999)';
   end if;
   new.payment_code := nxt;
   return new;
