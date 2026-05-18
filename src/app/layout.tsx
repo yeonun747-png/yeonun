@@ -7,8 +7,15 @@ import { ContentCatalogPreloader } from "@/components/content/ContentCatalogPrel
 import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
 import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetProvider";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
+import { getSiteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getSiteUrl()),
+  alternates: {
+    types: {
+      "application/rss+xml": [{ url: "/feed.xml", title: "연운 RSS" }],
+    },
+  },
   title: "연운 緣運 — 운명을, 듣다",
   description:
     "천 년의 명리학과 4명의 인연 안내자. 한 번의 부름이면 운명이 답합니다.",
