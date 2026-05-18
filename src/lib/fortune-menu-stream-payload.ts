@@ -17,6 +17,12 @@ import {
   parseFortuneMenuJson,
 } from "@/lib/product-fortune-menu";
 import { hybridClaudeSectionCount, normalizeFortuneStreamStrategy } from "@/lib/fortune-stream-strategy";
+import {
+  filterTaekilMenuForPurpose,
+  normalizeTaekilPurpose,
+  TAEKIL_GOODDAY_SLUG,
+  type PurposeType,
+} from "@/lib/taekil-goodday";
 
 export type FortuneMenuStreamClientBody = {
   product_slug?: string;
@@ -39,6 +45,9 @@ export type FortuneMenuStreamClientBody = {
     birth_hour?: string;
   } | null;
   model?: string;
+  taekil_purpose?: string;
+  taekil_period?: string;
+  taekil_spouse_birth?: string;
 };
 
 export type FortuneMenuCloudwaysBody = Record<string, unknown>;
@@ -73,7 +82,20 @@ export async function buildFortuneMenuCloudwaysBody(
     return { ok: false, status: 404, error: "product_not_found" };
   }
 
-  const menuParsed = parseFortuneMenuJson(product.fortune_menu);
+  let menuParsed = parseFortuneMenuJson(product.fortune_menu);
+  let taekilPurpose: PurposeType | null = null;
+  if (product_slug === TAEKIL_GOODDAY_SLUG) {
+    taekilPurpose =
+      normalizeTaekilPurpose(body.taekil_purpose) ??
+      (() => {
+        const ctx = String(body.fortune_extra_context ?? "");
+        const m = ctx.match(/선택한 목적:\s*\S+\s*\((\w+)\)/);
+        return normalizeTaekilPurpose(m?.[1]);
+      })();
+    if (taekilPurpose) {
+      menuParsed = filterTaekilMenuForPurpose(menuParsed, taekilPurpose);
+    }
+  }
   const flat = flattenFortuneMenuForStream(menuParsed);
   const tocGroups = buildFortuneMenuTocGroups(menuParsed);
   if (flat.length === 0) {
@@ -158,6 +180,7 @@ export async function buildFortuneMenuCloudwaysBody(
       manse_context_chars: manse_ryeok_text.length,
       fortune_stream_strategy,
       hybrid_claude_section_count,
+      ...(taekilPurpose ? { taekil_purpose: taekilPurpose } : {}),
     },
     fortune_menu_toc: {
       type: "toc",

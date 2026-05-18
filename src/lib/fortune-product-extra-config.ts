@@ -10,8 +10,8 @@ export type FortuneExtraFieldDef = {
   minLen?: number;
   /** minLen 미달 시 표시 (없으면 기본 문구) */
   minLenMessage?: string;
-  /** choice 전용 */
-  options?: string[];
+  /** choice 전용 — 문자열은 value·label 동일, 객체는 value 저장·label 표시 */
+  options?: string[] | { value: string; label: string }[];
 };
 
 export type FortuneProductExtraConfig = {
@@ -28,7 +28,12 @@ const GENDER_OPTIONS = [
   { v: "female", label: "여성" },
 ] as const;
 
-const PURPOSE_OPTIONS = ["결혼", "이사", "개업", "기타"] as const;
+const TAEKIL_PURPOSE_OPTIONS = [
+  { value: "wedding", label: "결혼" },
+  { value: "moving", label: "이사" },
+  { value: "business", label: "개업" },
+  { value: "other", label: "기타" },
+] as const;
 
 /** 점사 메뉴 카드 상품 중 추가 입력이 필요한 slug만 정의합니다. */
 export const FORTUNE_PRODUCT_EXTRA_BY_SLUG: Record<string, FortuneProductExtraConfig> = {
@@ -175,7 +180,7 @@ export const FORTUNE_PRODUCT_EXTRA_BY_SLUG: Record<string, FortuneProductExtraCo
         label: "목적",
         kind: "choice",
         required: true,
-        options: [...PURPOSE_OPTIONS],
+        options: [...TAEKIL_PURPOSE_OPTIONS],
       },
       {
         id: "auspice_window",

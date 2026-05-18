@@ -24,6 +24,12 @@ import {
   prefetchFortuneVoiceSummary,
 } from "@/lib/fortune-voice-summary-prefetch";
 import { setVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
+import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
+import {
+  filterTaekilFortuneResult,
+  readTaekilInputsFromAnswers,
+  TAEKIL_GOODDAY_SLUG,
+} from "@/lib/taekil-goodday";
 
 const LS_VOICE_BALANCE_SEC = "yeonun_voice_balance_sec";
 
@@ -141,12 +147,35 @@ export function LibraryFortuneReplay(props: {
     [router, voiceBriefTitle, productSlug, profile, characterKey],
   );
 
+  const taekilPurpose = useMemo(() => {
+    if (productSlug !== TAEKIL_GOODDAY_SLUG) return null;
+    return readTaekilInputsFromAnswers(readFortuneExtraAnswers(productSlug)).purpose;
+  }, [productSlug]);
+
+  const tocSectionsDisplay = useMemo(() => {
+    if (!tocSections?.length || !taekilPurpose) return tocSections;
+    return filterTaekilFortuneResult(
+      { toc: tocSections, tocGroups: tocGroups ?? null, sectionHtml: {}, doneIdx: [] },
+      taekilPurpose,
+    ).toc;
+  }, [tocSections, tocGroups, taekilPurpose]);
+
+  const tocGroupsDisplay = useMemo(() => {
+    if (!tocGroups?.length || !taekilPurpose) return tocGroups;
+    const flat = tocSections?.length ? tocSections : flattenTocGroupsToFlatItems(tocGroups);
+    if (!flat.length) return tocGroups;
+    return filterTaekilFortuneResult(
+      { toc: flat, tocGroups, sectionHtml: {}, doneIdx: [] },
+      taekilPurpose,
+    ).tocGroups;
+  }, [tocSections, tocGroups, taekilPurpose]);
+
   /** 레거시 저장본에 빠진 대제목(main_title) 접두사 보정 — 신규 저장은 본문에 이미 포함 */
   const tocFlatForInject = useMemo((): FortuneTocItem[] | null => {
-    if (tocSections && tocSections.length > 0) return tocSections;
-    if (tocGroups && tocGroups.length > 0) return flattenTocGroupsToFlatItems(tocGroups);
+    if (tocSectionsDisplay && tocSectionsDisplay.length > 0) return tocSectionsDisplay;
+    if (tocGroupsDisplay && tocGroupsDisplay.length > 0) return flattenTocGroupsToFlatItems(tocGroupsDisplay);
     return null;
-  }, [tocSections, tocGroups]);
+  }, [tocSectionsDisplay, tocGroupsDisplay]);
 
   /** 저장 목차에 빠진 main_title·미디어 URL을 상품 fortune_menu 로 맞춤 — split 시 키커 경계와 일치 */
   const tocForBody = useMemo(
@@ -175,8 +204,22 @@ export function LibraryFortuneReplay(props: {
 
   const sectionHtmlReplay = useMemo(() => {
     if (!tocForBody.length) return null;
-    return splitJoinedLibraryHtmlToSectionHtml(displayHtml, tocForBody);
-  }, [displayHtml, tocForBody]);
+    const sourceToc =
+      tocFlatForInject && tocFlatForInject.length > 0 ? tocFlatForInject : tocForBody;
+    const splitAll = splitJoinedLibraryHtmlToSectionHtml(displayHtml, sourceToc) ?? {};
+    if (!taekilPurpose || productSlug !== TAEKIL_GOODDAY_SLUG || !tocSections?.length) {
+      return splitAll;
+    }
+    return filterTaekilFortuneResult(
+      {
+        toc: tocSections,
+        tocGroups: tocGroups ?? null,
+        sectionHtml: splitAll,
+        doneIdx: [],
+      },
+      taekilPurpose,
+    ).sectionHtml;
+  }, [displayHtml, tocForBody, tocFlatForInject, taekilPurpose, productSlug, tocSections, tocGroups]);
 
   const onVoiceContinue = useCallback(async () => {
     if (voiceContinueBusy) return;
@@ -238,11 +281,11 @@ export function LibraryFortuneReplay(props: {
     persistVoiceBriefAndGoCall,
   ]);
 
-  const useGrouped = Boolean(tocGroups && tocGroups.length > 0);
-  const flatFromSnap = Boolean(!useGrouped && tocSections && tocSections.length > 0);
+  const useGrouped = Boolean(tocGroupsDisplay && tocGroupsDisplay.length > 0);
+  const flatFromSnap = Boolean(!useGrouped && tocSectionsDisplay && tocSectionsDisplay.length > 0);
   const flatRows =
-    flatFromSnap && tocSections
-      ? tocSections.map((item, i) => ({ key: item.id || `s${i}`, title: item.title, index: i }))
+    flatFromSnap && tocSectionsDisplay
+      ? tocSectionsDisplay.map((item, i) => ({ key: item.id || `s${i}`, title: item.title, index: i }))
       : !useGrouped
         ? fallbackTocTitles.map((title, i) => ({ key: `fb-${i}`, title, index: i }))
         : [];
@@ -278,9 +321,9 @@ export function LibraryFortuneReplay(props: {
                     <div className="y-fs-toc-card-head">
                       <span className="y-fs-toc-card-head-tx">● 목차</span>
                     </div>
-                    {useGrouped && tocGroups ? (
+                    {useGrouped && tocGroupsDisplay ? (
                       <div className="y-fs-toc-grouped" aria-label="목차">
-                        {tocGroups.map((g) => (
+                        {tocGroupsDisplay.map((g) => (
                           <div key={g.main_id} className="y-fs-toc-group-block">
                             <div className="y-fs-toc-main-line">{g.main_title}</div>
                             <ol className="y-fs-toc y-fs-toc--sub">

@@ -7,6 +7,11 @@ import { dismissFortuneSoftKeyboard } from "@/lib/fortune-keyboard";
 import type { FortuneExtraFieldDef } from "@/lib/fortune-product-extra-config";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { readFortuneExtraAnswers, writeFortuneExtraAnswers, type FortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
+import { normalizeTaekilPurpose, PURPOSE, TAEKIL_GOODDAY_SLUG } from "@/lib/taekil-goodday";
+
+function normalizeChoiceOptions(options: FortuneExtraFieldDef["options"]) {
+  return (options ?? []).map((o) => (typeof o === "string" ? { value: o, label: o } : o));
+}
 
 function daysInMonth(yearRaw: string, monthRaw: string) {
   const y = Number(yearRaw);
@@ -141,6 +146,21 @@ export function StepProductExtraInputs({
     setAnswers((prev) => ({ ...prev, [id]: v }));
   }
 
+  const taekilPurpose = useMemo(() => {
+    if (productSlug !== TAEKIL_GOODDAY_SLUG) return null;
+    return normalizeTaekilPurpose(answers.auspice_purpose);
+  }, [productSlug, answers.auspice_purpose]);
+
+  const visibleFields = useMemo(() => {
+    if (!cfg) return [];
+    return cfg.fields.filter((f) => {
+      if (productSlug === TAEKIL_GOODDAY_SLUG && f.id === "spouse_birth_ymd") {
+        return taekilPurpose === PURPOSE.WEDDING;
+      }
+      return true;
+    });
+  }, [cfg, productSlug, taekilPurpose]);
+
   const canContinue = useMemo(() => {
     if (!cfg) return false;
     const merged: FortuneExtraAnswers = { ...answers };
@@ -150,8 +170,11 @@ export function StepProductExtraInputs({
         merged[f.id] = p.y && p.m && p.d ? `${p.y}-${p.m}-${p.d}` : "";
       }
     }
-    return cfg.fields.every((f) => validateField(f, merged[f.id] ?? "") === null);
-  }, [answers, cfg, ymdParts]);
+    if (productSlug === TAEKIL_GOODDAY_SLUG && taekilPurpose !== PURPOSE.WEDDING) {
+      merged.spouse_birth_ymd = "";
+    }
+    return visibleFields.every((f) => validateField(f, merged[f.id] ?? "") === null);
+  }, [answers, cfg, ymdParts, productSlug, taekilPurpose, visibleFields]);
 
   const dreamContentLen =
     productSlug === "dream-lastnight" ? (answers.dream_content ?? "").trim().length : null;
@@ -166,7 +189,10 @@ export function StepProductExtraInputs({
         merged[f.id] = p.y && p.m && p.d ? `${p.y}-${p.m}-${p.d}` : "";
       }
     }
-    for (const f of cfg.fields) {
+    if (productSlug === TAEKIL_GOODDAY_SLUG && taekilPurpose !== PURPOSE.WEDDING) {
+      merged.spouse_birth_ymd = "";
+    }
+    for (const f of visibleFields) {
       const err = validateField(f, merged[f.id] ?? "");
       if (err) {
         setError(err);
@@ -186,7 +212,7 @@ export function StepProductExtraInputs({
         {cfg.screenHint ? <p>{cfg.screenHint}</p> : null}
       </div>
 
-      {cfg.fields.map((f) => {
+      {visibleFields.map((f) => {
         if (f.kind === "textarea") {
           const rows = f.required && (f.minLen ?? 0) >= 30 ? 5 : 3;
           return (
@@ -255,7 +281,10 @@ export function StepProductExtraInputs({
           );
         }
         if (f.kind === "choice" && f.options?.length) {
-          const v = answers[f.id] ?? "";
+          const choiceOpts = normalizeChoiceOptions(f.options);
+          const stored = answers[f.id] ?? "";
+          const selected =
+            f.id === "auspice_purpose" ? normalizeTaekilPurpose(stored) ?? stored : stored;
           return (
             <div key={f.id} className="y-fortune-v2-extra-block">
               <div className="y-fortune-v2-label">
@@ -263,9 +292,14 @@ export function StepProductExtraInputs({
                 {f.required ? <span className="y-fortune-v2-extra-req"> · 필수</span> : null}
               </div>
               <div className="y-fortune-v2-toggle y-fortune-v2-toggle--wrap">
-                {f.options.map((opt) => (
-                  <button key={opt} type="button" className={v === opt ? "active" : ""} onClick={() => setAnswer(f.id, opt)}>
-                    {opt}
+                {choiceOpts.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={selected === opt.value ? "active" : ""}
+                    onClick={() => setAnswer(f.id, opt.value)}
+                  >
+                    {opt.label}
                   </button>
                 ))}
               </div>

@@ -19,6 +19,7 @@ import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
 import { readFortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
+import { readTaekilStreamBodyFields } from "@/lib/taekil-goodday";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 
@@ -43,10 +44,11 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
   const user_info = readUserInfoFromYeonunSajuV1();
   const partner_info = profile === "pair" ? partnerInfoFromPartnerStorage(productSlug) : null;
 
+  const extraAnswers = readFortuneExtraAnswers(productSlug);
   const extraCfg = getFortuneProductExtraConfig(productSlug);
   const fortune_extra_context = (() => {
     if (!extraCfg) return "";
-    const s = formatFortuneExtraForPrompt(extraCfg, readFortuneExtraAnswers(productSlug)).trim();
+    const s = formatFortuneExtraForPrompt(extraCfg, extraAnswers).trim();
     return s;
   })();
 
@@ -60,6 +62,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     user_info,
     partner_info,
     ...(fortune_extra_context ? { fortune_extra_context } : {}),
+    ...readTaekilStreamBodyFields(productSlug, extraAnswers),
   };
 
   const streamHeaders = { "Content-Type": "application/json", Accept: "text/event-stream" as const };
