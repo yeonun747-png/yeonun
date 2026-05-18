@@ -343,6 +343,10 @@ create index if not exists idx_voice_memory_entries_user_char_imp
 
 alter table public.voice_memory_entries enable row level security;
 
+drop policy if exists "deny client voice_memory_entries" on public.voice_memory_entries;
+create policy "deny client voice_memory_entries"
+  on public.voice_memory_entries for all using (false) with check (false);
+
 create table if not exists public.voice_turns (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.voice_sessions(id) on delete cascade,
@@ -426,6 +430,28 @@ alter table public.fortune_requests enable row level security;
 alter table public.fortune_results enable row level security;
 alter table public.fortune_prompt_versions enable row level security;
 
+drop policy if exists "deny client orders" on public.orders;
+create policy "deny client orders" on public.orders for all using (false) with check (false);
+drop policy if exists "deny client payments" on public.payments;
+create policy "deny client payments" on public.payments for all using (false) with check (false);
+drop policy if exists "deny client refunds" on public.refunds;
+create policy "deny client refunds" on public.refunds for all using (false) with check (false);
+drop policy if exists "deny client webhook_events" on public.webhook_events;
+create policy "deny client webhook_events" on public.webhook_events for all using (false) with check (false);
+drop policy if exists "deny client voice_sessions" on public.voice_sessions;
+create policy "deny client voice_sessions" on public.voice_sessions for all using (false) with check (false);
+drop policy if exists "deny client voice_turns" on public.voice_turns;
+create policy "deny client voice_turns" on public.voice_turns for all using (false) with check (false);
+drop policy if exists "deny client voice_usage" on public.voice_usage;
+create policy "deny client voice_usage" on public.voice_usage for all using (false) with check (false);
+drop policy if exists "deny client fortune_requests" on public.fortune_requests;
+create policy "deny client fortune_requests" on public.fortune_requests for all using (false) with check (false);
+drop policy if exists "deny client fortune_results" on public.fortune_results;
+create policy "deny client fortune_results" on public.fortune_results for all using (false) with check (false);
+drop policy if exists "deny client fortune_prompt_versions" on public.fortune_prompt_versions;
+create policy "deny client fortune_prompt_versions"
+  on public.fortune_prompt_versions for all using (false) with check (false);
+
 drop policy if exists "public read active coupons" on public.coupons;
 create policy "public read active coupons" on public.coupons
 for select using (is_active = true);
@@ -466,6 +492,12 @@ create table if not exists public.share_logs (
 );
 
 create index if not exists share_logs_user_kst_idx on public.share_logs (user_id, kst_date desc);
+
+alter table public.share_logs enable row level security;
+
+drop policy if exists "deny client share_logs" on public.share_logs;
+create policy "deny client share_logs"
+  on public.share_logs for all using (false) with check (false);
 
 -- 매일 출석 (마이그레이션 20260503180000_attendance.sql 과 동기)
 create table if not exists public.daily_attendance (
@@ -517,4 +549,17 @@ alter table public.daily_attendance enable row level security;
 alter table public.user_attendance_state enable row level security;
 alter table public.user_discount_coupons enable row level security;
 alter table public.user_dream_interpretation_passes enable row level security;
+
+drop policy if exists "deny client daily_attendance" on public.daily_attendance;
+create policy "deny client daily_attendance"
+  on public.daily_attendance for all using (false) with check (false);
+drop policy if exists "deny client user_attendance_state" on public.user_attendance_state;
+create policy "deny client user_attendance_state"
+  on public.user_attendance_state for all using (false) with check (false);
+drop policy if exists "deny client user_discount_coupons" on public.user_discount_coupons;
+create policy "deny client user_discount_coupons"
+  on public.user_discount_coupons for all using (false) with check (false);
+drop policy if exists "deny client user_dream_interpretation_passes" on public.user_dream_interpretation_passes;
+create policy "deny client user_dream_interpretation_passes"
+  on public.user_dream_interpretation_passes for all using (false) with check (false);
 
