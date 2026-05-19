@@ -13,23 +13,37 @@ type Props = {
 };
 
 export function ArchiveReviewAction({ target, className }: Props) {
-  const { openWriteReview } = useWriteReviewSheet();
+  const { openWriteReview, openViewReview } = useWriteReviewSheet();
   const { record, submitted } = useArchiveReview(target.sourceType, target.sourceId);
+
+  const normalizedTarget: WriteReviewTarget = {
+    ...target,
+    characterKey: normalizeLibraryCharacterKey(target.characterKey) || "yeon",
+  };
 
   const onWrite = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    openWriteReview({
-      ...target,
-      characterKey: normalizeLibraryCharacterKey(target.characterKey) || "yeon",
-    });
+    openWriteReview(normalizedTarget);
+  };
+
+  const onView = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!record) return;
+    openViewReview(normalizedTarget, record);
   };
 
   if (submitted && record) {
     return (
-      <span className={`y-rv-done-badge${className ? ` ${className}` : ""}`} aria-label="작성한 리뷰">
+      <button
+        type="button"
+        className={`y-rv-done-badge${className ? ` ${className}` : ""}`}
+        aria-label="작성한 리뷰 보기"
+        onClick={onView}
+      >
         {starsToDisplay(record.stars)} 내 리뷰
-      </span>
+      </button>
     );
   }
 

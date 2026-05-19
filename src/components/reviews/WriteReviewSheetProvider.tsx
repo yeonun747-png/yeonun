@@ -21,6 +21,7 @@ import {
   reviewStarHint,
   showYeonunToast,
   type ReviewSourceType,
+  type UserReviewRecord,
 } from "@/lib/reviews-user";
 import { characterGlyph, type CharacterReviewKey } from "@/lib/reviews-types";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -37,6 +38,7 @@ export type WriteReviewTarget = {
 
 type WriteReviewContextValue = {
   openWriteReview: (target: WriteReviewTarget) => void;
+  openViewReview: (target: WriteReviewTarget, record: UserReviewRecord) => void;
 };
 
 const WriteReviewContext = createContext<WriteReviewContextValue | null>(null);
@@ -51,6 +53,7 @@ export function useWriteReviewSheet() {
 
 export function WriteReviewSheetProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"write" | "view">("write");
   const [target, setTarget] = useState<WriteReviewTarget | null>(null);
   const [stars, setStars] = useState(0);
   const [body, setBody] = useState("");
@@ -60,9 +63,19 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
 
   const openWriteReview = useCallback((next: WriteReviewTarget) => {
     setTarget(next);
+    setMode("write");
     setStars(0);
     setBody("");
     setSelectedTags([]);
+    setOpen(true);
+  }, []);
+
+  const openViewReview = useCallback((next: WriteReviewTarget, record: UserReviewRecord) => {
+    setTarget(next);
+    setMode("view");
+    setStars(record.stars);
+    setBody(record.body);
+    setSelectedTags(record.tags);
     setOpen(true);
   }, []);
 
@@ -72,6 +85,7 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
       return;
     }
     setOpen(false);
+    setMode("write");
   }, []);
 
   useEffect(() => {
@@ -83,6 +97,7 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
     const onPopState = () => {
       historyPushedRef.current = false;
       setOpen(false);
+      setMode("write");
     };
 
     window.addEventListener("popstate", onPopState);
@@ -127,11 +142,12 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
     showYeonunToast("리뷰가 등록됐어요 ✓");
   }, [body, close, selectedTags, stars, submitting, target]);
 
-  const ctx = useMemo(() => ({ openWriteReview }), [openWriteReview]);
+  const ctx = useMemo(() => ({ openWriteReview, openViewReview }), [openWriteReview, openViewReview]);
 
   const question = target ? reviewQuestion(target.sourceType) : "";
   const hint = reviewStarHint(stars);
   const glyph = target ? characterGlyph(target.characterKey) : "緣";
+  const readOnly = mode === "view";
 
   const onOverlayMouseDown = (e: MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) close();
@@ -146,10 +162,10 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
             className="y-rv-overlay open"
             role="dialog"
             aria-modal="true"
-            aria-label="리뷰 작성"
+            aria-label={readOnly ? "내 리뷰 보기" : "리뷰 작성"}
             onMouseDown={onOverlayMouseDown}
           >
-            <div className="y-rv-sheet" onMouseDown={(e) => e.stopPropagation()}>
+            <div className={`y-rv-sheet${readOnly ? " y-rv-sheet--view" : ""}`} onMouseDown={(e) => e.stopPropagation()}>
               <button type="button" className="y-rv-close" onClick={close} aria-label="닫기">
                 {"\u00d7"}
               </button>
@@ -164,14 +180,16 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
                 </div>
               </div>
               <h2 className="y-rv-q">{question}</h2>
-              <div className="y-rv-stars" role="group" aria-label="별점 선택">
+              <div className="y-rv-stars" role="group" aria-label={readOnly ? "내 별점" : "별점 선택"}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
                     key={n}
                     type="button"
                     className={`y-rv-star${n <= stars ? " on" : ""}`}
                     aria-label={`${n}점`}
-                    onClick={() => setStars(n)}
+                    disabled={readOnly}
+                    tabIndex={readOnly ? -1 : 0}
+                    onClick={readOnly ? undefined : () => setStars(n)}
                   >
                     ★
                   </button>
@@ -183,8 +201,12 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
                   className="y-rv-ta"
                   value={body}
                   maxLength={200}
-                  placeholder={stars > 0 ? hint : "어떤 점이 좋으셨나요?"}
-                  onChange={(e) => setBody(e.target.value)}
+                  readOnly={readOnly}
+                  tabIndex={readOnly ? -1 : 0}
+                  placeholder={readOnly ? undefined : stars > 0 ? hint : "어떤 점이 좋으셨나요?"}
+                  onMouseDown={readOnly ? (e) => e.preventDefault() : undefined}
+                  onFocus={readOnly ? (e) => e.currentTarget.blur() : undefined}
+                  onChange={readOnly ? undefined : (e) => setBody(e.target.value)}
                 />
                 <span className="y-rv-cnt">{body.length}/200</span>
               </div>
@@ -195,23 +217,33 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
                     key={tag}
                     type="button"
                     className={`y-rv-tag${selectedTags.includes(tag) ? " on" : ""}`}
-                    onClick={() => toggleTag(tag)}
+                    disabled={readOnly}
+                    tabIndex={readOnly ? -1 : 0}
+                    onClick={readOnly ? undefined : () => toggleTag(tag)}
                   >
                     {tag}
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                className={`y-rv-submit${stars > 0 ? " on" : ""}`}
-                disabled={stars < 1 || submitting}
-                onClick={() => void submit()}
-              >
-                {submitting ? "저장 중…" : "리뷰 등록하기"}
-              </button>
-              <button type="button" className="y-rv-skip" onClick={close}>
-                다음에 할게요
-              </button>
+              {readOnly ? (
+                <button type="button" className="y-rv-submit on y-rv-view-close" onClick={close}>
+                  닫기
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className={`y-rv-submit${stars > 0 ? " on" : ""}`}
+                    disabled={stars < 1 || submitting}
+                    onClick={() => void submit()}
+                  >
+                    {submitting ? "저장 중…" : "리뷰 등록하기"}
+                  </button>
+                  <button type="button" className="y-rv-skip" onClick={close}>
+                    다음에 할게요
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </YeonunSheetPortal>

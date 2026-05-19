@@ -16935,6 +16935,27 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.y-rv-sheet--view .y-rv-star[disabled],
+.y-rv-sheet--view .y-rv-tag[disabled] {
+  cursor: default;
+  opacity: 1;
+  pointer-events: none;
+}
+.y-rv-sheet--view .y-rv-star[disabled]:active {
+  transform: none;
+}
+.y-rv-sheet--view .y-rv-ta {
+  cursor: default;
+  caret-color: transparent;
+}
+.y-rv-sheet--view .y-rv-ta:focus {
+  border-color: var(--y-line);
+}
+.y-rv-view-close {
+  margin-top: 0;
 }
 .y-archive-card-side {
   display: flex;
