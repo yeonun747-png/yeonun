@@ -3,6 +3,8 @@ import type { SocialProvider } from "@/lib/auth/types";
 export type AuthErrorCode =
   | "cancelled"
   | "oauth_not_configured"
+  | "oauth_redirect_mismatch"
+  | "oauth_invalid_client"
   | "invalid_state"
   | "token_failed"
   | "email_provider_conflict"

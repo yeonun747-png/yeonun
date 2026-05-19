@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 
 const PRODUCTION_HOSTS = new Set(["yeonun.com", "www.yeonun.com"]);
+/** OAuth 콘솔 등록·Vercel www→apex 리다이렉트와 동일 호스트 */
+const PRODUCTION_OAUTH_HOST = "yeonun.com";
 
 function isLoopbackOrigin(origin: string): boolean {
   try {
@@ -29,13 +31,13 @@ function originFromHostname(request: NextRequest, hostname: string): string {
 
 /**
  * OAuth redirect URI·완료 리다이렉트용 절대 origin.
- * - yeonun.com / www.yeonun.com: 요청 Host 우선 (콘솔 등록 URI와 일치)
+ * - yeonun.com / www.yeonun.com: redirect URI는 항상 apex `yeonun.com` (콘솔 등록값과 일치)
  * - `NEXTAUTH_URL=http://localhost:3000`이 프로덕션에 남아 있어도 loopback은 무시
  */
 export function requestBaseUrl(request: NextRequest): string {
   const hostname = requestHostname(request);
   if (PRODUCTION_HOSTS.has(hostname)) {
-    return originFromHostname(request, hostname);
+    return originFromHostname(request, PRODUCTION_OAUTH_HOST);
   }
 
   const hostHeader = requestHostHeader(request);

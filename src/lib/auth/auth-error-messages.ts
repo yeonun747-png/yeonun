@@ -16,6 +16,10 @@ export function authErrorMessage(
       return "로그인이 취소되었습니다.";
     case "oauth_not_configured":
       return "소셜 로그인 설정이 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.";
+    case "oauth_redirect_mismatch":
+      return "로그인 redirect URI가 일치하지 않습니다. 카카오·구글 콘솔에 https://yeonun.com/auth/callback/… 가 등록돼 있는지 확인해 주세요.";
+    case "oauth_invalid_client":
+      return "소셜 앱 Client ID·Secret이 올바르지 않습니다. Vercel Production env와 개발자 콘솔 설정을 확인해 주세요.";
     case "invalid_state":
       return "로그인 요청이 만료되었습니다. 다시 시도해 주세요.";
     case "token_failed":

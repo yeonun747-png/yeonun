@@ -9,7 +9,7 @@ import {
   parseOAuthStateCookie,
   readOAuthStateCookie,
 } from "@/lib/auth/oauth-state";
-import { authErrorRedirectPath, socialLinkErrorRedirectPath } from "@/lib/auth/redirect-errors";
+import { authErrorRedirectPath, socialLinkErrorRedirectPath, type AuthErrorCode } from "@/lib/auth/redirect-errors";
 import {
   linkSocialProviderToUser,
   SocialLinkDisabledError,
@@ -19,6 +19,17 @@ import {
 import type { SocialProvider } from "@/lib/auth/types";
 
 const PROVIDERS = new Set<SocialProvider>(["google", "kakao", "naver"]);
+
+function mapCallbackAuthError(e: unknown): AuthErrorCode {
+  const msg = e instanceof Error ? e.message.toLowerCase() : String(e).toLowerCase();
+  if (msg.includes("redirect_uri") || msg.includes("invalid_grant") || msg.includes("redirect uri")) {
+    return "oauth_redirect_mismatch";
+  }
+  if (msg.includes("invalid_client") || msg.includes("client_secret") || msg.includes("unauthorized_client")) {
+    return "oauth_invalid_client";
+  }
+  return "token_failed";
+}
 
 export async function GET(
   request: NextRequest,
@@ -91,7 +102,12 @@ export async function GET(
     if (e instanceof WithdrawalPendingError) {
       return isLinkMode ? failLink("withdrawal_pending") : failLogin("withdrawal_pending");
     }
-    console.error("[auth/callback]", provider, { redirectUri: callbackUrl(request, provider), error: e });
-    return isLinkMode ? failLink("link_failed") : failLogin("token_failed");
+    const authCode = mapCallbackAuthError(e);
+    console.error("[auth/callback]", provider, {
+      redirectUri: callbackUrl(request, provider),
+      authCode,
+      error: e,
+    });
+    return isLinkMode ? failLink("link_failed") : failLogin(authCode);
   }
 }

@@ -82,16 +82,18 @@ async function exchangeCode(
   }
 
   if (provider === "kakao") {
+    const kakaoBody = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code,
+    });
+    if (clientSecret) kakaoBody.set("client_secret", clientSecret);
+
     const res = await fetch("https://kauth.kakao.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        code,
-      }),
+      body: kakaoBody,
     });
     const data = (await res.json()) as TokenResponse & { error?: string; error_description?: string };
     if (!res.ok) throw new Error(data.error_description || data.error || "kakao_token_failed");

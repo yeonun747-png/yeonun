@@ -22,8 +22,11 @@ export function oauthClientSecret(provider: SocialProvider): string {
   return read("NAVER_CLIENT_SECRET");
 }
 
+/** 카카오는 콘솔에서 Client Secret 비활성 시 secret 없이 토큰 교환 */
 export function isOAuthConfigured(provider: SocialProvider): boolean {
-  return Boolean(oauthClientId(provider) && oauthClientSecret(provider));
+  if (!oauthClientId(provider)) return false;
+  if (provider === "kakao") return true;
+  return Boolean(oauthClientSecret(provider));
 }
 
 export function isAnyOAuthConfigured(): boolean {
