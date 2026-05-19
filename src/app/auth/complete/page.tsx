@@ -7,7 +7,7 @@ import { authErrorMessage } from "@/lib/auth/auth-error-messages";
 import { mapSessionApiError, sanitizeAuthErrorHint } from "@/lib/auth/auth-error-hint";
 import type { AuthErrorCode } from "@/lib/auth/redirect-errors";
 import { clearPendingReferral, readPendingReferral } from "@/lib/referral-pending";
-import { dispatchMissionToast, referralInviteCreditToastMessage } from "@/lib/daily-missions";
+import { dispatchMissionCompleteToastOnce } from "@/lib/mission-rewards";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 function socialLoginToastLabel(provider: string | null): string | null {
@@ -83,7 +83,7 @@ function AuthCompleteInner() {
               });
               const claimData = (await claimRes.json().catch(() => ({}))) as { ok?: boolean; error?: string };
               if (claimRes.ok && (claimData.ok || claimData.error === "already_referred")) {
-                dispatchMissionToast(referralInviteCreditToastMessage());
+                dispatchMissionCompleteToastOnce("M08", "referee:M08");
               }
             } catch {
               /* callback에서 처리됐을 수 있음 */

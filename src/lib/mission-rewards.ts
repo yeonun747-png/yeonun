@@ -10,6 +10,8 @@ export type MissionRewardResult = {
   serverSynced: boolean;
 };
 
+const MISSION_TOAST_LS_KEY = "yeonun_mission_toast_keys_v1";
+
 function buildGrantKey(id: MissionId, nowMs: number): string {
   const def = MISSIONS[id];
   if (def.cadence === "once") return `once:${id}`;
@@ -19,13 +21,58 @@ function buildGrantKey(id: MissionId, nowMs: number): string {
   return `hours24:${id}:${kst}`;
 }
 
-function toastMissionReward(result: MissionRewardResult, id: MissionId) {
+function readMissionToastKeys(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(MISSION_TOAST_LS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function hasMissionToastShown(grantKey: string): boolean {
+  return readMissionToastKeys().includes(grantKey);
+}
+
+function markMissionToastShown(grantKey: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keys = readMissionToastKeys();
+    if (keys.includes(grantKey)) return;
+    keys.push(grantKey);
+    localStorage.setItem(MISSION_TOAST_LS_KEY, JSON.stringify(keys.slice(-96)));
+  } catch {
+    /* ignore */
+  }
+}
+
+function maybeToastMissionReward(id: MissionId, grantKey: string, result: MissionRewardResult): void {
+  if (hasMissionToastShown(grantKey)) return;
   dispatchMissionToast(missionCompleteToastMessage(id, { couponPending: result.couponPending }));
+  markMissionToastShown(grantKey);
+}
+
+/** 미션 완료 토스트 — 동일 grant_key당 1회만 */
+export function dispatchMissionCompleteToastOnce(
+  id: MissionId,
+  grantKey: string,
+  opts?: { couponPending?: boolean },
+): void {
+  if (hasMissionToastShown(grantKey)) return;
+  dispatchMissionToast(missionCompleteToastMessage(id, opts));
+  markMissionToastShown(grantKey);
+}
+
+function rewardWasNewlyGranted(result: MissionRewardResult): boolean {
+  return result.credits > 0 || result.couponGranted || result.couponPending;
 }
 
 /** 미션 완료 보상 — 게스트는 로컬, 로그인은 서버 지갑 기준 */
 export async function applyMissionReward(id: MissionId, nowMs = Date.now()): Promise<MissionRewardResult> {
   const credits = missionRewardCredits(id);
+  const grantKey = buildGrantKey(id, nowMs);
   const result: MissionRewardResult = {
     credits: 0,
     couponGranted: false,
@@ -40,8 +87,8 @@ export async function applyMissionReward(id: MissionId, nowMs = Date.now()): Pro
     if (credits > 0) {
       applyBonusCredits(credits);
       result.credits = credits;
+      maybeToastMissionReward(id, grantKey, result);
     }
-    toastMissionReward(result, id);
     return result;
   }
 
@@ -54,7 +101,7 @@ export async function applyMissionReward(id: MissionId, nowMs = Date.now()): Pro
       },
       body: JSON.stringify({
         mission_id: id,
-        grant_key: buildGrantKey(id, nowMs),
+        grant_key: grantKey,
         cadence: MISSIONS[id].cadence,
       }),
     });
@@ -62,7 +109,7 @@ export async function applyMissionReward(id: MissionId, nowMs = Date.now()): Pro
       ok?: boolean;
       credits_granted?: number;
       credits_duplicate?: boolean;
-      coupon?: { granted?: boolean; pending?: boolean };
+      coupon?: { granted?: boolean; pending?: boolean; kind?: string };
     };
     if (res.ok && data.ok) {
       if (typeof data.credits_granted === "number" && data.credits_granted > 0) {
@@ -76,7 +123,9 @@ export async function applyMissionReward(id: MissionId, nowMs = Date.now()): Pro
     /* ignore */
   }
 
-  toastMissionReward(result, id);
+  if (rewardWasNewlyGranted(result)) {
+    maybeToastMissionReward(id, grantKey, result);
+  }
   try {
     window.dispatchEvent(new CustomEvent("yeonun:coupons-updated"));
   } catch {

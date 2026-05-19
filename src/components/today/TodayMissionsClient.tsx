@@ -14,19 +14,17 @@ import {
 import { formatKstDateKey, msUntilNextKstMidnight } from "@/lib/datetime/kst";
 import {
   defaultMissionState,
-  dispatchMissionToast,
   isMissionCompleted,
   markMissionCompleteInState,
   missionUiLines,
   MISSION_STORAGE_KEY,
   missionActionHref,
   missionCtaLabel,
-  referralInviteCreditToastMessage,
   syncMissionState,
   type MissionId,
   type MissionRuntimeState,
 } from "@/lib/daily-missions";
-import { applyMissionReward } from "@/lib/mission-rewards";
+import { applyMissionReward, dispatchMissionCompleteToastOnce } from "@/lib/mission-rewards";
 import { syncMissionM08FromServer, tryCompleteMissionIfEligible } from "@/lib/mission-complete";
 import { setM08AssignedKstIfNeeded } from "@/lib/referral-pending";
 import { setDreamPassActiveForM05Pool, syncDreamPassActiveFromCoupons } from "@/lib/mission-pool-flags";
@@ -102,13 +100,18 @@ export function TodayMissionsClient() {
   const [countdownMs, setCountdownMs] = useState(0);
   const markedIoRef = useRef<Set<MissionId>>(new Set());
   const reconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconcileInFlightRef = useRef<Promise<MissionRuntimeState> | null>(null);
+  const completingRef = useRef<Set<MissionId>>(new Set());
 
   const pullAndReconcileRuntime = useCallback((): Promise<MissionRuntimeState> => {
-    const raw = loadState();
-    const s0 = syncMissionState(new Date(), raw).state;
-    const { trio } = syncMissionState(new Date(), s0);
-    setM08AssignedKstIfNeeded(trio.some((t) => t.id === "M08"));
-    return (async () => {
+    if (reconcileInFlightRef.current) return reconcileInFlightRef.current;
+
+    const run = (async (): Promise<MissionRuntimeState> => {
+      const raw = loadState();
+      const s0 = syncMissionState(new Date(), raw).state;
+      const { trio } = syncMissionState(new Date(), s0);
+      setM08AssignedKstIfNeeded(trio.some((t) => t.id === "M08"));
+
       const sb = supabaseBrowser();
       const session = sb ? (await sb.auth.getSession()).data.session : null;
       if (session?.access_token) {
@@ -116,21 +119,28 @@ export function TodayMissionsClient() {
       } else {
         setDreamPassActiveForM05Pool(false);
       }
+
       const s1 = syncMissionState(new Date(), loadState()).state;
       const next = await reconcileMissionStateWithExternalFacts(new Date(), s1);
+      persist(next);
+
       if (trio.some((t) => t.id === "M08") && !isMissionCompleted("M08", next.completedOnce, next.completedToday)) {
         if (session?.access_token) {
           const done = await syncMissionM08FromServer(session.access_token);
           if (done) {
-            dispatchMissionToast(referralInviteCreditToastMessage());
+            dispatchMissionCompleteToastOnce("M08", "once:M08");
             await tryCompleteMissionIfEligible("M08", new Date(), { skipReward: true });
           }
-          return loadState();
         }
       }
-      persist(next);
-      return next;
+
+      return loadState();
     })();
+
+    reconcileInFlightRef.current = run.finally(() => {
+      reconcileInFlightRef.current = null;
+    });
+    return reconcileInFlightRef.current;
   }, []);
 
   const scheduleReconcileFromStorage = useCallback(() => {
@@ -213,16 +223,22 @@ export function TodayMissionsClient() {
 
   const markComplete = useCallback(
     (id: MissionId) => {
+      if (completingRef.current.has(id)) return;
+      completingRef.current.add(id);
       void (async () => {
-        const prev = loadState();
-        const { trio: tr, state: s0 } = syncMissionState(new Date(), prev);
-        if (!tr.some((t) => t.id === id)) return;
-        if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return;
-        await applyMissionReward(id, Date.now());
-        const marked = markMissionCompleteInState(s0, id, tr, Date.now());
-        const { state: s2 } = syncMissionState(new Date(), marked);
-        persist(s2);
-        setRuntime(s2);
+        try {
+          const prev = loadState();
+          const { trio: tr, state: s0 } = syncMissionState(new Date(), prev);
+          if (!tr.some((t) => t.id === id)) return;
+          if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return;
+          await applyMissionReward(id, Date.now());
+          const marked = markMissionCompleteInState(s0, id, tr, Date.now());
+          const { state: s2 } = syncMissionState(new Date(), marked);
+          persist(s2);
+          setRuntime(s2);
+        } finally {
+          completingRef.current.delete(id);
+        }
       })();
     },
     [],
