@@ -23,8 +23,6 @@ import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
 import { reportChatLlmErrorClient } from "@/lib/llm-error-log-client";
 import { trySpendChatMessageCreditsAuth } from "@/lib/credit-client";
 import { spendableTotalCredits, ensureConsultTrialCreditsIfEligible, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
-import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
-import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
 
 const CHAR_NAME: Record<string, string> = {
   yeon: "연화",
@@ -320,8 +318,6 @@ export function ChatConsultModal() {
       if (pendingSessionRef.current?.id === sessionId) pendingSessionRef.current = null;
       setMessages(chatConsultGetSession(sessionId)?.messages ?? []);
       refreshCredits();
-      recordMeetConsultCharacterForM07(characterKey);
-      tryPersistMissionM07CompleteIfEligible();
       return true;
     };
 
@@ -585,8 +581,6 @@ export function ChatConsultModal() {
     });
     if (pendingSessionRef.current?.id === sessionId) pendingSessionRef.current = null;
     refreshCredits();
-    recordMeetConsultCharacterForM07(characterKey);
-    tryPersistMissionM07CompleteIfEligible();
     setBusy(false);
   };
 

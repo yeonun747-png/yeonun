@@ -14,17 +14,23 @@ import {
 import { formatKstDateKey, msUntilNextKstMidnight } from "@/lib/datetime/kst";
 import {
   defaultMissionState,
+  dispatchMissionToast,
   isMissionCompleted,
   markMissionCompleteInState,
   missionUiLines,
   MISSION_STORAGE_KEY,
   missionActionHref,
   missionCtaLabel,
+  referralInviteCreditToastMessage,
   syncMissionState,
   type MissionId,
   type MissionRuntimeState,
 } from "@/lib/daily-missions";
-import { applyMissionCreditReward } from "@/lib/mission-rewards";
+import { applyMissionReward } from "@/lib/mission-rewards";
+import { syncMissionM08FromServer, tryCompleteMissionIfEligible } from "@/lib/mission-complete";
+import { setM08AssignedKstIfNeeded } from "@/lib/referral-pending";
+import { setDreamPassActiveForM05Pool, syncDreamPassActiveFromCoupons } from "@/lib/mission-pool-flags";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { MissionGlyph } from "@/components/today/MissionGlyph";
 
 const LEGACY_MISSION_KEY = "yeonun_daily_missions_v1";
@@ -97,25 +103,47 @@ export function TodayMissionsClient() {
   const markedIoRef = useRef<Set<MissionId>>(new Set());
   const reconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const pullAndReconcileRuntime = useCallback((): MissionRuntimeState => {
+  const pullAndReconcileRuntime = useCallback((): Promise<MissionRuntimeState> => {
     const raw = loadState();
     const s0 = syncMissionState(new Date(), raw).state;
-    const next = reconcileMissionStateWithExternalFacts(new Date(), s0);
-    persist(next);
-    return next;
+    const { trio } = syncMissionState(new Date(), s0);
+    setM08AssignedKstIfNeeded(trio.some((t) => t.id === "M08"));
+    return (async () => {
+      const sb = supabaseBrowser();
+      const session = sb ? (await sb.auth.getSession()).data.session : null;
+      if (session?.access_token) {
+        await syncDreamPassActiveFromCoupons(session.access_token);
+      } else {
+        setDreamPassActiveForM05Pool(false);
+      }
+      const s1 = syncMissionState(new Date(), loadState()).state;
+      const next = await reconcileMissionStateWithExternalFacts(new Date(), s1);
+      if (trio.some((t) => t.id === "M08") && !isMissionCompleted("M08", next.completedOnce, next.completedToday)) {
+        if (session?.access_token) {
+          const done = await syncMissionM08FromServer(session.access_token);
+          if (done) {
+            dispatchMissionToast(referralInviteCreditToastMessage());
+            await tryCompleteMissionIfEligible("M08", new Date(), { skipReward: true });
+          }
+          return loadState();
+        }
+      }
+      persist(next);
+      return next;
+    })();
   }, []);
 
   const scheduleReconcileFromStorage = useCallback(() => {
     if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
     reconcileTimerRef.current = setTimeout(() => {
       reconcileTimerRef.current = null;
-      setRuntime(pullAndReconcileRuntime());
+      void pullAndReconcileRuntime().then(setRuntime);
     }, 60);
   }, [pullAndReconcileRuntime]);
 
   useEffect(() => {
     setMounted(true);
-    setRuntime(pullAndReconcileRuntime());
+    void pullAndReconcileRuntime().then(setRuntime);
   }, [pullAndReconcileRuntime]);
 
   const snapshot = useMemo(() => syncMissionState(new Date(), runtime), [runtime]);
@@ -159,6 +187,7 @@ export function TodayMissionsClient() {
     window.addEventListener(SAJU_UPDATED_EVENT, onReconcile);
     window.addEventListener("focus", onReconcile);
     window.addEventListener("pageshow", onReconcile);
+    window.addEventListener("yeonun:coupons-updated", onReconcile);
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("storage", onStorage);
     return () => {
@@ -167,6 +196,7 @@ export function TodayMissionsClient() {
       window.removeEventListener(SAJU_UPDATED_EVENT, onReconcile);
       window.removeEventListener("focus", onReconcile);
       window.removeEventListener("pageshow", onReconcile);
+      window.removeEventListener("yeonun:coupons-updated", onReconcile);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("storage", onStorage);
     };
@@ -183,21 +213,17 @@ export function TodayMissionsClient() {
 
   const markComplete = useCallback(
     (id: MissionId) => {
-      setRuntime((prev) => {
+      void (async () => {
+        const prev = loadState();
         const { trio: tr, state: s0 } = syncMissionState(new Date(), prev);
-        if (!tr.some((t) => t.id === id)) return prev;
-        if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return prev;
+        if (!tr.some((t) => t.id === id)) return;
+        if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return;
+        await applyMissionReward(id, Date.now());
         const marked = markMissionCompleteInState(s0, id, tr, Date.now());
-        applyMissionCreditReward(id);
         const { state: s2 } = syncMissionState(new Date(), marked);
         persist(s2);
-        try {
-          window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "미션 완료 · 보상이 적립됐어요" } }));
-        } catch {
-          // ignore
-        }
-        return s2;
-      });
+        setRuntime(s2);
+      })();
     },
     [],
   );
@@ -239,7 +265,6 @@ export function TodayMissionsClient() {
       obs.push(io);
     };
     tryMark("M03", document.getElementById("today-iljin"));
-    tryMark("M04", document.getElementById("today-daily-words"));
     return () => obs.forEach((o) => o.disconnect());
   }, [mounted, trio, markComplete, runtime.rolledDayKst]);
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import { LibraryDreamMissionHook } from "@/components/library/LibraryDreamMissionHook";
 import { LibraryFortuneDetailPopBack } from "@/components/library/LibraryFortuneDetailPopBack";
 import { LibraryFortuneReplay } from "@/components/library/LibraryFortuneReplay";
 import { getProductBySlugCached } from "@/lib/data/content";
@@ -97,6 +98,7 @@ export default async function LibraryFortuneDetailPage({ params }: Props) {
 
   return (
     <div className="yeonunPage y-lib-detail-root">
+      <LibraryDreamMissionHook productSlug={slug ?? ""} />
       <LibraryFortuneDetailPopBack />
       <main className="y-lib-detail-page y-lib-detail-main">
         <nav className="y-lib-back-nav" aria-label="보관함 이동">

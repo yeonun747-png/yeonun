@@ -5,7 +5,9 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 
+import { ReferralCaptureClient } from "@/components/referral/ReferralCaptureClient";
 import { migrateLegacyChatConsultSessions, setChatConsultUserScope } from "@/lib/chat-consult-archive";
+import { clearPendingReferral, readPendingReferral } from "@/lib/referral-pending";
 import { setCreditAuthAccessToken, syncCreditsFromServer } from "@/lib/credit-client";
 import { syncLocalSajuToServerIfNeeded } from "@/lib/profile-push-to-server";
 import { syncProfileFromServer } from "@/lib/profile-sync-from-api";
@@ -20,6 +22,32 @@ export type YeonunAuthContextValue = {
 };
 
 const YeonunAuthContext = createContext<YeonunAuthContextValue | null>(null);
+
+async function runPostLoginSync(tok: string, opts?: { isNewUser?: boolean }) {
+  await syncProfileFromServer(tok);
+  await syncLocalSajuToServerIfNeeded(tok);
+  if (!opts?.isNewUser) {
+    await syncCreditsFromServer();
+    return;
+  }
+  const pending = readPendingReferral();
+  if (pending) {
+    try {
+      await fetch("/api/referral/claim", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${tok}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(pending),
+      });
+      clearPendingReferral();
+    } catch {
+      /* ignore */
+    }
+  }
+  await syncCreditsFromServer();
+}
 
 export function YeonunAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -43,11 +71,7 @@ export function YeonunAuthProvider({ children }: { children: ReactNode }) {
         const tok = s?.access_token ?? null;
         setCreditAuthAccessToken(tok);
         if (tok) {
-          void (async () => {
-            await syncProfileFromServer(tok);
-            await syncLocalSajuToServerIfNeeded(tok);
-          })();
-          void syncCreditsFromServer();
+          void runPostLoginSync(tok);
         }
       }
     });
@@ -59,11 +83,7 @@ export function YeonunAuthProvider({ children }: { children: ReactNode }) {
       const tok = s?.access_token ?? null;
       setCreditAuthAccessToken(tok);
       if (tok) {
-        void (async () => {
-          await syncProfileFromServer(tok);
-          await syncLocalSajuToServerIfNeeded(tok);
-        })();
-        void syncCreditsFromServer();
+        void runPostLoginSync(tok);
       } else {
         setCreditAuthAccessToken(null);
       }
@@ -99,7 +119,12 @@ export function YeonunAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [session?.user?.id]);
 
-  return <YeonunAuthContext.Provider value={value}>{children}</YeonunAuthContext.Provider>;
+  return (
+    <YeonunAuthContext.Provider value={value}>
+      <ReferralCaptureClient />
+      {children}
+    </YeonunAuthContext.Provider>
+  );
 }
 
 export function useYeonunAuth(): YeonunAuthContextValue {

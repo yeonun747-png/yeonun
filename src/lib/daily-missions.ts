@@ -5,6 +5,7 @@
  */
 
 import { formatKstDateKey } from "@/lib/datetime/kst";
+import { m05EligibleForPool } from "@/lib/mission-pool-flags";
 
 export type MissionId =
   | "M01"
@@ -22,6 +23,29 @@ export type MissionId =
 
 export type MissionCadence = "once" | "daily" | "hours24" | "unlimited";
 
+/** 음성 1분 = 390 크레딧 */
+export const VOICE_MINUTE_CREDITS = 390;
+
+/** M08 친구 초대 · 1인당 보상 크레딧 */
+export const REFERRAL_REWARD_CREDITS = 10 * VOICE_MINUTE_CREDITS;
+
+function creditDoneLine(credits: number): string {
+  return `${credits.toLocaleString("ko-KR")} 크레딧 적립됨`;
+}
+
+function creditBadgeTodo(credits: number): string {
+  return `C +${credits.toLocaleString("ko-KR")}`;
+}
+
+function creditRewardUi(credits: number) {
+  const credStr = credits.toLocaleString("ko-KR");
+  return {
+    badgeTodo: creditBadgeTodo(credits),
+    descTodo: `${credStr} 크레딧 적립`,
+    descDone: creditDoneLine(credits),
+  };
+}
+
 export type MissionDef = {
   id: MissionId;
   name: string;
@@ -31,17 +55,17 @@ export type MissionDef = {
 
 export const MISSIONS: Record<MissionId, MissionDef> = {
   M01: { id: "M01", name: "내 사주 입력하기", reward: "풀이 5,000원 할인 쿠폰", cadence: "once" },
-  M02: { id: "M02", name: "첫 음성 상담 시작", reward: "+1,950 크레딧", cadence: "once" },
-  M03: { id: "M03", name: "오늘의 일진 확인", reward: "+390 크레딧", cadence: "daily" },
-  M04: { id: "M04", name: "4명 한 마디 모두 읽기", reward: "+390 크레딧", cadence: "daily" },
+  M02: { id: "M02", name: "첫 음성 상담 시작", reward: "1,950 크레딧", cadence: "once" },
+  M03: { id: "M03", name: "오늘의 일진 확인", reward: "390 크레딧", cadence: "daily" },
+  M04: { id: "M04", name: "4명 한 마디 모두 읽기", reward: "390 크레딧", cadence: "daily" },
   M05: { id: "M05", name: "꿈해몽 풀이 보기", reward: "다음 꿈해몽 무료 쿠폰", cadence: "hours24" },
-  M06: { id: "M06", name: "리뷰 작성하기", reward: "+1,950 크레딧", cadence: "hours24" },
-  M07: { id: "M07", name: "처음 만나는 인연과 상담", reward: "+1,170 크레딧", cadence: "hours24" },
-  M08: { id: "M08", name: "친구 초대", reward: "초대자·가입자 각 +3,900 크레딧", cadence: "unlimited" },
+  M06: { id: "M06", name: "후기 작성하기", reward: "1,950 크레딧", cadence: "hours24" },
+  M07: { id: "M07", name: "처음 만나는 인연과 상담", reward: "1,170 크레딧", cadence: "hours24" },
+  M08: { id: "M08", name: "친구 초대", reward: "초대자·가입자 각 3,900 크레딧", cadence: "unlimited" },
   M09: { id: "M09", name: "콘텐츠 1개 구매", reward: "다음 콘텐츠 10% 할인", cadence: "hours24" },
-  M10: { id: "M10", name: "만세력 분석 보기", reward: "+390 크레딧", cadence: "daily" },
-  M11: { id: "M11", name: "오늘의 운세 기록", reward: "+390 크레딧", cadence: "daily" },
-  M12: { id: "M12", name: "오늘의 한 마디 공유", reward: "+390 크레딧", cadence: "hours24" },
+  M10: { id: "M10", name: "만세력 분석 보기", reward: "390 크레딧", cadence: "daily" },
+  M11: { id: "M11", name: "오늘의 운세 기록", reward: "390 크레딧", cadence: "daily" },
+  M12: { id: "M12", name: "오늘의 한 마디 공유", reward: "390 크레딧", cadence: "hours24" },
 };
 
 /** 목업: 미완료는 장미 톤 알약 + 설명 / 완료는 초록 「완료」 알약 + 적립 문구 */
@@ -57,65 +81,58 @@ export const MISSION_UI_LINES: Record<MissionId, MissionUiLines> = {
     descTodo: "만세력 + 풀이 콘텐츠 할인",
     descDone: "5,000원 할인 쿠폰 적립됨",
   },
-  M02: {
-    badgeTodo: "+1,950",
-    descTodo: "크레딧 적립",
-    descDone: "1,950 크레딧 적립됨",
-  },
-  M03: {
-    badgeTodo: "+390",
-    descTodo: "크레딧 적립",
-    descDone: "390 크레딧 적립됨",
-  },
-  M04: {
-    badgeTodo: "+390",
-    descTodo: "크레딧 적립",
-    descDone: "390 크레딧 적립됨",
-  },
+  M02: creditRewardUi(5 * VOICE_MINUTE_CREDITS),
+  M03: creditRewardUi(VOICE_MINUTE_CREDITS),
+  M04: creditRewardUi(VOICE_MINUTE_CREDITS),
   M05: {
     badgeTodo: "무료쿠폰",
     descTodo: "다음 꿈해몽 무료 쿠폰 지급",
     descDone: "꿈해몽 무료 쿠폰 적립됨",
   },
-  M06: {
-    badgeTodo: "+1,950",
-    descTodo: "크레딧 적립",
-    descDone: "1,950 크레딧 적립됨",
-  },
-  M07: {
-    badgeTodo: "+1,170",
-    descTodo: "크레딧 적립",
-    descDone: "1,170 크레딧 적립됨",
-  },
+  M06: creditRewardUi(5 * VOICE_MINUTE_CREDITS),
+  M07: creditRewardUi(3 * VOICE_MINUTE_CREDITS),
   M08: {
-    badgeTodo: "+3,900",
-    descTodo: "나 + 친구 각각 3,900 크레딧",
-    descDone: "양쪽 3,900 크레딧 적립됨",
+    badgeTodo: creditBadgeTodo(REFERRAL_REWARD_CREDITS),
+    descTodo: `나 + 친구 각각 ${REFERRAL_REWARD_CREDITS.toLocaleString("ko-KR")} 크레딧 적립`,
+    descDone: creditDoneLine(REFERRAL_REWARD_CREDITS),
   },
   M09: {
     badgeTodo: "10% 할인",
     descTodo: "다음 콘텐츠 10% 할인 쿠폰",
     descDone: "10% 할인 쿠폰 적립됨",
   },
-  M10: {
-    badgeTodo: "+390",
-    descTodo: "크레딧 적립",
-    descDone: "390 크레딧 적립됨",
-  },
-  M11: {
-    badgeTodo: "+390",
-    descTodo: "크레딧 적립",
-    descDone: "390 크레딧 적립됨",
-  },
-  M12: {
-    badgeTodo: "+390",
-    descTodo: "크레딧 적립",
-    descDone: "390 크레딧 적립됨",
-  },
+  M10: creditRewardUi(VOICE_MINUTE_CREDITS),
+  M11: creditRewardUi(VOICE_MINUTE_CREDITS),
+  M12: creditRewardUi(VOICE_MINUTE_CREDITS),
 };
 
 export function missionUiLines(id: MissionId): MissionUiLines {
   return MISSION_UI_LINES[id];
+}
+
+/** 미션 완료 토스트 — descDone 기준(크레딧·쿠폰 문구 통일) */
+export function missionCompleteToastMessage(
+  id: MissionId,
+  opts?: { couponPending?: boolean },
+): string {
+  if (opts?.couponPending) {
+    return "미션 완료 · 보유 쿠폰 사용 후 새 쿠폰이 지급돼요";
+  }
+  return `미션 완료 · ${MISSION_UI_LINES[id].descDone}`;
+}
+
+/** M08 친구 초대 · 가입 보상(1인 3,900) 토스트 */
+export function referralInviteCreditToastMessage(): string {
+  return missionCompleteToastMessage("M08");
+}
+
+export function dispatchMissionToast(message: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message } }));
+  } catch {
+    /* ignore */
+  }
 }
 
 export const ONBOARDING_MISSION_IDS: MissionId[] = ["M01", "M02", "M03"];
@@ -237,12 +254,23 @@ export function buildMissionCandidatePool(state: MissionRuntimeState, nowMs: num
   for (const id of HOURS24_IDS) {
     if (id === "M07") {
       if (m07EligibleForPool() && hours24Eligible(id, nowMs, state.lastCompletedAtMs)) pool.add(id);
+    } else if (id === "M05") {
+      if (m05EligibleForPool() && hours24Eligible(id, nowMs, state.lastCompletedAtMs)) pool.add(id);
     } else if (hours24Eligible(id, nowMs, state.lastCompletedAtMs)) {
       pool.add(id);
     }
   }
 
   return Array.from(pool);
+}
+
+/** 배정·표시 공통 — 보유 꿈해몽 쿠폰 등으로 당일 노출 불가 미션 제거 */
+export function filterEligibleMissionIds(ids: MissionId[]): MissionId[] {
+  return ids.filter((id) => {
+    if (id === "M05" && !m05EligibleForPool()) return false;
+    if (id === "M07" && !m07EligibleForPool()) return false;
+    return true;
+  });
 }
 
 function pickDailyTrio(
@@ -300,7 +328,8 @@ export function syncMissionState(now: Date, state: MissionRuntimeState): {
         completedToday: {},
       };
     }
-    trio = next.rolledIds.map((id) => MISSIONS[id]).filter(Boolean);
+    const eligibleIds = filterEligibleMissionIds(next.rolledIds);
+    trio = eligibleIds.map((id) => MISSIONS[id]).filter(Boolean);
     if (trio.length === 0) {
       const picked = pickDailyTrio(todayKst, next.signupKstDate, nowMs, next);
       next = {
@@ -309,7 +338,7 @@ export function syncMissionState(now: Date, state: MissionRuntimeState): {
         rolledIds: picked,
         completedToday: {},
       };
-      trio = picked.map((id) => MISSIONS[id]);
+      trio = filterEligibleMissionIds(picked).map((id) => MISSIONS[id]);
     }
   }
 
@@ -354,9 +383,9 @@ export function missionActionHref(id: MissionId): string {
     case "M05":
       return "/content?category=dream";
     case "M06":
-      return "/reviews";
+      return "/my?shelf=fortune";
     case "M08":
-      return "/partner";
+      return "/invite";
     case "M09":
       return "/content";
     case "M11":
@@ -392,19 +421,19 @@ export function markMissionCompleteInState(
 export function missionRewardCredits(id: MissionId): number {
   switch (id) {
     case "M02":
-      return 5 * 390;
+      return 5 * VOICE_MINUTE_CREDITS;
     case "M03":
     case "M04":
     case "M10":
     case "M11":
     case "M12":
-      return 390;
+      return VOICE_MINUTE_CREDITS;
     case "M06":
-      return 5 * 390;
+      return 5 * VOICE_MINUTE_CREDITS;
     case "M07":
-      return 3 * 390;
+      return 3 * VOICE_MINUTE_CREDITS;
     case "M08":
-      return 3900;
+      return 10 * VOICE_MINUTE_CREDITS;
     default:
       return 0;
   }

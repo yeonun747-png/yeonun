@@ -440,8 +440,8 @@ export default function CallDccPageClient() {
             localStorage.setItem(FIRST, "1");
             tryPersistMissionM02CompleteIfEligible();
           }
-          recordMeetConsultCharacterForM07(characterKey);
-          tryPersistMissionM07CompleteIfEligible();
+          const wasNew = recordMeetConsultCharacterForM07(characterKey);
+          tryPersistMissionM07CompleteIfEligible(undefined, wasNew);
         } catch {
           // ignore
         }

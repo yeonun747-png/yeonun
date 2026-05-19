@@ -6,6 +6,8 @@ import { Suspense, useEffect, useState } from "react";
 import { authErrorMessage } from "@/lib/auth/auth-error-messages";
 import { mapSessionApiError, sanitizeAuthErrorHint } from "@/lib/auth/auth-error-hint";
 import type { AuthErrorCode } from "@/lib/auth/redirect-errors";
+import { clearPendingReferral, readPendingReferral } from "@/lib/referral-pending";
+import { dispatchMissionToast, referralInviteCreditToastMessage } from "@/lib/daily-missions";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 function socialLoginToastLabel(provider: string | null): string | null {
@@ -47,6 +49,7 @@ function AuthCompleteInner() {
           ok?: boolean;
           access_token?: string;
           refresh_token?: string;
+          is_new_user?: boolean;
           error?: string;
           hint?: string;
         };
@@ -65,6 +68,29 @@ function AuthCompleteInner() {
           refresh_token: data.refresh_token,
         });
         if (error) throw error;
+
+        if (data.is_new_user) {
+          const pending = readPendingReferral();
+          if (pending) {
+            try {
+              const claimRes = await fetch("/api/referral/claim", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${data.access_token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(pending),
+              });
+              const claimData = (await claimRes.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+              if (claimRes.ok && (claimData.ok || claimData.error === "already_referred")) {
+                dispatchMissionToast(referralInviteCreditToastMessage());
+              }
+            } catch {
+              /* callback에서 처리됐을 수 있음 */
+            }
+            clearPendingReferral();
+          }
+        }
 
         if (cancelled) return;
 

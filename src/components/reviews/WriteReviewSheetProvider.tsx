@@ -24,6 +24,7 @@ import {
   type UserReviewRecord,
 } from "@/lib/reviews-user";
 import { characterGlyph, type CharacterReviewKey } from "@/lib/reviews-types";
+import { onMissionReviewSubmitted } from "@/lib/mission-complete";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 export type WriteReviewTarget = {
@@ -140,6 +141,7 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
     window.dispatchEvent(
       new CustomEvent(USER_REVIEWS_CHANGED_EVENT, { detail: { review: result.review } }),
     );
+    void onMissionReviewSubmitted();
     close();
     showYeonunToast("리뷰가 등록됐어요 ✓");
   }, [body, close, selectedTags, stars, submitting, target]);

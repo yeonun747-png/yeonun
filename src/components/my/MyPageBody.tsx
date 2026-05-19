@@ -9,6 +9,7 @@ import { useMyShelfListsPreload } from "@/hooks/useMyShelfListsPreload";
 import { BottomNav } from "@/components/BottomNav";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import { TopNav } from "@/components/TopNav";
+import { MyCouponsMenuItem } from "@/components/my/MyCouponsMenuItem";
 import { MyCreditBalanceLine } from "@/components/my/MyCreditBalanceLine";
 import { CallHistoryClient } from "@/components/history/CallHistoryClient";
 import { LibraryListScreenClient } from "@/components/library/LibraryListScreenClient";
@@ -267,6 +268,19 @@ export function MyPageBody() {
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
+              <div className="y-my-menu-item" aria-label="보유 쿠폰">
+                <div className="y-my-menu-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 8h16v3a2 2 0 0 1 0 4v3H4v-3a2 2 0 0 1 0-4V8z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                </div>
+                <div className="y-my-menu-text">
+                  <div className="y-my-menu-name">보유 쿠폰</div>
+                  <div className="y-my-menu-desc">
+                    <MyCouponsMenuItem />
+                  </div>
+                </div>
+              </div>
               <MySheetLink className="y-my-menu-item" href="/checkout/credit">
                 <div className="y-my-menu-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">

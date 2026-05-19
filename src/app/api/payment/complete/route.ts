@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
 import { grantPurchaseCredits, isLoggedInUserId } from "@/lib/credit-server";
+import { consumeCheckoutCoupons } from "@/lib/mission-coupon-server";
+import { env } from "@/lib/env";
 import { checkFortune82PaymentStatus, isFortune82PaymentPaid } from "@/lib/payment-fortune82-pcheck";
 import { ensureOrderPaidPaymentRecord } from "@/lib/payment-complete-db";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -78,6 +81,27 @@ export async function POST(request: NextRequest) {
     }
 
     await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
+
+    if (isLoggedInUserId(order.user_ref) && payment?.raw_payload) {
+      const raw = payment.raw_payload as Record<string, unknown>;
+      const discount = Number(raw.coupon_discount_krw ?? 0);
+      if (discount > 0) {
+        const serviceKey = env.supabaseServiceRoleKey;
+        if (serviceKey) {
+          const svc = createClient(env.supabaseUrl, serviceKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
+          await consumeCheckoutCoupons(svc, order.user_ref, {
+            final_price_krw: Math.max(0, Number(order.amount_krw ?? 0)),
+            discount_krw: discount,
+            label: String(raw.coupon_label ?? ""),
+            consume_discount_coupon_id:
+              typeof raw.consume_discount_coupon_id === "string" ? raw.consume_discount_coupon_id : null,
+            consume_dream_pass_id: typeof raw.consume_dream_pass_id === "string" ? raw.consume_dream_pass_id : null,
+          });
+        }
+      }
+    }
 
     const product_slug = String(order.product_slug ?? "");
     const isCreditTopup = isCreditTopupProduct(product_slug);

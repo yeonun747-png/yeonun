@@ -7,7 +7,7 @@ import Link from "next/link";
 import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { formatKstDateKey, getKstParts } from "@/lib/datetime/kst";
-import { markMissionFactM04ReadNow } from "@/lib/mission-reconcile";
+import { markMissionM04CardViewed } from "@/lib/mission-complete";
 import { buildDailyWordSharePayload } from "@/lib/today-daily-words-share";
 import {
   playCartesiaCharacterLine,
@@ -238,7 +238,6 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
         }
         const next = { yeon: j.yeon, byeol: j.byeol, yeo: j.yeo, un: j.un };
         setLineByKey(next);
-        markMissionFactM04ReadNow();
         try {
           window.localStorage.setItem(cacheKey, JSON.stringify(next));
         } catch {
@@ -253,6 +252,27 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
       cancelled = true;
     };
   }, [unlocked, sajuNonce]);
+
+  useEffect(() => {
+    if (!unlocked || !dailyLinesReady) return;
+    const cards = document.querySelectorAll<HTMLElement>("[data-daily-word-key]");
+    if (!cards.length) return;
+    const seen = new Set<string>();
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries) {
+          if (!en.isIntersecting || en.intersectionRatio < 0.35) continue;
+          const key = en.target.getAttribute("data-daily-word-key");
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          markMissionM04CardViewed(key);
+        }
+      },
+      { threshold: [0, 0.35, 0.6] },
+    );
+    cards.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, [unlocked, dailyLinesReady, lineByKey]);
 
   const flashShareDone = useCallback((key: CharKey) => {
     setShareFlashKey(key);
@@ -359,15 +379,15 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
 
         if (session?.access_token && session.user) {
           postShareLogBg(w.key, channel, session.access_token);
-          try {
-            window.dispatchEvent(
-              new CustomEvent("yeonun:daily-words-share-complete", {
-                detail: { kstDate: formatKstDateKey(new Date()) },
-              }),
-            );
-          } catch {
-            /* ignore */
-          }
+        }
+        try {
+          window.dispatchEvent(
+            new CustomEvent("yeonun:daily-words-share-complete", {
+              detail: { kstDate: formatKstDateKey(new Date()) },
+            }),
+          );
+        } catch {
+          /* ignore */
         }
       } finally {
         shareBusyRef.current = false;
@@ -413,7 +433,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
             const text = lineByKey[w.key] ?? w.text;
             const canWarmTts = dailyLinesReady;
             return (
-              <div key={w.key} className="y-daily-word-card">
+              <div key={w.key} className="y-daily-word-card" data-daily-word-key={w.key}>
                 <div className="y-dw-head">
                   <div className="y-dw-head-main">
                     <div className={`y-dw-avatar ${w.key}`}>{w.han}</div>

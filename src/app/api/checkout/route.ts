@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
 import { isLoggedInUserId } from "@/lib/credit-server";
+import {
+  consumeCheckoutCoupons,
+  getActiveDiscountCoupon,
+  getActiveDreamPass,
+  resolveCheckoutCouponApply,
+} from "@/lib/mission-coupon-server";
+import { env } from "@/lib/env";
 import { formatPaymentCode, generateOrderId } from "@/lib/payment-utils";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -122,9 +130,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "상품 결제 코드가 없습니다. 관리자에게 문의해 주세요." }, { status: 400 });
   }
 
-  const amount_krw = Number(productRow.price_krw ?? 0);
-  if (!Number.isFinite(amount_krw) || amount_krw <= 0) {
+  const amount_krw_list = Number(productRow.price_krw ?? 0);
+  if (!Number.isFinite(amount_krw_list) || amount_krw_list <= 0) {
     return NextResponse.json({ error: "상품 가격이 올바르지 않습니다." }, { status: 400 });
+  }
+
+  let amount_krw = amount_krw_list;
+  let couponApply: ReturnType<typeof resolveCheckoutCouponApply> | null = null;
+
+  if (isLoggedInUserId(user_ref) && !isCreditTopup) {
+    const serviceKey = env.supabaseServiceRoleKey;
+    if (serviceKey) {
+      const svc = createClient(env.supabaseUrl, serviceKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const [discountCoupon, dreamPass] = await Promise.all([
+        getActiveDiscountCoupon(svc, user_ref),
+        getActiveDreamPass(svc, user_ref),
+      ]);
+      couponApply = resolveCheckoutCouponApply({
+        product_slug,
+        price_krw: amount_krw_list,
+        discountCoupon,
+        dreamPass,
+      });
+      amount_krw = couponApply.final_price_krw;
+    }
   }
   const character_key = typeof body.product_slug === "string" && ["zimi-chart", "newyear-2026", "tojeong-2026", "zimi-2026-flow"].includes(body.product_slug)
     ? "byeol"
@@ -177,6 +208,11 @@ export async function POST(request: Request) {
             : null,
         grant_base:
           typeof body.grant_base === "number" && Number.isFinite(body.grant_base) ? Math.floor(body.grant_base) : null,
+        list_price_krw: amount_krw_list,
+        coupon_discount_krw: couponApply?.discount_krw ?? 0,
+        coupon_label: couponApply?.label ?? null,
+        consume_discount_coupon_id: couponApply?.consume_discount_coupon_id ?? null,
+        consume_dream_pass_id: couponApply?.consume_dream_pass_id ?? null,
       },
     })
     .select("id,status")
@@ -200,6 +236,16 @@ export async function POST(request: Request) {
   const paidAt = new Date().toISOString();
   await supabase.from("payments").update({ status: "paid", paid_at: paidAt }).eq("id", payment.id);
   await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
+
+  if (isLoggedInUserId(user_ref) && couponApply && couponApply.discount_krw > 0) {
+    const serviceKey = env.supabaseServiceRoleKey;
+    if (serviceKey) {
+      const svc = createClient(env.supabaseUrl, serviceKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      await consumeCheckoutCoupons(svc, user_ref, couponApply);
+    }
+  }
 
   const { data: fortuneRequest } = isCreditTopup
     ? { data: null }
@@ -241,6 +287,9 @@ export async function POST(request: Request) {
     payment,
     payment_code: codeStr,
     amount_krw,
+    list_price_krw: amount_krw_list,
+    coupon_discount_krw: couponApply?.discount_krw ?? 0,
+    coupon_label: couponApply?.label ?? null,
     fortune_request: fortuneRequest,
   });
 }

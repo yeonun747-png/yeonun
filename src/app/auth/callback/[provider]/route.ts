@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 import { mapOAuthProviderError, mapThrownOAuthError, sanitizeAuthErrorHint } from "@/lib/auth/auth-error-hint";
 import { createExchangeToken } from "@/lib/auth/exchange-token";
@@ -18,6 +19,9 @@ import {
   WithdrawalPendingError,
 } from "@/lib/auth/social-user-service";
 import type { SocialProvider } from "@/lib/auth/types";
+import { env } from "@/lib/env";
+import { parseReferralPendingCookie, REFERRAL_PENDING_COOKIE } from "@/lib/referral-pending";
+import { claimReferralSignup } from "@/lib/referral-server";
 
 const PROVIDERS = new Set<SocialProvider>(["google", "kakao", "naver"]);
 
@@ -86,6 +90,25 @@ export async function GET(
     }
 
     const result = await upsertSocialUser(profile);
+
+    if (result.isNewUser) {
+      const refRaw = request.cookies.get(REFERRAL_PENDING_COOKIE)?.value;
+      const pending = parseReferralPendingCookie(refRaw);
+      const serviceKey = env.supabaseServiceRoleKey;
+      if (pending && serviceKey) {
+        try {
+          const svc = createClient(env.supabaseUrl, serviceKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
+          await claimReferralSignup(svc, result.authUserId, pending.code, pending.assigned_kst_date, {
+            requireNewSignup: true,
+          });
+        } catch (e) {
+          console.warn("[auth/callback] referral claim", e);
+        }
+      }
+    }
+
     const exchange = createExchangeToken({
       authUserId: result.authUserId,
       email: result.loginEmail,
@@ -99,6 +122,9 @@ export async function GET(
     if (result.isNewUser) complete.searchParams.set("onboard", "1");
     const res = NextResponse.redirect(complete);
     clearOAuthStateCookie(res);
+    if (result.isNewUser) {
+      res.cookies.set(REFERRAL_PENDING_COOKIE, "", { httpOnly: false, path: "/", maxAge: 0, sameSite: "lax" });
+    }
     return res;
   } catch (e) {
     if (e instanceof SocialLinkDisabledError) {

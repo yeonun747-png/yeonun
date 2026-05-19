@@ -31,6 +31,12 @@ function previewText(prefetch: FortunePrefetchV1 | null, fallback: string) {
   return text.slice(0, 280).trim() || `${fallback} 풀이를 준비하고 있어요.`;
 }
 
+type CouponApply = {
+  final_price_krw: number;
+  discount_krw: number;
+  label: string;
+};
+
 export function Step6Preview({
   product,
   prefetch,
@@ -48,6 +54,62 @@ export function Step6Preview({
   const [agreeAll, setAgreeAll] = useState(true);
   const [agreePayTerms, setAgreePayTerms] = useState(true);
   const [agreeCommerceTerms, setAgreeCommerceTerms] = useState(true);
+  const [couponApply, setCouponApply] = useState<CouponApply | null>(null);
+
+  const listPrice = product.price_krw;
+  const finalPrice = couponApply?.final_price_krw ?? listPrice;
+  const discountKrw = couponApply?.discount_krw ?? 0;
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const sb = supabaseBrowser();
+      const session = sb ? (await sb.auth.getSession()).data.session : null;
+      if (!session?.access_token) {
+        if (!cancelled) setCouponApply(null);
+        return;
+      }
+      try {
+        const res = await fetch("/api/my/coupons", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ product_slug: product.slug, price_krw: listPrice }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; apply?: CouponApply };
+        if (!cancelled && res.ok && data.ok && data.apply) {
+          setCouponApply(data.apply);
+        }
+      } catch {
+        if (!cancelled) setCouponApply(null);
+      }
+    })();
+    const onCoupons = () => {
+      void (async () => {
+        const sb = supabaseBrowser();
+        const session = sb ? (await sb.auth.getSession()).data.session : null;
+        if (!session?.access_token) return;
+        const res = await fetch("/api/my/coupons", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ product_slug: product.slug, price_krw: listPrice }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; apply?: CouponApply };
+        if (res.ok && data.ok && data.apply) setCouponApply(data.apply);
+      })();
+    };
+    window.addEventListener("yeonun:coupons-updated", onCoupons);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("yeonun:coupons-updated", onCoupons);
+    };
+  }, [product.slug, listPrice]);
+
   useEffect(() => {
     const refresh = () => setCreditBal(spendableTotalCredits());
     refresh();
@@ -85,18 +147,31 @@ export function Step6Preview({
       const session = sb ? (await sb.auth.getSession()).data.session : null;
 
       if (payMethod === "credit") {
-        const spend = await spendCreditsWithAuth(product.price_krw, {
-          kind: "spend_fortune",
-          ref_type: "product",
-          ref_id: product.slug,
-          memo: product.title,
-        });
-        if (!spend.ok) throw new Error("크레딧이 부족합니다.");
+        if (finalPrice > 0) {
+          const spend = await spendCreditsWithAuth(finalPrice, {
+            kind: "spend_fortune",
+            ref_type: "product",
+            ref_id: product.slug,
+            memo: product.title,
+          });
+          if (!spend.ok) throw new Error("크레딧이 부족합니다.");
+        }
+        if (session?.access_token && discountKrw > 0) {
+          await fetch("/api/my/coupons", {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ product_slug: product.slug, price_krw: listPrice }),
+          });
+          window.dispatchEvent(new CustomEvent("yeonun:coupons-updated"));
+        }
         if (session?.access_token) {
           appendStubPayment({
             productSlug: product.slug,
             title: product.title,
-            amountKrw: product.price_krw,
+            amountKrw: finalPrice,
             method: "credit",
           });
         }
@@ -105,14 +180,17 @@ export function Step6Preview({
         return;
       }
 
+      const authHeaders: HeadersInit = { "Content-Type": "application/json" };
+      if (session?.access_token) authHeaders.Authorization = `Bearer ${session.access_token}`;
+
       const userRef = session?.user?.id ?? "guest";
       const res = await fetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
         body: JSON.stringify({
           product_slug: product.slug,
           title: product.title,
-          price_krw: product.price_krw,
+          price_krw: listPrice,
           method: payMethod,
           user_ref: userRef,
         }),
@@ -142,7 +220,7 @@ export function Step6Preview({
         appendStubPayment({
           productSlug: product.slug,
           title: product.title,
-          amountKrw: product.price_krw,
+          amountKrw: finalPrice,
           method: payMethod,
         });
       }
@@ -154,8 +232,8 @@ export function Step6Preview({
     }
   };
 
-  const usable = Math.min(creditBal, product.price_krw);
-  const extra = Math.max(0, product.price_krw - usable);
+  const usable = Math.min(creditBal, finalPrice);
+  const extra = Math.max(0, finalPrice - usable);
   const allChecked = agreePayTerms && agreeCommerceTerms;
 
   return (
@@ -219,13 +297,13 @@ export function Step6Preview({
               <span className="y-pay-method-icon phone">PHONE</span>
             </div>
             <div
-              className={`y-pay-method y-pay-method--credit-stack ${method === "credit" ? "active" : ""} ${creditBal < product.price_krw ? "y-pay-method--credit-blocked" : ""}`}
+              className={`y-pay-method y-pay-method--credit-stack ${method === "credit" ? "active" : ""} ${creditBal < finalPrice ? "y-pay-method--credit-blocked" : ""}`}
               role="radio"
               aria-checked={method === "credit"}
-              aria-disabled={creditBal < product.price_krw}
-              tabIndex={creditBal < product.price_krw ? -1 : 0}
+              aria-disabled={creditBal < finalPrice}
+              tabIndex={creditBal < finalPrice ? -1 : 0}
               onClick={() => {
-                if (creditBal >= product.price_krw) setMethod("credit");
+                if (creditBal >= finalPrice) setMethod("credit");
               }}
             >
               <div className="y-pay-method-credit-row">
@@ -233,7 +311,7 @@ export function Step6Preview({
                 <div className="y-pay-method-name">크레딧 결제</div>
                 <span className="y-pay-method-icon credit">CREDIT</span>
               </div>
-              {creditBal < product.price_krw ? (
+              {creditBal < finalPrice ? (
                 <div className="y-pay-credit-short">
                   잔여 {creditBal.toLocaleString("ko-KR")} 크레딧 · {extra.toLocaleString("ko-KR")} 크레딧 부족
                 </div>
@@ -246,16 +324,16 @@ export function Step6Preview({
           <div className="y-pay-summary">
             <div className="y-pay-row">
               <span className="label">상품 금액</span>
-              <span className="value">{product.price_krw.toLocaleString("ko-KR")}원</span>
+              <span className="value">{listPrice.toLocaleString("ko-KR")}원</span>
             </div>
             <div className="y-pay-row discount">
-              <span className="label">첫 구매 할인</span>
-              <span className="value">-0원</span>
+              <span className="label">{discountKrw > 0 ? couponApply?.label || "쿠폰 할인" : "쿠폰 할인"}</span>
+              <span className="value">{discountKrw > 0 ? `-${discountKrw.toLocaleString("ko-KR")}원` : "-0원"}</span>
             </div>
             <div className="y-pay-total">
               <div className="y-pay-total-label">최종 결제 금액</div>
               <div className="y-pay-total-value">
-                {product.price_krw.toLocaleString("ko-KR")}
+                {finalPrice.toLocaleString("ko-KR")}
                 <span className="small">원</span>
               </div>
             </div>
@@ -366,7 +444,7 @@ export function Step6Preview({
           </div>
           {message ? <p className="y-fortune-v2-pay-error">{message}</p> : null}
           <button className="y-fortune-v2-primary" type="button" disabled={status === "loading"} onClick={() => checkout(method)}>
-            {status === "loading" ? "결제 처리 중..." : `전체 풀이 보기 · ${product.price_krw.toLocaleString("ko-KR")}원`}
+            {status === "loading" ? "결제 처리 중..." : `전체 풀이 보기 · ${finalPrice.toLocaleString("ko-KR")}원`}
           </button>
         </div>
       </section>

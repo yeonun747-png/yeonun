@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { MascotGuide } from "@/components/fortune/MascotGuide";
+import { onMissionProductPaid } from "@/lib/mission-complete";
 import { MascotPreloadClient } from "@/components/mascot/MascotPreloadClient";
 import type {
   FortuneFlowForm,
@@ -504,6 +505,7 @@ export function FortunePage({
 
   const onPaid = useCallback(
     (orderNo: string | null) => {
+      void onMissionProductPaid(product.slug);
       setPendingOrderNo(orderNo);
       /** STEP6 백그라운드 prefetch 유지 — Step7에서 동일 스트림 이어받기 */
       const p = readFortunePrefetch(product.slug);

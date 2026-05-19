@@ -12,10 +12,11 @@ import {
   type MissionId,
   type MissionRuntimeState,
 } from "@/lib/daily-missions";
-import { applyMissionCreditReward } from "@/lib/mission-rewards";
 import { formatKstDateKey } from "@/lib/datetime/kst";
+import { loadMissionRuntimeState, missionM04AllCardsRead, readMissionFact, dispatchMissionsReconcile } from "@/lib/mission-complete";
+import { applyMissionReward } from "@/lib/mission-rewards";
 
-export const YEONUN_MISSIONS_RECONCILE_EVENT = "yeonun:missions-reconcile";
+export { YEONUN_MISSIONS_RECONCILE_EVENT, dispatchMissionsReconcile } from "@/lib/mission-complete";
 
 /** M02 — 첫 음성 상담 시작(세션 생성 성공) */
 export const MISSION_FACT_M02_STARTED_KEY = "yeonun_first_voice_started_v1";
@@ -26,51 +27,17 @@ const SAJU_LS_KEY = "yeonun_saju_v1";
 const LEGACY_MISSION_KEY = "yeonun_daily_missions_v1";
 
 function loadMissionRuntimeStateForExternal(now: Date): MissionRuntimeState | null {
-  if (typeof window === "undefined") return null;
-  const today = formatKstDateKey(now);
-  try {
-    let raw = localStorage.getItem(MISSION_STORAGE_KEY);
-    if (!raw) raw = localStorage.getItem(LEGACY_MISSION_KEY);
-    if (!raw) {
-      const s = defaultMissionState(today);
-      localStorage.setItem(MISSION_STORAGE_KEY, JSON.stringify(s));
-      return s;
-    }
-    const p = JSON.parse(raw) as Partial<MissionRuntimeState> & { lastAssigned24hMs?: unknown };
-    const signup =
-      typeof p.signupKstDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.signupKstDate)
-        ? p.signupKstDate
-        : today;
-    const base = defaultMissionState(signup);
-    const lastCompletedAtMs =
-      p.lastCompletedAtMs && typeof p.lastCompletedAtMs === "object"
-        ? (p.lastCompletedAtMs as MissionRuntimeState["lastCompletedAtMs"])
-        : {};
-    return {
-      ...base,
-      ...p,
-      signupKstDate: signup,
-      rolledDayKst: typeof p.rolledDayKst === "string" ? p.rolledDayKst : base.rolledDayKst,
-      rolledIds: Array.isArray(p.rolledIds) ? (p.rolledIds as MissionId[]) : base.rolledIds,
-      completedOnce: { ...base.completedOnce, ...p.completedOnce },
-      completedToday: { ...base.completedToday, ...p.completedToday },
-      lastCompletedAtMs: { ...base.lastCompletedAtMs, ...lastCompletedAtMs },
-    };
-  } catch {
-    return null;
-  }
+  return loadMissionRuntimeState(now);
 }
 
-/** 오늘의 미션에 M07이 있고 미완료일 때만 LS·보상·토스트 반영(만남·음성·채팅 탭에서 호출) */
-export function tryPersistMissionM07CompleteIfEligible(now: Date = new Date()): void {
+async function persistMissionCompleteIfEligible(id: MissionId, now: Date = new Date()): Promise<void> {
   if (typeof window === "undefined") return;
   const state0 = loadMissionRuntimeStateForExternal(now);
   if (!state0) return;
   const { trio, state: s0 } = syncMissionState(now, state0);
-  const id: MissionId = "M07";
   if (!trio.some((t) => t.id === id)) return;
   if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return;
-  applyMissionCreditReward(id);
+  await applyMissionReward(id, now.getTime());
   const marked = markMissionCompleteInState(s0, id, trio, now.getTime());
   const { state: s2 } = syncMissionState(now, marked);
   try {
@@ -79,39 +46,17 @@ export function tryPersistMissionM07CompleteIfEligible(now: Date = new Date()): 
     /* ignore */
   }
   dispatchMissionsReconcile();
-  try {
-    window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "미션 완료 · 보상이 적립됐어요" } }));
-  } catch {
-    /* ignore */
-  }
 }
 
-function persistMissionCompleteIfEligible(id: MissionId, now: Date = new Date()): void {
-  if (typeof window === "undefined") return;
-  const state0 = loadMissionRuntimeStateForExternal(now);
-  if (!state0) return;
-  const { trio, state: s0 } = syncMissionState(now, state0);
-  if (!trio.some((t) => t.id === id)) return;
-  if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return;
-  applyMissionCreditReward(id);
-  const marked = markMissionCompleteInState(s0, id, trio, now.getTime());
-  const { state: s2 } = syncMissionState(now, marked);
-  try {
-    localStorage.setItem(MISSION_STORAGE_KEY, JSON.stringify(s2));
-  } catch {
-    /* ignore */
-  }
-  dispatchMissionsReconcile();
-  try {
-    window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "미션 완료 · 보상이 적립됐어요" } }));
-  } catch {
-    /* ignore */
-  }
+/** 오늘의 미션에 M07이 있고 미완료일 때만 — **처음** 음성 상담한 캐릭터일 때만 */
+export function tryPersistMissionM07CompleteIfEligible(now: Date = new Date(), wasNewCharacter = true): void {
+  if (!wasNewCharacter) return;
+  void persistMissionCompleteIfEligible("M07", now);
 }
 
 /** 오늘의 미션에 M02가 있고 미완료일 때 — 음성 상담 세션 시작 직후 호출 */
 export function tryPersistMissionM02CompleteIfEligible(now: Date = new Date()): void {
-  persistMissionCompleteIfEligible("M02", now);
+  void persistMissionCompleteIfEligible("M02", now);
 }
 
 /** 음성 상담 세션이 생성·시작됐음을 기록하고 M02 미션을 즉시 반영 */
@@ -135,15 +80,6 @@ export function missionFactM04Key(kst: string): string {
 
 export function missionFactM10Key(kst: string): string {
   return `yeonun:mission-fact:m10-manse:${kst}`;
-}
-
-export function dispatchMissionsReconcile(): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.dispatchEvent(new CustomEvent(YEONUN_MISSIONS_RECONCILE_EVENT));
-  } catch {
-    /* ignore */
-  }
 }
 
 function readFact(k: string): boolean {
@@ -176,7 +112,13 @@ function missionFactForId(id: MissionId, todayKst: string): boolean {
     case "M03":
       return readFact(missionFactM03Key(todayKst));
     case "M04":
-      return readFact(missionFactM04Key(todayKst));
+      return missionM04AllCardsRead(todayKst) || readFact(missionFactM04Key(todayKst));
+    case "M05":
+      return readMissionFact("m05-dream", todayKst) || readMissionFact("m05-dream-library", todayKst);
+    case "M06":
+      return readMissionFact("m06-review", todayKst);
+    case "M09":
+      return readMissionFact("m09-content-purchase", todayKst);
     case "M10":
       return readFact(missionFactM10Key(todayKst));
     default:
@@ -187,7 +129,10 @@ function missionFactForId(id: MissionId, todayKst: string): boolean {
 /**
  * LS에 저장된 미션 상태를 기준으로, 다른 화면에서 쌓인 완료 사실을 반영하고 보상을 한 번만 지급합니다.
  */
-export function reconcileMissionStateWithExternalFacts(now: Date, state: MissionRuntimeState): MissionRuntimeState {
+export async function reconcileMissionStateWithExternalFacts(
+  now: Date,
+  state: MissionRuntimeState,
+): Promise<MissionRuntimeState> {
   const nowMs = now.getTime();
   const todayKst = formatKstDateKey(now);
   let s = syncMissionState(now, state).state;
@@ -197,7 +142,7 @@ export function reconcileMissionStateWithExternalFacts(now: Date, state: Mission
     const id = m.id;
     if (isMissionCompleted(id, s.completedOnce, s.completedToday)) continue;
     if (!missionFactForId(id, todayKst)) continue;
-    applyMissionCreditReward(id);
+    await applyMissionReward(id, nowMs);
     s = markMissionCompleteInState(s, id, trio, nowMs);
   }
 
@@ -214,6 +159,7 @@ export function markMissionFactM03ViewedNow(): void {
   dispatchMissionsReconcile();
 }
 
+/** @deprecated M04는 카드별 열람 사용 — markMissionM04CardViewed */
 export function markMissionFactM04ReadNow(): void {
   const kst = formatKstDateKey(new Date());
   try {
@@ -242,3 +188,5 @@ export function missionStorageKeysThatTriggerReconcile(key: string | null): bool
   if (key === SAJU_LS_KEY) return true;
   return false;
 }
+
+export { LEGACY_MISSION_KEY };
