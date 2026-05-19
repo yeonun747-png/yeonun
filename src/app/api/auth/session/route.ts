@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { mapSessionApiError, sanitizeAuthErrorHint } from "@/lib/auth/auth-error-hint";
 import { verifyExchangeToken } from "@/lib/auth/exchange-token";
 import { mintSupabaseSessionTokens } from "@/lib/auth/mint-session";
-import { supabaseServer } from "@/lib/supabase/server";
+import { hasActiveSocialUser } from "@/lib/auth/social-user-service";
 
 export const dynamic = "force-dynamic";
 
@@ -21,20 +21,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_token" }, { status: 401 });
   }
 
-  let sb;
   try {
-    sb = supabaseServer();
-  } catch {
-    return NextResponse.json({ ok: false, error: "server_misconfigured" }, { status: 503 });
-  }
-
-  try {
-    const { data: active } = await sb
-      .from("yeonun_social_users")
-      .select("id")
-      .eq("auth_user_id", payload.authUserId)
-      .is("deleted_at", null)
-      .maybeSingle();
+    const active = await hasActiveSocialUser(payload.authUserId);
     if (!active) {
       return NextResponse.json({ ok: false, error: "account_withdrawn" }, { status: 403 });
     }

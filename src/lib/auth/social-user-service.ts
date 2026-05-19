@@ -54,6 +54,18 @@ export async function linkSocialProviderToUser(
   throw new SocialLinkDisabledError();
 }
 
+/** auth_user_id에 deleted_at 없는 소셜 행이 1개 이상인지 (구글+카카오 등 복수 provider 허용) */
+export async function hasActiveSocialUser(authUserId: string): Promise<boolean> {
+  const sb = supabaseServer();
+  const { count, error } = await sb
+    .from("yeonun_social_users")
+    .select("id", { count: "exact", head: true })
+    .eq("auth_user_id", authUserId)
+    .is("deleted_at", null);
+  if (error) throw new Error(error.message);
+  return (count ?? 0) > 0;
+}
+
 export async function findAuthUserIdByVerifiedEmail(email: string): Promise<string | null> {
   const sb = supabaseServer();
   const { data } = await sb
