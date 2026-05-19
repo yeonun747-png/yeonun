@@ -4962,6 +4962,71 @@ button.y-chat-consult-mock-row {
 .y-daily-words-unlock-btn:active {
   opacity: 0.92;
 }
+
+/* 오늘의 한 마디 공유 랜딩 (/today/share/[token]) */
+.y-today-share-page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #fafaf7 0%, #f7f2e7 100%);
+}
+.y-today-share-main {
+  flex: 1;
+  padding: 28px 20px 32px;
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+}
+.y-today-share-eyebrow {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--y-rose-deep);
+  letter-spacing: 0.02em;
+}
+.y-today-share-title {
+  margin: 0 0 18px;
+  font-family: "Noto Serif KR", serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--y-ink);
+}
+.y-today-share-han {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 28px;
+  color: var(--y-mute);
+}
+.y-today-share-quote {
+  margin: 0 0 20px;
+  padding: 18px 16px;
+  border-radius: 16px;
+  background: #fff;
+  border: 0.5px solid var(--y-line);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--y-ink);
+}
+.y-today-share-foot {
+  margin: 0 0 22px;
+  font-size: 12px;
+  color: var(--y-mute);
+}
+.y-today-share-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 999px;
+  background: var(--y-ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .y-luck-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

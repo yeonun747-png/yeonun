@@ -271,21 +271,58 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
     }).catch(() => {});
   }, []);
 
+  const fetchShareUrl = useCallback(
+    async (w: (typeof WORDS)[number], lineText: string, shortName: string, accessToken: string): Promise<string | undefined> => {
+      const kst_date = formatKstDateKey(new Date());
+      try {
+        const res = await fetch("/api/today/daily-words-share/link", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            character_key: w.key,
+            character_label: shortName,
+            quote: lineText,
+            kst_date,
+          }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; shareUrl?: string };
+        if (res.ok && j.ok && typeof j.shareUrl === "string" && j.shareUrl.trim()) {
+          return j.shareUrl.trim();
+        }
+      } catch {
+        /* fallback: share without dedicated OG link */
+      }
+      return undefined;
+    },
+    [],
+  );
+
   const onShareDailyWord = useCallback(
     async (w: (typeof WORDS)[number], lineText: string) => {
       if (shareBusyRef.current) return;
       shareBusyRef.current = true;
       try {
         const shortName = w.name.replace(/에게서$/, "");
-        const textBody = buildDailyWordShareText(shortName, lineText);
         const title = `${shortName}의 오늘 한 마디`;
+
+        const sb = supabaseBrowser();
+        const session = sb ? (await sb.auth.getSession()).data.session : null;
+        const shareUrl =
+          session?.access_token ? await fetchShareUrl(w, lineText, shortName, session.access_token) : undefined;
+
+        const textBody = buildDailyWordShareText(shortName, lineText, shareUrl);
 
         let channel: "native" | "clipboard" = "clipboard";
         let ok = false;
 
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
           try {
-            await navigator.share({ title, text: textBody });
+            const shareData: ShareData = { title, text: textBody };
+            if (shareUrl) shareData.url = shareUrl;
+            await navigator.share(shareData);
             ok = true;
             channel = "native";
           } catch (e: unknown) {
@@ -323,8 +360,6 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
 
         flashShareDone(w.key);
 
-        const sb = supabaseBrowser();
-        const session = sb ? (await sb.auth.getSession()).data.session : null;
         if (session?.access_token && session.user) {
           postShareLogBg(w.key, channel, session.access_token);
           try {
@@ -341,7 +376,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
         shareBusyRef.current = false;
       }
     },
-    [flashShareDone, postShareLogBg],
+    [flashShareDone, postShareLogBg, fetchShareUrl],
   );
 
   const onListenTts = useCallback(async (key: CharKey, text: string) => {
