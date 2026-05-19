@@ -142,6 +142,35 @@ function missionFactForId(id: MissionId, todayKst: string): boolean {
 }
 
 /**
+ * LS·로컬 fact만으로 완료 상태 반영(동기) — UI 즉시 갱신용, 보상 API 없음.
+ */
+export function reconcileMissionStateFromLocalFacts(
+  now: Date,
+  state: MissionRuntimeState,
+): MissionRuntimeState {
+  const nowMs = now.getTime();
+  const todayKst = formatKstDateKey(now);
+  let s = syncMissionState(now, state).state;
+  const { trio } = syncMissionState(now, s);
+
+  for (const m of trio) {
+    const id = m.id;
+    if (isMissionCompleted(id, s.completedOnce, s.completedToday)) continue;
+    if (!missionFactForId(id, todayKst)) continue;
+    s = markMissionCompleteInState(s, id, trio, nowMs);
+  }
+
+  return syncMissionState(now, s).state;
+}
+
+/** 오늘 탭 진입 시 LS + 로컬 fact 기준 즉시 hydrate */
+export function hydrateMissionRuntimeFromStorage(now: Date = new Date()): MissionRuntimeState {
+  const state0 = loadMissionRuntimeState(now);
+  if (!state0) return defaultMissionState(formatKstDateKey(now));
+  return reconcileMissionStateFromLocalFacts(now, state0);
+}
+
+/**
  * LS에 저장된 미션 상태를 기준으로, 다른 화면에서 쌓인 완료 사실을 반영하고 보상을 한 번만 지급합니다.
  */
 export async function reconcileMissionStateWithExternalFacts(
@@ -155,10 +184,11 @@ export async function reconcileMissionStateWithExternalFacts(
 
   for (const m of trio) {
     const id = m.id;
-    if (isMissionCompleted(id, s.completedOnce, s.completedToday)) continue;
     if (!missionFactForId(id, todayKst)) continue;
     await applyMissionReward(id, nowMs);
-    s = markMissionCompleteInState(s, id, trio, nowMs);
+    if (!isMissionCompleted(id, s.completedOnce, s.completedToday)) {
+      s = markMissionCompleteInState(s, id, trio, nowMs);
+    }
   }
 
   return syncMissionState(now, s).state;
