@@ -1,23 +1,27 @@
-import { absoluteUrl, getSiteUrl } from "@/lib/site-url";
+import { absoluteUrl } from "@/lib/site-url";
 
-/** 공유 본문 포맷 (캐릭터명 / 인용 / 푸터 + 공유 링크) */
-export function buildDailyWordShareText(
-  characterShortName: string,
-  lineText: string,
-  shareUrl?: string,
-): string {
+export type DailyWordSharePayload = {
+  /** Web Share API — OG URL이 있으면 url만(중복 방지), 없으면 텍스트+링크 */
+  native: ShareData;
+  /** 클립보드 / url 필드 미지원 fallback */
+  clipText: string;
+};
+
+/** 클립보드용: 인용 문장 + URL 한 줄 */
+export function buildDailyWordShareClipText(lineText: string, shareUrl?: string): string {
   const quote = String(lineText ?? "").trim();
   const link = shareUrl?.trim() || absoluteUrl("/today");
-  let host = "yeonun.com";
-  try {
-    host = new URL(link).hostname.replace(/^www\./i, "");
-  } catch {
-    try {
-      host = new URL(getSiteUrl()).hostname.replace(/^www\./i, "");
-    } catch {
-      /* keep default */
-    }
+  return `"${quote}"\n${link}`;
+}
+
+export function buildDailyWordSharePayload(lineText: string, shareUrl?: string): DailyWordSharePayload {
+  const clipText = buildDailyWordShareClipText(lineText, shareUrl);
+  const link = shareUrl?.trim();
+
+  if (link) {
+    // title·text·url을 함께 넘기면 앱마다 제목·URL이 중복 붙음 → OG 링크만 전달
+    return { native: { url: link }, clipText };
   }
 
-  return `${characterShortName}의 오늘 한 마디\n\n"${quote}"\n\n나만의 사주 기반 운세\n→ ${host}\n${link}`;
+  return { native: { text: clipText }, clipText };
 }

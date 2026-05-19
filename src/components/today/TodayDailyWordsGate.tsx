@@ -8,7 +8,7 @@ import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { formatKstDateKey, getKstParts } from "@/lib/datetime/kst";
 import { markMissionFactM04ReadNow } from "@/lib/mission-reconcile";
-import { buildDailyWordShareText } from "@/lib/today-daily-words-share";
+import { buildDailyWordSharePayload } from "@/lib/today-daily-words-share";
 import {
   playCartesiaCharacterLine,
   prefetchCartesiaCharacterLines,
@@ -306,30 +306,27 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
       shareBusyRef.current = true;
       try {
         const shortName = w.name.replace(/에게서$/, "");
-        const title = `${shortName}의 오늘 한 마디`;
 
         const sb = supabaseBrowser();
         const session = sb ? (await sb.auth.getSession()).data.session : null;
         const shareUrl =
           session?.access_token ? await fetchShareUrl(w, lineText, shortName, session.access_token) : undefined;
 
-        const textBody = buildDailyWordShareText(shortName, lineText, shareUrl);
+        const { native: sharePayload, clipText } = buildDailyWordSharePayload(lineText, shareUrl);
 
         let channel: "native" | "clipboard" = "clipboard";
         let ok = false;
 
         if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
           try {
-            const shareData: ShareData = { title, text: textBody };
-            if (shareUrl) shareData.url = shareUrl;
-            await navigator.share(shareData);
+            await navigator.share(sharePayload);
             ok = true;
             channel = "native";
           } catch (e: unknown) {
             const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
             if (name === "AbortError") return;
             try {
-              await navigator.clipboard.writeText(textBody);
+              await navigator.clipboard.writeText(clipText);
               ok = true;
               channel = "clipboard";
               try {
@@ -343,7 +340,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
           }
         } else {
           try {
-            await navigator.clipboard.writeText(textBody);
+            await navigator.clipboard.writeText(clipText);
             ok = true;
             channel = "clipboard";
             try {
