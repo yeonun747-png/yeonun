@@ -14,6 +14,7 @@ import {
 } from "@/lib/daily-notes-catalog";
 import { formatKstDateKey } from "@/lib/datetime/kst";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
+import { markMissionFact } from "@/lib/mission-complete";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 import { DailyRecordChipGlyph, type DailyChipKey } from "@/components/today/DailyRecordChipGlyph";
@@ -186,6 +187,7 @@ export function TodayDailyRecordClient() {
     setEditing(false);
     setEditingPastKst(null);
     if (targetKst === kstToday) {
+      markMissionFact("m11-daily-record", kstToday);
       window.dispatchEvent(new CustomEvent("yeonun:daily-note-saved", { detail: { kstDate: kstToday } }));
     }
   }, [text, category, kstToday, editingPastKst]);

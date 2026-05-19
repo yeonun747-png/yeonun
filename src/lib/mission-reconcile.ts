@@ -13,6 +13,7 @@ import {
   type MissionRuntimeState,
 } from "@/lib/daily-missions";
 import { formatKstDateKey } from "@/lib/datetime/kst";
+import { getNoteByKstDate } from "@/lib/daily-notes-catalog";
 import { loadMissionRuntimeState, missionM04AllCardsRead, readMissionFact, dispatchMissionsReconcile } from "@/lib/mission-complete";
 import { applyMissionReward } from "@/lib/mission-rewards";
 
@@ -103,6 +104,16 @@ function missionFactHasValidSaju(): boolean {
   }
 }
 
+function missionFactHasTodayDailyNote(todayKst: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const note = getNoteByKstDate(todayKst);
+    return Boolean(note?.body?.trim());
+  } catch {
+    return false;
+  }
+}
+
 function missionFactForId(id: MissionId, todayKst: string): boolean {
   switch (id) {
     case "M01":
@@ -121,6 +132,10 @@ function missionFactForId(id: MissionId, todayKst: string): boolean {
       return readMissionFact("m09-content-purchase", todayKst);
     case "M10":
       return readFact(missionFactM10Key(todayKst));
+    case "M11":
+      return readMissionFact("m11-daily-record", todayKst) || missionFactHasTodayDailyNote(todayKst);
+    case "M12":
+      return readMissionFact("m12-daily-words-share", todayKst);
     default:
       return false;
   }
@@ -186,6 +201,7 @@ export function missionStorageKeysThatTriggerReconcile(key: string | null): bool
   if (key.startsWith("yeonun:mission-fact:")) return true;
   if (key === MISSION_FACT_M02_STARTED_KEY || key === MISSION_FACT_M02_LEGACY_ENDED_KEY) return true;
   if (key === SAJU_LS_KEY) return true;
+  if (key === "yeonun_daily_notes_catalog_v1") return true;
   return false;
 }
 

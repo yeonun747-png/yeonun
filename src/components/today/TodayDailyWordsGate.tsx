@@ -7,7 +7,7 @@ import Link from "next/link";
 import { __YEONUN_SAJU_STORAGE_KEY__ } from "@/components/my/MySajuCardClient";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { formatKstDateKey, getKstParts } from "@/lib/datetime/kst";
-import { markMissionM04CardViewed } from "@/lib/mission-complete";
+import { markMissionFact, markMissionM04CardViewed } from "@/lib/mission-complete";
 import { buildDailyWordSharePayload } from "@/lib/today-daily-words-share";
 import {
   playCartesiaCharacterLine,
@@ -381,6 +381,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
           postShareLogBg(w.key, channel, session.access_token);
         }
         try {
+          markMissionFact("m12-daily-words-share", formatKstDateKey(new Date()));
           window.dispatchEvent(
             new CustomEvent("yeonun:daily-words-share-complete", {
               detail: { kstDate: formatKstDateKey(new Date()) },

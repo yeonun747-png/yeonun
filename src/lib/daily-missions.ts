@@ -336,7 +336,6 @@ export function syncMissionState(now: Date, state: MissionRuntimeState): {
         ...next,
         rolledDayKst: todayKst,
         rolledIds: picked,
-        completedToday: {},
       };
       trio = filterEligibleMissionIds(picked).map((id) => MISSIONS[id]);
     }
