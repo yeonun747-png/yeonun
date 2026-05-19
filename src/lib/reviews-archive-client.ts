@@ -16,6 +16,19 @@ export async function fetchUserArchiveReview(
   return json.review ?? null;
 }
 
+export async function fetchUserArchiveReviewsAll(
+  accessToken: string,
+): Promise<UserReviewRecord[]> {
+  const res = await fetch("/api/reviews/archive?all=1", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (res.status === 401) return [];
+  if (!res.ok) return [];
+  const json = (await res.json()) as { reviews?: UserReviewRecord[] };
+  return Array.isArray(json.reviews) ? json.reviews : [];
+}
+
 export async function submitUserArchiveReview(
   accessToken: string,
   payload: {

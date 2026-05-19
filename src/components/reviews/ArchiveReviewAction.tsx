@@ -14,7 +14,7 @@ type Props = {
 
 export function ArchiveReviewAction({ target, className }: Props) {
   const { openWriteReview, openViewReview } = useWriteReviewSheet();
-  const { record, submitted } = useArchiveReview(target.sourceType, target.sourceId);
+  const { record, submitted, loading } = useArchiveReview(target.sourceType, target.sourceId);
 
   const normalizedTarget: WriteReviewTarget = {
     ...target,
@@ -33,6 +33,12 @@ export function ArchiveReviewAction({ target, className }: Props) {
     if (!record) return;
     openViewReview(normalizedTarget, record);
   };
+
+  if (loading) {
+    return (
+      <span className={`y-rv-badge-skel${className ? ` ${className}` : ""}`} aria-hidden />
+    );
+  }
 
   if (submitted && record) {
     return (

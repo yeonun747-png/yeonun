@@ -58,14 +58,30 @@ export async function GET(request: Request) {
   if (userErr || !userData.user) return NextResponse.json({ error: "invalid_token" }, { status: 401 });
 
   const url = new URL(request.url);
+  const all = url.searchParams.get("all") === "1";
   const sourceType = parseSourceType(url.searchParams.get("sourceType"));
   const sourceId = url.searchParams.get("sourceId")?.trim() ?? "";
+
+  const sb = supabaseServer();
+
+  if (all) {
+    const { data, error } = await sb
+      .from("reviews")
+      .select(
+        "id,source_type,source_id,stars,body,tags,character_key,product_label,created_at,is_published",
+      )
+      .eq("user_ref", userData.user.id)
+      .in("source_type", ["fortune", "voice", "chat"]);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const reviews = (data ?? []).map((row) => rowToRecord(row as ReviewRow));
+    return NextResponse.json({ reviews });
+  }
 
   if (!sourceType || !sourceId) {
     return NextResponse.json({ error: "invalid_params" }, { status: 400 });
   }
 
-  const sb = supabaseServer();
   const { data, error } = await sb
     .from("reviews")
     .select(

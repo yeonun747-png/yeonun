@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { LibraryListItemVm } from "@/lib/library-list-vm";
+import { archiveReviewsWarm } from "@/lib/archive-reviews-preload-bus";
 import {
   clearMyShelfListsCache,
   readFortuneListCache,
@@ -194,6 +195,7 @@ export function useMyShelfListsPreload(member: boolean, userId: string | null, a
     if (cachedFortune.status === "ready") setFortune(cachedFortune);
     if (cachedVoice.status === "ready") setVoice(cachedVoice);
     registerMyShelfListsWarm(load);
+    archiveReviewsWarm();
     load();
     return () => {
       registerMyShelfListsWarm(null);

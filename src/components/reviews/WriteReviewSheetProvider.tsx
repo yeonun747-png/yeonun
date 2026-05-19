@@ -137,7 +137,9 @@ export function WriteReviewSheetProvider({ children }: { children: ReactNode }) 
       return;
     }
 
-    window.dispatchEvent(new CustomEvent(USER_REVIEWS_CHANGED_EVENT));
+    window.dispatchEvent(
+      new CustomEvent(USER_REVIEWS_CHANGED_EVENT, { detail: { review: result.review } }),
+    );
     close();
     showYeonunToast("리뷰가 등록됐어요 ✓");
   }, [body, close, selectedTags, stars, submitting, target]);

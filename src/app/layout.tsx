@@ -5,6 +5,7 @@ import { YeonunAuthProvider } from "@/components/auth/YeonunAuthProvider";
 import { ModalLayer } from "@/components/ModalLayer";
 import { ContentCatalogPreloader } from "@/components/content/ContentCatalogPreloader";
 import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
+import { ArchiveReviewProvider } from "@/components/reviews/ArchiveReviewProvider";
 import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetProvider";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 import { getSiteUrl } from "@/lib/site-url";
@@ -91,13 +92,15 @@ export default function RootLayout({
       </head>
       <body>
         <YeonunAuthProvider>
-          <WriteReviewSheetProvider>
-            <PrimaryTabScrollClient />
-            <ContentCatalogPreloader />
-            {children}
-            {modal}
-            <YeonunToastHost />
-          </WriteReviewSheetProvider>
+          <ArchiveReviewProvider>
+            <WriteReviewSheetProvider>
+              <PrimaryTabScrollClient />
+              <ContentCatalogPreloader />
+              {children}
+              {modal}
+              <YeonunToastHost />
+            </WriteReviewSheetProvider>
+          </ArchiveReviewProvider>
           <Suspense fallback={null}>
             <ModalLayer />
           </Suspense>

@@ -16938,6 +16938,14 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   font-family: inherit;
   cursor: pointer;
 }
+.y-rv-badge-skel {
+  display: inline-block;
+  width: 72px;
+  height: 28px;
+  border-radius: 100px;
+  background: var(--y-card-2);
+  flex-shrink: 0;
+}
 .y-rv-sheet--view .y-rv-star[disabled],
 .y-rv-sheet--view .y-rv-tag[disabled] {
   cursor: default;

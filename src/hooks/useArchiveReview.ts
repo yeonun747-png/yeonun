@@ -1,39 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 
-import { fetchUserArchiveReview } from "@/lib/reviews-archive-client";
-import { USER_REVIEWS_CHANGED_EVENT, type ReviewSourceType, type UserReviewRecord } from "@/lib/reviews-user";
-import { supabaseBrowser } from "@/lib/supabase/client";
+import { useArchiveReviewContext } from "@/components/reviews/ArchiveReviewProvider";
+import { archiveReviewKey } from "@/lib/archive-reviews-cache";
+import type { ReviewSourceType } from "@/lib/reviews-user";
 
 export function useArchiveReview(sourceType: ReviewSourceType, sourceId: string) {
-  const [record, setRecord] = useState<UserReviewRecord | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { getReview, ready, refresh } = useArchiveReviewContext();
+  const key = archiveReviewKey(sourceType, sourceId);
+  const cached = getReview(sourceType, sourceId);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const sb = supabaseBrowser();
-      const session = sb ? (await sb.auth.getSession()).data.session : null;
-      if (!session?.access_token) {
-        setRecord(null);
-        return;
-      }
-      const review = await fetchUserArchiveReview(session.access_token, sourceType, sourceId);
-      setRecord(review);
-    } catch {
-      setRecord(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [sourceType, sourceId]);
+  const record = ready ? (cached ?? null) : cached !== undefined ? cached : null;
+  const loading = !ready && cached === undefined;
 
-  useEffect(() => {
-    void refresh();
-    const onChange = () => void refresh();
-    window.addEventListener(USER_REVIEWS_CHANGED_EVENT, onChange);
-    return () => window.removeEventListener(USER_REVIEWS_CHANGED_EVENT, onChange);
+  const refreshOne = useCallback(() => {
+    refresh();
   }, [refresh]);
 
-  return { record, submitted: Boolean(record), loading, refresh };
+  return {
+    record,
+    submitted: Boolean(record),
+    loading,
+    refresh: refreshOne,
+  };
 }
