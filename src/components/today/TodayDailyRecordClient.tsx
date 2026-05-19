@@ -180,15 +180,13 @@ export function TodayDailyRecordClient() {
     const body = text.trim();
     if (body.length < 1) return;
     const targetKst = editingPastKst ?? kstToday;
-    const prior = getNoteByKstDate(targetKst);
-    const firstSaveOfDay = targetKst === kstToday && !prior?.body?.trim();
     upsertDailyNote(targetKst, body, category);
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1600);
     setEditing(false);
     setEditingPastKst(null);
-    if (firstSaveOfDay) {
-      window.dispatchEvent(new CustomEvent("yeonun:daily-note-first-save", { detail: { kstDate: kstToday } }));
+    if (targetKst === kstToday) {
+      window.dispatchEvent(new CustomEvent("yeonun:daily-note-saved", { detail: { kstDate: kstToday } }));
     }
   }, [text, category, kstToday, editingPastKst]);
 

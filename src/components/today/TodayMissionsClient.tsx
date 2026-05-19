@@ -229,7 +229,7 @@ export function TodayMissionsClient() {
   );
 
   useEffect(() => {
-    const onFirstNote = (e: Event) => {
+    const onDailyNoteSaved = (e: Event) => {
       const d = (e as CustomEvent<{ kstDate?: string }>).detail;
       if (d?.kstDate === formatKstDateKey(new Date())) markComplete("M11");
     };
@@ -237,10 +237,10 @@ export function TodayMissionsClient() {
       const d = (e as CustomEvent<{ kstDate?: string }>).detail;
       if (d?.kstDate === formatKstDateKey(new Date())) markComplete("M12");
     };
-    window.addEventListener("yeonun:daily-note-first-save", onFirstNote);
+    window.addEventListener("yeonun:daily-note-saved", onDailyNoteSaved);
     window.addEventListener("yeonun:daily-words-share-complete", onDailyWordsShare);
     return () => {
-      window.removeEventListener("yeonun:daily-note-first-save", onFirstNote);
+      window.removeEventListener("yeonun:daily-note-saved", onDailyNoteSaved);
       window.removeEventListener("yeonun:daily-words-share-complete", onDailyWordsShare);
     };
   }, [markComplete]);
