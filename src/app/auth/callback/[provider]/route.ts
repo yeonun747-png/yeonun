@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { createExchangeToken } from "@/lib/auth/exchange-token";
 import { exchangeCodeAndFetchProfile } from "@/lib/auth/providers";
-import { requestBaseUrl } from "@/lib/auth/request-base-url";
+import { callbackUrl, requestBaseUrl } from "@/lib/auth/request-base-url";
 import {
   clearOAuthStateCookie,
   parseOAuthStateCookie,
@@ -91,7 +91,7 @@ export async function GET(
     if (e instanceof WithdrawalPendingError) {
       return isLinkMode ? failLink("withdrawal_pending") : failLogin("withdrawal_pending");
     }
-    console.error("[auth/callback]", provider, e);
+    console.error("[auth/callback]", provider, { redirectUri: callbackUrl(request, provider), error: e });
     return isLinkMode ? failLink("link_failed") : failLogin("token_failed");
   }
 }
