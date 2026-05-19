@@ -64,7 +64,7 @@ export const MISSIONS: Record<MissionId, MissionDef> = {
   M08: { id: "M08", name: "친구 초대", reward: "초대자·가입자 각 3,900 크레딧", cadence: "unlimited" },
   M09: { id: "M09", name: "콘텐츠 1개 구매", reward: "다음 콘텐츠 10% 할인", cadence: "hours24" },
   M10: { id: "M10", name: "만세력 분석 보기", reward: "390 크레딧", cadence: "daily" },
-  M11: { id: "M11", name: "오늘의 운세 기록", reward: "390 크레딧", cadence: "daily" },
+  M11: { id: "M11", name: "오늘의 기록", reward: "390 크레딧", cadence: "daily" },
   M12: { id: "M12", name: "오늘의 한 마디 공유", reward: "390 크레딧", cadence: "hours24" },
 };
 
