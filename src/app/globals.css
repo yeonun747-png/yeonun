@@ -8460,18 +8460,21 @@ button.y-dw-listen:disabled {
   bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 9999;
-  max-width: min(440px, calc(100vw - 32px));
   pointer-events: none;
 }
 .y-toast-bubble {
   background: rgba(26, 24, 21, 0.92);
   color: #f5dae0;
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 500;
-  padding: 12px 20px;
+  padding: 10px 16px;
   border-radius: 100px;
   text-align: center;
-  line-height: 1.45;
+  line-height: 1.2;
+  max-width: min(520px, calc(100vw - 20px));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(8px);
   animation: yToastIn 0.25s ease;
