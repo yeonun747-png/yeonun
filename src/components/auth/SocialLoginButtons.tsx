@@ -14,6 +14,7 @@ function buildReturnTo(pathname: string, searchParams: URLSearchParams): string 
   next.delete("modal");
   next.delete("auth_error");
   next.delete("auth_error_provider");
+  next.delete("auth_error_hint");
   next.delete("onboard");
   const qs = next.toString();
   return qs ? `${pathname}?${qs}` : pathname;

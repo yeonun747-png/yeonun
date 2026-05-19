@@ -3,6 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+import { authErrorMessage } from "@/lib/auth/auth-error-messages";
+import { mapSessionApiError, sanitizeAuthErrorHint } from "@/lib/auth/auth-error-hint";
+import type { AuthErrorCode } from "@/lib/auth/redirect-errors";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 function socialLoginToastLabel(provider: string | null): string | null {
@@ -24,6 +27,7 @@ function AuthCompleteInner() {
     const token = sp.get("token");
     const returnTo = sp.get("returnTo") || "/";
     const onboard = sp.get("onboard") === "1";
+    const provider = sp.get("provider");
 
     if (!token) {
       setPhase("no_token");
@@ -44,9 +48,13 @@ function AuthCompleteInner() {
           access_token?: string;
           refresh_token?: string;
           error?: string;
+          hint?: string;
         };
         if (!res.ok || !data.ok || !data.access_token || !data.refresh_token) {
-          throw new Error(data.error || "session_failed");
+          const errCode = mapSessionApiError(String(data.error ?? "session_failed"));
+          const hint = sanitizeAuthErrorHint(String(data.hint ?? data.error ?? "session_failed"));
+          const msg = authErrorMessage(errCode, provider, hint);
+          throw Object.assign(new Error(data.error || "session_failed"), { errCode, hint, msg });
         }
 
         const sb = supabaseBrowser();
@@ -66,7 +74,7 @@ function AuthCompleteInner() {
           dest.searchParams.set("onboard", "1");
         }
 
-        const label = socialLoginToastLabel(sp.get("provider"));
+        const label = socialLoginToastLabel(provider);
         if (label) {
           try {
             window.dispatchEvent(
@@ -80,14 +88,22 @@ function AuthCompleteInner() {
         window.setTimeout(() => {
           router.replace(`${dest.pathname}${dest.search}`);
         }, 80);
-      } catch {
+      } catch (e) {
         if (cancelled) return;
-        setErrorDetail("로그인에 실패했습니다. 다시 시도해 주세요.");
+        const err = e as { errCode?: AuthErrorCode; hint?: string; msg?: string; message?: string };
+        const errCode: AuthErrorCode =
+          err.errCode ??
+          (String(err.message).includes("supabase_not_configured") ? "oauth_not_configured" : "session_failed");
+        const hint = sanitizeAuthErrorHint(err.hint ?? err.message ?? "");
+        const msg = err.msg ?? authErrorMessage(errCode, provider, hint) ?? "로그인에 실패했습니다.";
+        setErrorDetail(msg);
         setPhase("error");
         const dest = new URL(returnTo, window.location.origin);
         dest.searchParams.set("modal", "auth");
-        dest.searchParams.set("auth_error", "token_failed");
-        setTimeout(() => router.replace(`${dest.pathname}${dest.search}`), 1500);
+        dest.searchParams.set("auth_error", errCode);
+        if (provider) dest.searchParams.set("auth_error_provider", provider);
+        if (hint) dest.searchParams.set("auth_error_hint", hint);
+        setTimeout(() => router.replace(`${dest.pathname}${dest.search}`), 2200);
       }
     })();
 
@@ -114,7 +130,9 @@ function AuthCompleteInner() {
 
   return (
     <div className="yeonunPage y-auth-complete">
-      <main className="y-auth-complete-msg">{errorDetail}</main>
+      <main className="y-auth-complete-msg" style={{ whiteSpace: "pre-line", padding: "0 20px", textAlign: "center" }}>
+        {errorDetail}
+      </main>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { mapSessionApiError, sanitizeAuthErrorHint } from "@/lib/auth/auth-error-hint";
 import { verifyExchangeToken } from "@/lib/auth/exchange-token";
 import { mintSupabaseSessionTokens } from "@/lib/auth/mint-session";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -46,7 +47,11 @@ export async function POST(request: Request) {
       is_new_user: payload.isNewUser,
     });
   } catch (e) {
-    console.error("[api/auth/session]", e);
-    return NextResponse.json({ ok: false, error: "session_failed" }, { status: 500 });
+    const hint = sanitizeAuthErrorHint(e instanceof Error ? e.message : String(e));
+    console.error("[api/auth/session]", { hint, error: e });
+    return NextResponse.json(
+      { ok: false, error: mapSessionApiError("session_failed"), hint: hint || "session_failed" },
+      { status: 500 },
+    );
   }
 }

@@ -7,6 +7,7 @@ const MODAL_QUERY_KEYS = [
   "modal",
   "auth_error",
   "auth_error_provider",
+  "auth_error_hint",
   "onboard",
   "after_auth",
   "product",

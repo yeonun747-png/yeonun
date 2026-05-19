@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { mapOAuthProviderError, mapThrownOAuthError, sanitizeAuthErrorHint } from "@/lib/auth/auth-error-hint";
 import { createExchangeToken } from "@/lib/auth/exchange-token";
 import { exchangeCodeAndFetchProfile } from "@/lib/auth/providers";
 import { callbackUrl, requestBaseUrl } from "@/lib/auth/request-base-url";
@@ -20,16 +21,7 @@ import type { SocialProvider } from "@/lib/auth/types";
 
 const PROVIDERS = new Set<SocialProvider>(["google", "kakao", "naver"]);
 
-function mapCallbackAuthError(e: unknown): AuthErrorCode {
-  const msg = e instanceof Error ? e.message.toLowerCase() : String(e).toLowerCase();
-  if (msg.includes("redirect_uri") || msg.includes("invalid_grant") || msg.includes("redirect uri")) {
-    return "oauth_redirect_mismatch";
-  }
-  if (msg.includes("invalid_client") || msg.includes("client_secret") || msg.includes("unauthorized_client")) {
-    return "oauth_invalid_client";
-  }
-  return "token_failed";
-}
+type LoginFailExtra = { provider?: SocialProvider; hint?: string };
 
 export async function GET(
   request: NextRequest,
@@ -40,32 +32,45 @@ export async function GET(
     return NextResponse.json({ error: "unknown_provider" }, { status: 404 });
   }
   const provider = raw as SocialProvider;
+  const base = requestBaseUrl(request);
 
   const stored = parseOAuthStateCookie(readOAuthStateCookie(request));
   const returnTo = stored?.returnTo ?? "/";
   const isLinkMode = stored?.mode === "link" && Boolean(stored.linkToAuthUserId);
 
-  const failLogin = (code: Parameters<typeof authErrorRedirectPath>[1]) => {
-    const res = NextResponse.redirect(new URL(authErrorRedirectPath(returnTo, code), request.url));
+  const failLogin = (code: AuthErrorCode, extra?: LoginFailExtra) => {
+    const path = authErrorRedirectPath(returnTo, code, { provider, ...extra });
+    const res = NextResponse.redirect(new URL(path, base));
     clearOAuthStateCookie(res);
     return res;
   };
 
   const failLink = (code: Parameters<typeof socialLinkErrorRedirectPath>[1]) => {
-    const res = NextResponse.redirect(new URL(socialLinkErrorRedirectPath(returnTo, code), request.url));
+    const res = NextResponse.redirect(new URL(socialLinkErrorRedirectPath(returnTo, code), base));
     clearOAuthStateCookie(res);
     return res;
   };
 
   const oauthError = request.nextUrl.searchParams.get("error");
-  if (oauthError === "access_denied" || oauthError === "user_cancelled_authorize") {
-    return isLinkMode ? failLink("cancelled") : failLogin("cancelled");
+  if (oauthError) {
+    const desc = request.nextUrl.searchParams.get("error_description");
+    const code = mapOAuthProviderError(oauthError, desc);
+    const hint = sanitizeAuthErrorHint(desc || oauthError);
+    if (code === "cancelled") {
+      return isLinkMode ? failLink("cancelled") : failLogin("cancelled", { provider });
+    }
+    return isLinkMode ? failLink("link_failed") : failLogin(code, { provider, hint });
   }
 
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   if (!code || !state || !stored || stored.state !== state || stored.provider !== provider) {
-    return isLinkMode ? failLink("invalid_state") : failLogin("invalid_state");
+    return isLinkMode
+      ? failLink("invalid_state")
+      : failLogin("invalid_state", {
+          provider,
+          hint: stored ? "state 불일치 또는 만료" : "로그인 쿠키 없음(차단·시크릿 모드 확인)",
+        });
   }
 
   try {
@@ -73,7 +78,7 @@ export async function GET(
 
     if (isLinkMode && stored.linkToAuthUserId) {
       await linkSocialProviderToUser(stored.linkToAuthUserId, profile);
-      const done = new URL(returnTo, requestBaseUrl(request));
+      const done = new URL(returnTo, base);
       done.searchParams.set("social_linked", provider);
       const res = NextResponse.redirect(done);
       clearOAuthStateCookie(res);
@@ -87,7 +92,7 @@ export async function GET(
       isNewUser: result.isNewUser,
     });
 
-    const complete = new URL("/auth/complete", requestBaseUrl(request));
+    const complete = new URL("/auth/complete", base);
     complete.searchParams.set("token", exchange);
     complete.searchParams.set("returnTo", result.isNewUser ? returnTo : "/my");
     complete.searchParams.set("provider", provider);
@@ -97,17 +102,18 @@ export async function GET(
     return res;
   } catch (e) {
     if (e instanceof SocialLinkDisabledError) {
-      return isLinkMode ? failLink("link_disabled") : failLogin("link_failed");
+      return isLinkMode ? failLink("link_disabled") : failLogin("link_failed", { provider });
     }
     if (e instanceof WithdrawalPendingError) {
-      return isLinkMode ? failLink("withdrawal_pending") : failLogin("withdrawal_pending");
+      return isLinkMode ? failLink("withdrawal_pending") : failLogin("withdrawal_pending", { provider });
     }
-    const authCode = mapCallbackAuthError(e);
+    const mapped = mapThrownOAuthError(e);
     console.error("[auth/callback]", provider, {
       redirectUri: callbackUrl(request, provider),
-      authCode,
+      authCode: mapped.code,
+      hint: mapped.hint,
       error: e,
     });
-    return isLinkMode ? failLink("link_failed") : failLogin(authCode);
+    return isLinkMode ? failLink("link_failed") : failLogin(mapped.code, { provider, hint: mapped.hint });
   }
 }

@@ -8,12 +8,16 @@ import { authErrorMessage } from "@/lib/auth/auth-error-messages";
 
 function SocialLoginWithErrors() {
   const sp = useSearchParams();
-  const err = authErrorMessage(sp.get("auth_error"), sp.get("auth_error_provider"));
+  const err = authErrorMessage(sp.get("auth_error"), sp.get("auth_error_provider"), sp.get("auth_error_hint"));
 
   return (
     <>
       {err ? (
-        <p className="y-auth-error" role="alert" style={{ margin: "0 0 12px", fontSize: 13, color: "var(--y-rose)" }}>
+        <p
+          className="y-auth-error"
+          role="alert"
+          style={{ margin: "0 0 12px", fontSize: 13, color: "var(--y-rose)", whiteSpace: "pre-line" }}
+        >
           {err}
         </p>
       ) : null}

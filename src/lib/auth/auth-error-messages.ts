@@ -6,9 +6,16 @@ const PROVIDER_LABEL: Record<SocialProvider, string> = {
   naver: "네이버",
 };
 
+function withHint(base: string, hint: string | null | undefined): string {
+  const h = hint?.trim();
+  if (!h) return base;
+  return `${base}\n${h}`;
+}
+
 export function authErrorMessage(
   code: string | null,
   existingProvider?: string | null,
+  hint?: string | null,
 ): string | null {
   if (!code) return null;
   switch (code) {
@@ -17,13 +24,24 @@ export function authErrorMessage(
     case "oauth_not_configured":
       return "소셜 로그인 설정이 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.";
     case "oauth_redirect_mismatch":
-      return "로그인 redirect URI가 일치하지 않습니다. 카카오·구글 콘솔에 https://yeonun.com/auth/callback/… 가 등록돼 있는지 확인해 주세요.";
+      return withHint(
+        "로그인 redirect URI가 일치하지 않습니다. 카카오·구글 콘솔에 https://yeonun.com/auth/callback/… 가 등록돼 있는지 확인해 주세요.",
+        hint,
+      );
     case "oauth_invalid_client":
-      return "소셜 앱 Client ID·Secret이 올바르지 않습니다. Vercel Production env와 개발자 콘솔 설정을 확인해 주세요.";
+      return withHint(
+        "소셜 앱 Client ID·Secret이 올바르지 않습니다. Vercel Production env와 개발자 콘솔 설정을 확인해 주세요.",
+        hint,
+      );
     case "invalid_state":
-      return "로그인 요청이 만료되었습니다. 다시 시도해 주세요.";
+      return withHint(
+        "로그인 요청이 만료되었습니다. 시크릿 창이 아닌 일반 브라우저에서 다시 시도해 주세요.",
+        hint,
+      );
+    case "session_failed":
+      return withHint("세션 발급에 실패했습니다. 잠시 후 다시 시도해 주세요.", hint);
     case "token_failed":
-      return "로그인에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.";
+      return withHint("로그인에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.", hint);
     case "email_provider_conflict": {
       const p = existingProvider as SocialProvider | undefined;
       const label = p && PROVIDER_LABEL[p] ? PROVIDER_LABEL[p] : "다른 소셜";
@@ -34,7 +52,7 @@ export function authErrorMessage(
     case "link_failed":
       return "로그인 연동에 실패했습니다. 잠시 후 다시 시도해 주세요.";
     default:
-      return "로그인 중 문제가 발생했습니다.";
+      return withHint("로그인 중 문제가 발생했습니다.", hint);
   }
 }
 

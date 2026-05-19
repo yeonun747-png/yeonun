@@ -7,6 +7,7 @@ export type AuthErrorCode =
   | "oauth_invalid_client"
   | "invalid_state"
   | "token_failed"
+  | "session_failed"
   | "email_provider_conflict"
   | "withdrawal_pending"
   | "link_failed"
@@ -25,11 +26,16 @@ export function socialLinkErrorRedirectPath(returnTo: string, code: SocialLinkEr
   return `${url.pathname}${url.search}`;
 }
 
-export function authErrorRedirectPath(returnTo: string, code: AuthErrorCode, extra?: { provider?: SocialProvider }): string {
+export function authErrorRedirectPath(
+  returnTo: string,
+  code: AuthErrorCode,
+  extra?: { provider?: SocialProvider; hint?: string },
+): string {
   const base = returnTo.includes("?") ? returnTo : returnTo;
   const url = new URL(base, "http://local");
   url.searchParams.set("modal", "auth");
   url.searchParams.set("auth_error", code);
   if (extra?.provider) url.searchParams.set("auth_error_provider", extra.provider);
+  if (extra?.hint) url.searchParams.set("auth_error_hint", extra.hint);
   return `${url.pathname}${url.search}`;
 }
