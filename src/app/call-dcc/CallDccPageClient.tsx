@@ -9,7 +9,7 @@ import { computeManseFromFormInput } from "@/lib/manse-ryeok";
 import { extractRealtimeFunctionCallsFromResponseDone } from "@/lib/openai-realtime-function-calls";
 import { extractRealtimeResponseUsage } from "@/lib/voice-realtime-response-usage";
 import { recordMeetConsultCharacterForM07 } from "@/lib/daily-missions";
-import { tryPersistMissionM07CompleteIfEligible } from "@/lib/mission-reconcile";
+import { markFirstVoiceStartedForMission, MISSION_FACT_M02_LEGACY_ENDED_KEY, tryPersistMissionM07CompleteIfEligible, tryPersistMissionM02CompleteIfEligible } from "@/lib/mission-reconcile";
 import { spendCreditsWithAuth } from "@/lib/credit-client";
 import { YEONUN_CREDIT_UPDATE_EVENT, readWallet, ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import {
@@ -435,10 +435,10 @@ export default function CallDccPageClient() {
     try {
       if (typeof window !== "undefined") {
         try {
-          const FIRST = "yeonun_first_voice_completed_v1";
+          const FIRST = MISSION_FACT_M02_LEGACY_ENDED_KEY;
           if (!localStorage.getItem(FIRST)) {
             localStorage.setItem(FIRST, "1");
-            window.dispatchEvent(new Event("yeonun:first-voice-session-ended"));
+            tryPersistMissionM02CompleteIfEligible();
           }
           recordMeetConsultCharacterForM07(characterKey);
           tryPersistMissionM07CompleteIfEligible();
@@ -687,6 +687,7 @@ export default function CallDccPageClient() {
           if (cancelled) return;
           setMeterAnchorBump((x) => x + 1);
           setSessionId(sid);
+          markFirstVoiceStartedForMission();
           const rs = (data.session as { roll_secret?: string }).roll_secret;
           if (typeof rs === "string" && rs.trim()) rollSecretRef.current = rs.trim();
         }

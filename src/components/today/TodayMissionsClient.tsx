@@ -207,17 +207,14 @@ export function TodayMissionsClient() {
       const d = (e as CustomEvent<{ kstDate?: string }>).detail;
       if (d?.kstDate === formatKstDateKey(new Date())) markComplete("M11");
     };
-    const onFirstVoice = () => markComplete("M02");
     const onDailyWordsShare = (e: Event) => {
       const d = (e as CustomEvent<{ kstDate?: string }>).detail;
       if (d?.kstDate === formatKstDateKey(new Date())) markComplete("M12");
     };
     window.addEventListener("yeonun:daily-note-first-save", onFirstNote);
-    window.addEventListener("yeonun:first-voice-session-ended", onFirstVoice);
     window.addEventListener("yeonun:daily-words-share-complete", onDailyWordsShare);
     return () => {
       window.removeEventListener("yeonun:daily-note-first-save", onFirstNote);
-      window.removeEventListener("yeonun:first-voice-session-ended", onFirstVoice);
       window.removeEventListener("yeonun:daily-words-share-complete", onDailyWordsShare);
     };
   }, [markComplete]);

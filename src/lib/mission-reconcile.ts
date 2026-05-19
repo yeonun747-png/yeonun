@@ -17,6 +17,11 @@ import { formatKstDateKey } from "@/lib/datetime/kst";
 
 export const YEONUN_MISSIONS_RECONCILE_EVENT = "yeonun:missions-reconcile";
 
+/** M02 — 첫 음성 상담 시작(세션 생성 성공) */
+export const MISSION_FACT_M02_STARTED_KEY = "yeonun_first_voice_started_v1";
+/** 레거시 — 통화 종료 시점에만 기록되던 플래그(하위 호환) */
+export const MISSION_FACT_M02_LEGACY_ENDED_KEY = "yeonun_first_voice_completed_v1";
+
 const SAJU_LS_KEY = "yeonun_saju_v1";
 const LEGACY_MISSION_KEY = "yeonun_daily_missions_v1";
 
@@ -81,6 +86,45 @@ export function tryPersistMissionM07CompleteIfEligible(now: Date = new Date()): 
   }
 }
 
+function persistMissionCompleteIfEligible(id: MissionId, now: Date = new Date()): void {
+  if (typeof window === "undefined") return;
+  const state0 = loadMissionRuntimeStateForExternal(now);
+  if (!state0) return;
+  const { trio, state: s0 } = syncMissionState(now, state0);
+  if (!trio.some((t) => t.id === id)) return;
+  if (isMissionCompleted(id, s0.completedOnce, s0.completedToday)) return;
+  applyMissionCreditReward(id);
+  const marked = markMissionCompleteInState(s0, id, trio, now.getTime());
+  const { state: s2 } = syncMissionState(now, marked);
+  try {
+    localStorage.setItem(MISSION_STORAGE_KEY, JSON.stringify(s2));
+  } catch {
+    /* ignore */
+  }
+  dispatchMissionsReconcile();
+  try {
+    window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "미션 완료 · 보상이 적립됐어요" } }));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 오늘의 미션에 M02가 있고 미완료일 때 — 음성 상담 세션 시작 직후 호출 */
+export function tryPersistMissionM02CompleteIfEligible(now: Date = new Date()): void {
+  persistMissionCompleteIfEligible("M02", now);
+}
+
+/** 음성 상담 세션이 생성·시작됐음을 기록하고 M02 미션을 즉시 반영 */
+export function markFirstVoiceStartedForMission(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(MISSION_FACT_M02_STARTED_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+  tryPersistMissionM02CompleteIfEligible();
+}
+
 export function missionFactM03Key(kst: string): string {
   return `yeonun:mission-fact:m03-iljin:${kst}`;
 }
@@ -127,6 +171,8 @@ function missionFactForId(id: MissionId, todayKst: string): boolean {
   switch (id) {
     case "M01":
       return missionFactHasValidSaju();
+    case "M02":
+      return readFact(MISSION_FACT_M02_STARTED_KEY) || readFact(MISSION_FACT_M02_LEGACY_ENDED_KEY);
     case "M03":
       return readFact(missionFactM03Key(todayKst));
     case "M04":
@@ -192,6 +238,7 @@ export function missionStorageKeysThatTriggerReconcile(key: string | null): bool
   if (!key) return false;
   if (key === MISSION_STORAGE_KEY) return true;
   if (key.startsWith("yeonun:mission-fact:")) return true;
+  if (key === MISSION_FACT_M02_STARTED_KEY || key === MISSION_FACT_M02_LEGACY_ENDED_KEY) return true;
   if (key === SAJU_LS_KEY) return true;
   return false;
 }
