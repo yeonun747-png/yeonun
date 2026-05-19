@@ -39,6 +39,10 @@ a {
 
 /* ============ ADMIN OPS ============ */
 .y-admin-shell {
+  --y-admin-save-bg: #8c2a40;
+  --y-admin-save-bg-hover: #a3324d;
+  --y-admin-save-bg-active: #702338;
+  --y-admin-save-shadow: 0 4px 14px rgba(140, 42, 64, 0.28);
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -1067,8 +1071,45 @@ body:has(.y-admin-shell--v2) {
   font-size: 12.5px;
   font-weight: 800;
 }
+.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink),
+.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink),
+.y-admin-status-form button[type="submit"]:not(.y-admin-btn-ink),
+.y-admin-save-btn {
+  background: var(--y-admin-save-bg);
+  color: #fff;
+  box-shadow: var(--y-admin-save-shadow);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):not(:disabled):hover,
+.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):not(:disabled):hover,
+.y-admin-status-form button[type="submit"]:not(.y-admin-btn-ink):not(:disabled):hover,
+.y-admin-save-btn:not(:disabled):hover {
+  background: var(--y-admin-save-bg-hover);
+  box-shadow: 0 6px 18px rgba(140, 42, 64, 0.34);
+}
+.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):not(:disabled):active,
+.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):not(:disabled):active,
+.y-admin-status-form button[type="submit"]:not(.y-admin-btn-ink):not(:disabled):active,
+.y-admin-save-btn:not(:disabled):active {
+  background: var(--y-admin-save-bg-active);
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(140, 42, 64, 0.22);
+}
+.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):disabled,
+.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):disabled,
+.y-admin-status-form button[type="submit"]:not(.y-admin-btn-ink):disabled,
+.y-admin-save-btn:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  box-shadow: none;
+}
 .y-admin-form button.y-admin-secondary {
   background: #4a5263;
+  color: #fff;
 }
 .y-admin-muted {
   margin: 0;
@@ -1375,10 +1416,8 @@ textarea.y-admin-review-body {
   background: white;
   color: var(--y-ink);
 }
-.y-admin-status-form button {
+.y-admin-status-form button[type="submit"] {
   border: none;
-  background: var(--y-ink);
-  color: white;
   font-weight: 800;
 }
 .y-admin-empty {

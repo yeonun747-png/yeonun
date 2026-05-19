@@ -42,8 +42,15 @@ export class SocialLinkDisabledError extends Error {
   }
 }
 
-function syntheticEmail(provider: SocialProvider, providerId: string): string {
+export function syntheticEmail(provider: SocialProvider, providerId: string): string {
   return `${provider}.${providerId}@oauth.yeonun.kr`;
+}
+
+/** CS·DB 검색용 — 실제 소셜 이메일 없으면 로그인 이메일(synthetic) 저장 */
+export function socialStoredEmail(profile: OAuthProfile): string | null {
+  const real = profile.email?.trim();
+  if (real) return real;
+  return syntheticEmail(profile.provider, profile.providerId);
 }
 
 /** @deprecated 마이탭 다중 연동 비활성 — Google·카카오·네이버는 각각 별도 로그인 */
@@ -101,6 +108,7 @@ export async function listLinkedSocialAccounts(authUserId: string): Promise<Link
 export async function upsertSocialUser(profile: OAuthProfile): Promise<UpsertSocialUserResult> {
   const sb = supabaseServer();
   const loginEmail = (profile.email || syntheticEmail(profile.provider, profile.providerId)).toLowerCase();
+  const storedEmail = socialStoredEmail(profile);
 
   const { data: row, error: findErr } = await sb
     .from("yeonun_social_users")
@@ -120,7 +128,7 @@ export async function upsertSocialUser(profile: OAuthProfile): Promise<UpsertSoc
       .from("yeonun_social_users")
       .update({
         name: profile.name,
-        email: profile.email,
+        email: storedEmail,
         profile_image: profile.profileImage,
         last_login_at: new Date().toISOString(),
       })
@@ -185,7 +193,7 @@ export async function upsertSocialUser(profile: OAuthProfile): Promise<UpsertSoc
       provider: profile.provider,
       provider_id: profile.providerId,
       name: profile.name,
-      email: profile.email,
+      email: storedEmail,
       profile_image: profile.profileImage,
     })
     .select("*")

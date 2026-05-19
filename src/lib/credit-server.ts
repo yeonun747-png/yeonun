@@ -1,3 +1,5 @@
+import { syntheticEmail } from "@/lib/auth/social-user-service";
+import type { SocialProvider } from "@/lib/auth/types";
 import { CREDIT_FREE_TRIAL_GRANT, CREDIT_FREE_TRIAL_VALID_DAYS, firstChargeTotalCredits } from "@/lib/credit-policy";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -380,10 +382,55 @@ export async function listLedger(userId: string, limit = 30): Promise<CreditLedg
 export type AdminMemberSearchHit = {
   user_id: string;
   display_name: string;
+  /** CS 표시용 — Auth 로그인 이메일 또는 synthetic */
   email: string | null;
+  login_email: string | null;
   provider: string | null;
+  provider_id: string | null;
   social_name: string | null;
 };
+
+type AdminSocialSearchRow = {
+  auth_user_id: string;
+  email: string | null;
+  provider: string | null;
+  provider_id: string | null;
+  name: string | null;
+};
+
+const SOCIAL_SEARCH_SELECT = "auth_user_id,email,provider,provider_id,name";
+
+function parseOAuthLoginEmail(email: string): { provider: SocialProvider; providerId: string } | null {
+  const m = email.toLowerCase().match(/^(google|kakao|naver)\.([^@]+)@oauth\.yeonun\.kr$/);
+  if (!m) return null;
+  return { provider: m[1] as SocialProvider, providerId: m[2] };
+}
+
+function csEmailFromSocial(s: {
+  email?: string | null;
+  provider?: string | null;
+  provider_id?: string | null;
+}): string | null {
+  const stored = s.email?.trim();
+  if (stored) return stored;
+  if (s.provider && s.provider_id) {
+    return syntheticEmail(s.provider as SocialProvider, s.provider_id);
+  }
+  return null;
+}
+
+function hitFromSocialRow(s: AdminSocialSearchRow, displayName?: string): AdminMemberSearchHit {
+  const email = csEmailFromSocial(s);
+  return {
+    user_id: String(s.auth_user_id),
+    display_name: String(displayName ?? s.name ?? ""),
+    email,
+    login_email: email,
+    provider: s.provider ?? null,
+    provider_id: s.provider_id ?? null,
+    social_name: s.name ?? null,
+  };
+}
 
 export async function searchMembersForAdmin(query: string): Promise<AdminMemberSearchHit[]> {
   const q = query.trim();
@@ -394,44 +441,95 @@ export async function searchMembersForAdmin(query: string): Promise<AdminMemberS
 
   const add = (row: AdminMemberSearchHit) => {
     if (!row.user_id) return;
-    hits.set(row.user_id, row);
+    const prev = hits.get(row.user_id);
+    hits.set(row.user_id, prev ? { ...prev, ...row, email: row.email ?? prev.email } : row);
+  };
+
+  const addFromSocialRows = async (rows: AdminSocialSearchRow[]) => {
+    for (const s of rows) {
+      const uid = String(s.auth_user_id);
+      const { data: profile } = await sb.from("profiles").select("display_name").eq("id", uid).maybeSingle();
+      add(hitFromSocialRow(s, profile?.display_name ? String(profile.display_name) : undefined));
+    }
   };
 
   if (UUID_RE.test(q)) {
     const { data: profile } = await sb.from("profiles").select("id,display_name").eq("id", q).maybeSingle();
     const { data: social } = await sb
       .from("yeonun_social_users")
-      .select("auth_user_id,email,provider,name")
+      .select(SOCIAL_SEARCH_SELECT)
       .eq("auth_user_id", q)
       .is("deleted_at", null)
+      .order("last_login_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
-    add({
-      user_id: q,
-      display_name: String(profile?.display_name ?? social?.name ?? ""),
-      email: social?.email ?? null,
-      provider: social?.provider ?? null,
-      social_name: social?.name ?? null,
-    });
+    if (social) {
+      add(hitFromSocialRow(social as AdminSocialSearchRow, profile?.display_name ? String(profile.display_name) : undefined));
+    } else {
+      const { data: authUser } = await sb.auth.admin.getUserById(q);
+      add({
+        user_id: q,
+        display_name: String(profile?.display_name ?? ""),
+        email: authUser.user?.email ?? null,
+        login_email: authUser.user?.email ?? null,
+        provider: null,
+        provider_id: null,
+        social_name: null,
+      });
+    }
   }
 
   if (q.includes("@")) {
     const { data: rows } = await sb
       .from("yeonun_social_users")
-      .select("auth_user_id,email,provider,name")
+      .select(SOCIAL_SEARCH_SELECT)
       .ilike("email", `%${q}%`)
       .is("deleted_at", null)
       .limit(20);
-    for (const s of rows ?? []) {
-      const uid = String(s.auth_user_id);
-      const { data: profile } = await sb.from("profiles").select("display_name").eq("id", uid).maybeSingle();
-      add({
-        user_id: uid,
-        display_name: String(profile?.display_name ?? s.name ?? ""),
-        email: s.email ?? null,
-        provider: s.provider ?? null,
-        social_name: s.name ?? null,
-      });
+    await addFromSocialRows((rows ?? []) as AdminSocialSearchRow[]);
+
+    const exactEmail = q.toLowerCase();
+    const { data: exactRows } = await sb
+      .from("yeonun_social_users")
+      .select(SOCIAL_SEARCH_SELECT)
+      .eq("email", exactEmail)
+      .is("deleted_at", null)
+      .limit(5);
+    await addFromSocialRows((exactRows ?? []) as AdminSocialSearchRow[]);
+
+    const oauthLogin = parseOAuthLoginEmail(exactEmail);
+    if (oauthLogin) {
+      const { data: rows } = await sb
+        .from("yeonun_social_users")
+        .select(SOCIAL_SEARCH_SELECT)
+        .eq("provider", oauthLogin.provider)
+        .eq("provider_id", oauthLogin.providerId)
+        .is("deleted_at", null)
+        .limit(5);
+      await addFromSocialRows((rows ?? []) as AdminSocialSearchRow[]);
     }
+  }
+
+  const kakaoIdOnly = q.match(/^kakao\.(\d+)$/i);
+  if (kakaoIdOnly) {
+    const { data: rows } = await sb
+      .from("yeonun_social_users")
+      .select(SOCIAL_SEARCH_SELECT)
+      .eq("provider", "kakao")
+      .eq("provider_id", kakaoIdOnly[1])
+      .is("deleted_at", null)
+      .limit(10);
+    await addFromSocialRows((rows ?? []) as AdminSocialSearchRow[]);
+  }
+
+  if (/^\d{6,20}$/.test(q)) {
+    const { data: rows } = await sb
+      .from("yeonun_social_users")
+      .select(SOCIAL_SEARCH_SELECT)
+      .eq("provider_id", q)
+      .is("deleted_at", null)
+      .limit(20);
+    await addFromSocialRows((rows ?? []) as AdminSocialSearchRow[]);
   }
 
   if (q.startsWith("YN")) {
@@ -441,17 +539,26 @@ export async function searchMembersForAdmin(query: string): Promise<AdminMemberS
       const { data: profile } = await sb.from("profiles").select("display_name").eq("id", uid).maybeSingle();
       const { data: social } = await sb
         .from("yeonun_social_users")
-        .select("email,provider,name")
+        .select(SOCIAL_SEARCH_SELECT)
         .eq("auth_user_id", uid)
         .is("deleted_at", null)
+        .order("last_login_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
-      add({
-        user_id: uid,
-        display_name: String(profile?.display_name ?? social?.name ?? ""),
-        email: social?.email ?? null,
-        provider: social?.provider ?? null,
-        social_name: social?.name ?? null,
-      });
+      if (social) {
+        add(hitFromSocialRow(social as AdminSocialSearchRow, profile?.display_name ? String(profile.display_name) : undefined));
+      } else {
+        const { data: authUser } = await sb.auth.admin.getUserById(uid);
+        add({
+          user_id: uid,
+          display_name: String(profile?.display_name ?? ""),
+          email: authUser.user?.email ?? null,
+          login_email: authUser.user?.email ?? null,
+          provider: null,
+          provider_id: null,
+          social_name: null,
+        });
+      }
     }
   }
 
@@ -465,18 +572,34 @@ export async function searchMembersForAdmin(query: string): Promise<AdminMemberS
       const uid = String(p.id);
       const { data: social } = await sb
         .from("yeonun_social_users")
-        .select("email,provider,name")
+        .select(SOCIAL_SEARCH_SELECT)
         .eq("auth_user_id", uid)
         .is("deleted_at", null)
+        .order("last_login_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
-      add({
-        user_id: uid,
-        display_name: String(p.display_name ?? ""),
-        email: social?.email ?? null,
-        provider: social?.provider ?? null,
-        social_name: social?.name ?? null,
-      });
+      if (social) {
+        add(hitFromSocialRow(social as AdminSocialSearchRow, String(p.display_name ?? "")));
+      } else {
+        add({
+          user_id: uid,
+          display_name: String(p.display_name ?? ""),
+          email: null,
+          login_email: null,
+          provider: null,
+          provider_id: null,
+          social_name: null,
+        });
+      }
     }
+
+    const { data: socialByName } = await sb
+      .from("yeonun_social_users")
+      .select(SOCIAL_SEARCH_SELECT)
+      .ilike("name", `%${q}%`)
+      .is("deleted_at", null)
+      .limit(15);
+    await addFromSocialRows((socialByName ?? []) as AdminSocialSearchRow[]);
   }
 
   return [...hits.values()].slice(0, 20);

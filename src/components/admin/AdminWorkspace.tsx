@@ -86,7 +86,9 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
           ))}
         </nav>
         <form action="/admin/logout" method="post" className="y-admin-side-logout">
-          <button type="submit">로그아웃</button>
+          <button type="submit" className="y-admin-btn-ink">
+            로그아웃
+          </button>
         </form>
       </aside>
       <div className="y-admin-main-wrap y-admin-main-wrap--v2">

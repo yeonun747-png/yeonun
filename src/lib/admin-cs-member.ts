@@ -293,7 +293,7 @@ export async function getAdminMemberFile(userId: string): Promise<AdminMemberFil
   const member: AdminMemberFileMember = {
     user_id: userId,
     display_name: String(profile?.display_name ?? social?.name ?? ""),
-    email: social?.email ?? authUser?.email ?? null,
+    email: authUser?.email ?? social?.email ?? null,
     provider: social?.provider ?? null,
     provider_label: social?.provider ? PROVIDER_LABEL[social.provider] ?? social.provider : null,
     provider_id: social?.provider_id ?? null,

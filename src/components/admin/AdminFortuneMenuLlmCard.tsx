@@ -77,21 +77,7 @@ export function AdminFortuneMenuLlmCard({ currentModelId }: { currentModelId: st
           </label>
         ))}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
-          <button
-            type="button"
-            onClick={openConfirm}
-            style={{
-              padding: "10px 16px",
-              borderRadius: 999,
-              border: "none",
-              background: "var(--y-rose, #dd5878)",
-              color: "#fff",
-              font: "inherit",
-              fontSize: "12.5px",
-              fontWeight: 800,
-              cursor: "pointer",
-            }}
-          >
+          <button type="button" className="y-admin-save-btn" onClick={openConfirm}>
             저장
           </button>
         </div>
@@ -167,22 +153,7 @@ export function AdminFortuneMenuLlmCard({ currentModelId }: { currentModelId: st
               >
                 취소
               </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void confirmSave()}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 999,
-                  border: "none",
-                  background: "var(--y-rose, #dd5878)",
-                  color: "#fff",
-                  fontWeight: 800,
-                  cursor: saving ? "wait" : "pointer",
-                  font: "inherit",
-                  fontSize: "12.5px",
-                }}
-              >
+              <button type="button" className="y-admin-save-btn" disabled={saving} onClick={() => void confirmSave()}>
                 {saving ? "저장 중…" : "확인 후 변경"}
               </button>
             </div>

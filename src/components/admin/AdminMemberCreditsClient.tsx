@@ -12,7 +12,9 @@ type MemberHit = {
   user_id: string;
   display_name: string;
   email: string | null;
+  login_email?: string | null;
   provider: string | null;
+  provider_id?: string | null;
   social_name: string | null;
 };
 
@@ -486,7 +488,7 @@ export function AdminMemberCreditsClient() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="이메일, 닉네임, UUID, 주문번호"
+            placeholder="CS이메일(kakao.*@oauth), 카카오ID, 닉네임, UUID, YN주문"
             onKeyDown={(e) => {
               if (e.key === "Enter") void search();
             }}
@@ -516,9 +518,16 @@ export function AdminMemberCreditsClient() {
                   disabled={busy}
                 >
                   <span className="y-admin-member-credits-hit-name">{m.display_name || m.social_name || "(이름 없음)"}</span>
-                  <span className="y-admin-member-credits-hit-email">{m.email ?? "이메일 없음"}</span>
-                  {m.provider ? <span className="y-admin-member-credits-hit-provider">{m.provider}</span> : null}
-                  <span className="y-admin-member-credits-hit-id">{m.user_id}</span>
+                  <span className="y-admin-member-credits-hit-email">{m.email ?? m.login_email ?? "이메일 없음"}</span>
+                  {m.provider ? (
+                    <span className="y-admin-member-credits-hit-provider">
+                      {m.provider}
+                      {m.provider_id ? ` · ${m.provider_id}` : ""}
+                    </span>
+                  ) : null}
+                  <span className="y-admin-member-credits-hit-id" title="회원 UUID">
+                    {m.user_id}
+                  </span>
                 </button>
               </li>
             ))}
