@@ -2927,11 +2927,23 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host):not(.y-rv-overlay)
 }
 .y-auth-modal .y-modal-head {
   position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+}
+.y-auth-modal .y-modal-back {
+  position: relative;
+  z-index: 2;
 }
 .y-auth-modal .y-modal-title {
   flex: 1;
   text-align: center;
   pointer-events: none;
+}
+.y-auth-modal .y-onboard-foot {
+  flex-shrink: 0;
+  z-index: 2;
+  position: relative;
+  padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
 }
 
 /* 나의 기록 바텀시트 (만세력/시작하기와 동일 헤더 + 목업 리스트) */

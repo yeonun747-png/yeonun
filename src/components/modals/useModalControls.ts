@@ -25,15 +25,16 @@ export function useModalControls() {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
+  const search = sp.toString();
 
   const close = useCallback(() => {
-    const next = new URLSearchParams(sp.toString());
+    const next = new URLSearchParams(search);
     for (const key of MODAL_QUERY_KEYS) {
       next.delete(key);
     }
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [pathname, router, sp]);
+  }, [pathname, router, search]);
 
   return { close };
 }

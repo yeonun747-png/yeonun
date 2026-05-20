@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import { SocialLoginSection } from "@/components/auth/SocialLoginSection";
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { persistYeonunSajuV1 } from "@/lib/fortune-ux/sajuStorage";
@@ -30,13 +31,19 @@ const TIME_TABS = [
   { han: "亥", time: "21-23시" },
 ];
 
+function stopSheetPointerBubble(e: MouseEvent) {
+  e.stopPropagation();
+}
+
 export function AuthModal() {
   const { close } = useModalControls();
+  const { session } = useYeonunAuth();
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
   const isOnboard = sp.get("onboard") === "1";
   const modalAuth = sp.get("modal") === "auth";
+  const onboardInitRef = useRef(false);
 
   const [step, setStep] = useState<AuthStep>(() => (isOnboard ? "birth" : "login"));
   const [displayName, setDisplayName] = useState("");
@@ -49,25 +56,28 @@ export function AuthModal() {
   const [gender, setGender] = useState<"male" | "female">("female");
   const [submitBusy, setSubmitBusy] = useState(false);
 
-  /** onboard 쿼리는 OAuth 직후에만 유지됨. sp 객체 전체를 deps에 넣으면 매 렌더마다 step이 birth로 리셋되어 다음/뒤로가 동작하지 않음 */
+  /** OAuth 직후 1회만 birth로 진입. isOnboard가 true인 동안 매번 setStep("birth")하면 스텝3에서 뒤로/완료가 먹통처럼 보임 */
   useEffect(() => {
-    if (isOnboard) setStep("birth");
+    if (!isOnboard) {
+      onboardInitRef.current = false;
+      return;
+    }
+    if (onboardInitRef.current) return;
+    onboardInitRef.current = true;
+    setStep("birth");
   }, [isOnboard]);
 
   useEffect(() => {
     if (!isOnboard && modalAuth) setStep("login");
   }, [isOnboard, modalAuth]);
 
-  const canBack = step !== "login";
-  const back = () => setStep(step === "birth" ? "login" : step === "time" ? "birth" : "time");
+  const canBack = isOnboard ? step === "time" || step === "gender" : step !== "login";
 
-  const dismiss = useCallback(
-    (e?: MouseEvent) => {
-      e?.stopPropagation();
-      close();
-    },
-    [close],
-  );
+  const handleBack = useCallback(() => {
+    if (step === "gender") setStep("time");
+    else if (step === "time") setStep("birth");
+    else if (step === "birth" && !isOnboard) setStep("login");
+  }, [step, isOnboard]);
 
   const progress = useMemo(() => {
     if (step === "birth") return ["current", "", ""] as const;
@@ -76,9 +86,12 @@ export function AuthModal() {
     return ["", "", ""] as const;
   }, [step]);
 
-  const finishAfterAuthRedirect = () => {
-    const after = sp.get("after_auth") ?? "";
-    const next = new URLSearchParams(sp.toString());
+  const search = sp.toString();
+
+  const finishAfterAuthRedirect = useCallback(() => {
+    const query = new URLSearchParams(search);
+    const after = query.get("after_auth") ?? "";
+    const next = new URLSearchParams(search);
     next.delete("modal");
     next.delete("after_auth");
     next.delete("onboard");
@@ -98,8 +111,8 @@ export function AuthModal() {
     }
 
     const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
-  };
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, search]);
 
   const parseBirthInts = () => {
     const y = parseInt(birthYear.trim(), 10);
@@ -122,18 +135,29 @@ export function AuthModal() {
     return true;
   };
 
-  const submitOnboarding = async () => {
-    if (submitBusy) return;
+  const submitInFlightRef = useRef(false);
+
+  const submitOnboarding = useCallback(async () => {
+    if (submitInFlightRef.current) return;
+    if (!validateBirth()) return;
+
+    submitInFlightRef.current = true;
+    setSubmitBusy(true);
     const { y, mo, d } = parseBirthInts();
     const branchKey = unknownTime ? null : TIME_TAB_BRANCH_KEYS[timeIdx];
-    const sb = supabaseBrowser();
-    const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+
+    let token = session?.access_token ?? null;
     if (!token) {
+      const sb = supabaseBrowser();
+      token = sb ? (await sb.auth.getSession()).data.session?.access_token ?? null : null;
+    }
+    if (!token) {
+      submitInFlightRef.current = false;
+      setSubmitBusy(false);
       window.alert("세션이 없습니다. 다시 로그인해 주세요.");
       return;
     }
 
-    setSubmitBusy(true);
     try {
       const res = await fetch("/api/me/profile", {
         method: "POST",
@@ -187,24 +211,91 @@ export function AuthModal() {
       console.error(e);
       window.alert("프로필 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
+      submitInFlightRef.current = false;
       setSubmitBusy(false);
     }
-  };
+  }, [
+    birthDay,
+    birthMonth,
+    birthYear,
+    calendarType,
+    displayName,
+    finishAfterAuthRedirect,
+    gender,
+    session?.access_token,
+    timeIdx,
+    unknownTime,
+  ]);
+
+  const dismiss = useCallback(
+    (e?: MouseEvent) => {
+      e?.stopPropagation();
+      if (isOnboard) return;
+      close();
+    },
+    [close, isOnboard],
+  );
+
+  const handleClose = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation();
+      if (isOnboard && step === "gender") {
+        void submitOnboarding();
+        return;
+      }
+      dismiss(e);
+    },
+    [dismiss, isOnboard, step, submitOnboarding],
+  );
+
+  const onboardFoot =
+    step === "birth" ? (
+      <div className="y-onboard-foot">
+        <button
+          className="y-onboard-next"
+          type="button"
+          onClick={() => {
+            if (!validateBirth()) return;
+            setStep("time");
+          }}
+        >
+          다음
+        </button>
+      </div>
+    ) : step === "time" ? (
+      <div className="y-onboard-foot">
+        <button className="y-onboard-next" type="button" onClick={() => setStep("gender")}>
+          다음
+        </button>
+      </div>
+    ) : step === "gender" ? (
+      <div className="y-onboard-foot">
+        <button className="y-onboard-next" type="button" disabled={submitBusy} onClick={() => void submitOnboarding()}>
+          {submitBusy ? "저장 중…" : "완료 · 연운 시작하기"}
+        </button>
+      </div>
+    ) : null;
 
   return (
     <YeonunSheetPortal>
       <div className="y-modal open y-auth-modal" role="dialog" aria-modal="true" aria-label="시작하기" onMouseDown={dismiss}>
-        <div className="y-modal-sheet" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="y-modal-sheet" onMouseDown={stopSheetPointerBubble} onClick={stopSheetPointerBubble}>
           <div className="y-modal-handle" />
 
           <div className="y-modal-head">
-            <button className="y-modal-back" type="button" onClick={back} style={{ visibility: canBack ? "visible" : "hidden" }} aria-label="뒤로">
+            <button
+              className="y-modal-back"
+              type="button"
+              onClick={handleBack}
+              style={{ visibility: canBack ? "visible" : "hidden" }}
+              aria-label="뒤로"
+            >
               <svg viewBox="0 0 24 24">
                 <path d="M15 18 L9 12 L15 6" />
               </svg>
             </button>
             <div className="y-modal-title">시작하기</div>
-            <button className="y-modal-close" type="button" onClick={dismiss} aria-label="닫기">
+            <button className="y-modal-close" type="button" onClick={handleClose} aria-label="닫기">
               ×
             </button>
           </div>
@@ -294,18 +385,6 @@ export function AuthModal() {
                     </div>
                   </div>
                 </div>
-                <div className="y-onboard-foot">
-                  <button
-                    className="y-onboard-next"
-                    type="button"
-                    onClick={() => {
-                      if (!validateBirth()) return;
-                      setStep("time");
-                    }}
-                  >
-                    다음
-                  </button>
-                </div>
               </>
             ) : null}
 
@@ -342,11 +421,6 @@ export function AuthModal() {
                     <div>출생시간을 모릅니다 (시주 제외하고 풀이)</div>
                   </button>
                 </div>
-                <div className="y-onboard-foot">
-                  <button className="y-onboard-next" type="button" onClick={() => setStep("gender")}>
-                    다음
-                  </button>
-                </div>
               </>
             ) : null}
 
@@ -368,14 +442,11 @@ export function AuthModal() {
                     </button>
                   </div>
                 </div>
-                <div className="y-onboard-foot">
-                  <button className="y-onboard-next" type="button" disabled={submitBusy} onClick={() => void submitOnboarding()}>
-                    {submitBusy ? "저장 중…" : "완료 · 연운 시작하기"}
-                  </button>
-                </div>
               </>
             ) : null}
           </div>
+
+          {onboardFoot}
         </div>
       </div>
     </YeonunSheetPortal>
