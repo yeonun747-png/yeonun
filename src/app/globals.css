@@ -2826,6 +2826,10 @@ ul {
 .y-modal.open {
   display: flex;
 }
+/** body 포털 시트(캐릭터·콘텐츠) — 검색 오버레이(9000) 위에 즉시 표시, 검색은 닫히는 애니메이션만 재생 */
+body > .y-modal.open {
+  z-index: 9100;
+}
 body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host):not(.y-rv-overlay) {
   filter: blur(6px);
 }

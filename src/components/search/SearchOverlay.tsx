@@ -462,15 +462,13 @@ function SearchOverlayDialog({
     [currentHref],
   );
 
-  /** 검색(z-index 9000) 위에 시트가 깔리지 않도록 — 검색 닫힌 뒤 프로필·안내자 시트 진입 */
+  /** 검색 닫기 애니메이션 + 동시에 프로필 시트(z-index 9100) 오픈 */
   const navigateAfterSearchClose = useCallback(
     (href: string) => {
       markExternalNavigate?.();
+      rememberSheetBackdropScrollY();
       onRequestClose();
-      window.setTimeout(() => {
-        rememberSheetBackdropScrollY();
-        router.push(href);
-      }, OVERLAY_TRANSITION_MS + 24);
+      router.push(href);
     },
     [markExternalNavigate, onRequestClose, router],
   );
@@ -831,10 +829,6 @@ export function SearchStandalonePage() {
   }, [router]);
 
   return (
-    <SearchOverlayDialog
-      active={active}
-      onRequestClose={closeOverlay}
-      markExternalNavigate={markExternalNavigate}
-    />
+    <SearchOverlayDialog active={active} onRequestClose={closeOverlay} markExternalNavigate={markExternalNavigate} />
   );
 }
