@@ -4,18 +4,16 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { pullCreditsAfterPurchase, spendCreditsWithAuth } from "@/lib/credit-client";
 import { invalidateMyPaymentsCache, preloadMyPayments } from "@/lib/my-payments-cache";
 import {
-  applyPurchasedCredits,
-  markFirstCreditPurchaseDone,
-  readWallet,
   spendableTotalCredits,
   YEONUN_CREDIT_UPDATE_EVENT,
 } from "@/lib/credit-balance-local";
-import { firstChargeTotalCredits } from "@/lib/credit-policy";
+import { creditTopupLoginHref } from "@/lib/credit-topup-auth";
 import {
   launchFortune82PgPayment,
   registerPgPaymentHandlers,
@@ -27,6 +25,7 @@ import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFra
 
 export function PaymentModal() {
   const { close } = useModalControls();
+  const { session, loading: authLoading } = useYeonunAuth();
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -61,46 +60,51 @@ export function PaymentModal() {
     if (isCreditTopup && method === "credit") setMethod("card");
   }, [isCreditTopup, method]);
 
+  const currentHref = useMemo(() => {
+    const qs = sp.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, sp]);
+
+  useEffect(() => {
+    if (!isCreditTopup || authLoading) return;
+    if (session?.access_token) return;
+    router.replace(creditTopupLoginHref(currentHref));
+  }, [authLoading, currentHref, isCreditTopup, router, session?.access_token]);
+
   const handlePgPaid = useCallback(
     async (orderNo: string) => {
       setStatus("loading");
       setMessage("");
       try {
         const sb = supabaseBrowser();
-        const session = sb ? (await sb.auth.getSession()).data.session : null;
-        if (session?.access_token) {
+        const sessionNow = sb ? (await sb.auth.getSession()).data.session : null;
+
+        if (isCreditTopup) {
+          if (!sessionNow?.access_token) {
+            router.replace(creditTopupLoginHref(currentHref));
+            return;
+          }
           appendStubPayment({
             productSlug: product,
             title,
             amountKrw: price,
             method: "card",
           });
-        }
-
-        if (isCreditTopup) {
-          if (session?.access_token) {
-            await pullCreditsAfterPurchase();
-            invalidateMyPaymentsCache(session.user.id);
-            void preloadMyPayments();
-          } else {
-            const walletBefore = readWallet();
-            let credits =
-              isVoiceCreditLegacy
-                ? Math.max(0, voicePackageMinutes) * 390
-                : Number.isFinite(grantBase) && grantBase > 0
-                  ? Math.floor(grantBase)
-                  : Math.floor(price);
-            if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
-              credits = firstChargeTotalCredits(credits);
-            }
-            applyPurchasedCredits(credits);
-            if (firstVoiceCreditBonus && !walletBefore.firstPurchaseDone) {
-              markFirstCreditPurchaseDone();
-            }
-          }
+          await pullCreditsAfterPurchase();
+          invalidateMyPaymentsCache(sessionNow.user.id);
+          void preloadMyPayments();
           setStatus("idle");
           router.replace(pathname);
           return;
+        }
+
+        if (sessionNow?.access_token) {
+          appendStubPayment({
+            productSlug: product,
+            title,
+            amountKrw: price,
+            method: "card",
+          });
         }
 
         const next = new URLSearchParams(sp.toString());
@@ -120,10 +124,8 @@ export function PaymentModal() {
     },
     [
       character_key,
-      firstVoiceCreditBonus,
-      grantBase,
+      currentHref,
       isCreditTopup,
-      isVoiceCreditLegacy,
       pathname,
       price,
       product,
@@ -131,7 +133,6 @@ export function PaymentModal() {
       router,
       sp,
       title,
-      voicePackageMinutes,
     ],
   );
 
@@ -153,10 +154,6 @@ export function PaymentModal() {
   );
 
   const payLabel = `${price.toLocaleString("ko-KR")}원 결제하기`;
-  const currentHref = useMemo(() => {
-    const qs = sp.toString();
-    return qs ? `${pathname}?${qs}` : pathname;
-  }, [pathname, sp]);
   const legalTermsHref = useMemo(
     () => ({
       pathname: "/legal/terms",
@@ -182,7 +179,12 @@ export function PaymentModal() {
     }
     try {
       const sb = supabaseBrowser();
-      const session = sb ? (await sb.auth.getSession()).data.session : null;
+      const sessionNow = sb ? (await sb.auth.getSession()).data.session : null;
+
+      if (isCreditTopup && !sessionNow?.access_token) {
+        router.replace(creditTopupLoginHref(currentHref));
+        return;
+      }
 
       if (method === "credit" && !isCreditTopup) {
         const spend = await spendCreditsWithAuth(price, {
@@ -192,7 +194,7 @@ export function PaymentModal() {
           memo: title,
         });
         if (!spend.ok) throw new Error("크레딧이 부족합니다.");
-        if (session?.access_token) {
+        if (sessionNow?.access_token) {
           appendStubPayment({
             productSlug: product,
             title,
@@ -212,11 +214,11 @@ export function PaymentModal() {
         return;
       }
 
-      const userRef = session?.user?.id ?? "guest";
+      const userRef = sessionNow?.user?.id ?? "guest";
 
       const checkoutHeaders: HeadersInit = { "Content-Type": "application/json" };
-      if (session?.access_token) {
-        checkoutHeaders.Authorization = `Bearer ${session.access_token}`;
+      if (sessionNow?.access_token) {
+        checkoutHeaders.Authorization = `Bearer ${sessionNow.access_token}`;
       }
 
       const res = await fetch("/api/checkout", {
@@ -234,7 +236,11 @@ export function PaymentModal() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success) throw new Error(data?.error || "결제 요청 저장 실패");
+      if (res.status === 401 && data?.error === "login_required") {
+        router.replace(creditTopupLoginHref(currentHref));
+        return;
+      }
+      if (!res.ok || !data?.success) throw new Error(data?.error || data?.message || "결제 요청 저장 실패");
 
       const orderNo = String(data.order?.order_no ?? "");
       if (!orderNo) throw new Error("주문번호를 받지 못했습니다.");
@@ -251,7 +257,7 @@ export function PaymentModal() {
 
       setStatus("idle");
 
-      if (session?.access_token) {
+      if (sessionNow?.access_token) {
         appendStubPayment({
           productSlug: product,
           title,

@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     toc_sections?: unknown;
     toc_groups?: unknown;
     taekil_purpose?: string;
+    saju_fingerprint?: string;
   };
 
   const product_slug = String(body.product_slug ?? "").trim();
@@ -53,6 +54,9 @@ export async function POST(request: Request) {
     ...(Array.isArray(body.toc_groups) ? { toc_groups: body.toc_groups } : {}),
     ...(typeof body.taekil_purpose === "string" && body.taekil_purpose.trim()
       ? { taekil_purpose: body.taekil_purpose.trim() }
+      : {}),
+    ...(typeof body.saju_fingerprint === "string" && body.saju_fingerprint.trim()
+      ? { saju_fingerprint: body.saju_fingerprint.trim() }
       : {}),
   };
 

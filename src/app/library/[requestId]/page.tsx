@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
@@ -101,12 +100,6 @@ export default async function LibraryFortuneDetailPage({ params }: Props) {
       <LibraryDreamMissionHook productSlug={slug ?? ""} />
       <LibraryFortuneDetailPopBack />
       <main className="y-lib-detail-page y-lib-detail-main">
-        <nav className="y-lib-back-nav" aria-label="보관함 이동">
-          <Link className="y-lib-back-link" href="/my?shelf=fortune" scroll={false}>
-            ‹ 보관함 목록
-          </Link>
-        </nav>
-
         <div className="y-lib-replay-viewport">
           <LibraryFortuneReplay
             heroTitle={heroTitle}

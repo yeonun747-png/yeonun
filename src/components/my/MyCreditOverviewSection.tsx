@@ -3,33 +3,31 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { MySheetLink } from "@/components/my/MySheetLink";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
-import { CREDIT_PACKAGES } from "@/lib/credit-policy";
 import { readWallet, spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
+import { fetchServerCredits } from "@/lib/credit-client";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
-function creditPaymentHref(pkg: "basic" | "popular" | "premium"): string {
-  const p = CREDIT_PACKAGES[pkg];
-  const title =
-    pkg === "basic"
-      ? "크레딧 기본 충전"
-      : pkg === "popular"
-        ? "크레딧 인기 패키지"
-        : "크레딧 프리미엄 패키지";
-  const first = !readWallet().firstPurchaseDone;
-  let q =
-    `modal=payment&product=credit-package-${pkg}&title=` +
-    encodeURIComponent(title) +
-    `&price=${p.priceKrw}&grant_base=${p.grantCredits}&character_key=yeon&profile=single`;
-  if (first) q += "&first_voice_credit_bonus=1";
-  return `/my?${q}`;
-}
+const MY_CREDIT_SHEET_HREF = "/my?credit=1";
 
 export function MyCreditOverviewSection() {
   const [guest, setGuest] = useState(true);
   const [balanceTick, setBalanceTick] = useState(0);
+  const [serverBalance, setServerBalance] = useState<number | null>(null);
+  const [firstPurchaseDone, setFirstPurchaseDone] = useState(true);
 
-  const refreshCredits = useCallback(() => setBalanceTick((t) => t + 1), []);
+  const refreshCredits = useCallback(async () => {
+    const server = await fetchServerCredits();
+    if (server) {
+      setServerBalance(Math.max(0, server.total));
+      setFirstPurchaseDone(Boolean(server.first_purchase_done));
+    } else {
+      setServerBalance(null);
+      setFirstPurchaseDone(readWallet().firstPurchaseDone);
+    }
+    setBalanceTick((t) => t + 1);
+  }, []);
 
   const refreshGuest = useCallback(async () => {
     const sb = supabaseBrowser();
@@ -40,6 +38,10 @@ export function MyCreditOverviewSection() {
   useEffect(() => {
     void refreshGuest();
   }, [refreshGuest]);
+
+  useEffect(() => {
+    if (!guest) void refreshCredits();
+  }, [guest, refreshCredits]);
 
   useEffect(() => {
     const onAuth = () => void refreshGuest();
@@ -61,10 +63,11 @@ export function MyCreditOverviewSection() {
 
   const totalCredits = useMemo(() => {
     void balanceTick;
+    if (serverBalance != null) return serverBalance;
     return spendableTotalCredits();
-  }, [balanceTick]);
+  }, [balanceTick, serverBalance]);
 
-  const showFirstChargeHint = !readWallet().firstPurchaseDone;
+  const showFirstChargeHint = !firstPurchaseDone;
 
   if (guest) {
     return (
@@ -83,10 +86,19 @@ export function MyCreditOverviewSection() {
   return (
     <>
       <section className="y-my-credit-block" aria-label="크레딧 잔액">
-        <Link className="y-vip-card y-vip-card--link" href="/checkout/credit" scroll={false} aria-label="크레딧 충전 열기">
+        <MySheetLink
+          className="y-vip-card y-vip-card--link"
+          href={MY_CREDIT_SHEET_HREF}
+          scroll={false}
+          aria-label="크레딧 충전 열기"
+        >
           <div className="y-vip-eyebrow">CREDIT · 상담 잔액</div>
           <div className="y-vip-title">잔여 크레딧 {totalCredits.toLocaleString("ko-KR")}</div>
-          <div className="y-vip-desc">3,900원 충전 시 3,900 크레딧. 충전 후 365일 유효.</div>
+          <div className="y-vip-desc">
+            {showFirstChargeHint
+              ? "첫 충전 시 10% 추가 적립. 충전 후 365일 유효."
+              : "3,900원 충전 시 3,900 크레딧. 충전 후 365일 유효."}
+          </div>
           <span className="y-vip-arrow" aria-hidden>
             ›
           </span>
@@ -95,11 +107,11 @@ export function MyCreditOverviewSection() {
               첫 충전 10% 추가
             </span>
           ) : null}
-        </Link>
+        </MySheetLink>
         {showFirstChargeHint ? (
           <div className="y-my-credit-charge-row">
-            <Link
-              href={creditPaymentHref("basic")}
+            <MySheetLink
+              href={MY_CREDIT_SHEET_HREF}
               scroll={false}
               className="y-my-credit-charge-fullbtn"
               aria-label="첫 충전 한정 보너스, 크레딧 충전하기"
@@ -109,7 +121,7 @@ export function MyCreditOverviewSection() {
                 |
               </span>
               <span className="y-my-credit-fullbtn-cta">크레딧 충전하기</span>
-            </Link>
+            </MySheetLink>
           </div>
         ) : null}
       </section>

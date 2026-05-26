@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
 import { SheetLink } from "@/components/SheetLink";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 
@@ -116,11 +117,30 @@ const SEARCH_TAG_ALIASES: Record<string, string[]> = {
   "lifetime-master": ["평생사주", "통합", "초년", "중년", "말년", "인생", "전체"],
 };
 
+/** 추천 검색어 → 우선 노출 상품 (정규화 키, 공백·# 제거) */
+const SEARCH_QUERY_PRIMARY_SLUG: Record<string, string> = {
+  "이직해도될까요": "career-timing",
+  "그사람마음이궁금해요": "mind-now",
+  "올해재물운어때요": "wealth-graph",
+  "아이이름지으려고요": "naming-baby",
+  "어젯밤꿈이이상해요": "dream-lastnight",
+};
+
 let cachedSearchProducts: SearchProduct[] | null = null;
 let cachedSearchProductsPromise: Promise<SearchProduct[]> | null = null;
 
 function normalizeSearchText(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, "").trim();
+  return value
+    .toLowerCase()
+    .replace(/#/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+function productSearchTerms(product: SearchProduct): string[] {
+  const tagTerms = product.tags.map((tag) => normalizeSearchText(tag));
+  const aliasTerms = (SEARCH_TAG_ALIASES[product.slug] ?? []).map((a) => normalizeSearchText(a));
+  return [...tagTerms, ...aliasTerms].filter((t) => t.length >= 2);
 }
 
 function escapeRegExp(value: string): string {
@@ -210,6 +230,9 @@ function scoreSearchProduct(product: SearchProduct, query: string): number {
   const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery) return 0;
 
+  const primarySlug = SEARCH_QUERY_PRIMARY_SLUG[normalizedQuery];
+  if (primarySlug && product.slug === primarySlug) return 10_000;
+
   const title = normalizeSearchText(product.title);
   const slug = normalizeSearchText(product.slug);
   const quote = normalizeSearchText(product.quote);
@@ -239,6 +262,13 @@ function scoreSearchProduct(product: SearchProduct, query: string): number {
     else if (tag.includes(normalizedQuery)) score += 140;
   }
 
+  /** 문장형 검색 — "이직해도 될까요" → alias "이직" 포함 시 매칭 */
+  for (const term of productSearchTerms(product)) {
+    if (normalizedQuery.includes(term)) {
+      score += term.length >= 4 ? 340 : 260;
+    }
+  }
+
   for (const token of tokens) {
     if (!token) continue;
     if (title.includes(token)) score += 35;
@@ -248,6 +278,9 @@ function scoreSearchProduct(product: SearchProduct, query: string): number {
     if (quote.includes(token)) score += 8;
     for (const tag of tags) {
       if (tag.includes(token)) score += 16;
+    }
+    for (const term of productSearchTerms(product)) {
+      if (token.includes(term) || term.includes(token)) score += 24;
     }
   }
 
@@ -296,10 +329,14 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 function SearchOverlayDialog({
   active,
   onRequestClose,
+  markExternalNavigate,
 }: {
   active: boolean;
   onRequestClose: () => void;
+  /** /search 단독 페이지: 닫기 후 router.back() 억제(프로필 시트 등 외부 이동) */
+  markExternalNavigate?: () => void;
 }) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [products, setProducts] = useState<SearchProduct[]>(() => cachedSearchProducts ?? []);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(() => !cachedSearchProducts);
@@ -423,6 +460,24 @@ function SearchOverlayDialog({
   const productDetailHref = useCallback(
     (slug: string) => `/content/${slug}?sheet=1&back=${encodeURIComponent(currentHref)}`,
     [currentHref],
+  );
+
+  /** 검색(z-index 9000) 위에 시트가 깔리지 않도록 — 검색 닫힌 뒤 프로필·안내자 시트 진입 */
+  const navigateAfterSearchClose = useCallback(
+    (href: string) => {
+      markExternalNavigate?.();
+      onRequestClose();
+      window.setTimeout(() => {
+        rememberSheetBackdropScrollY();
+        router.push(href);
+      }, OVERLAY_TRANSITION_MS + 24);
+    },
+    [markExternalNavigate, onRequestClose, router],
+  );
+
+  const characterProfileHref = useCallback(
+    (characterKey: string) => `/characters/${characterKey}?sheet=1&from=home`,
+    [],
   );
 
   return (
@@ -625,16 +680,26 @@ function SearchOverlayDialog({
                     <div className="y-search-result-price">{formatPrice(product.priceKrw)}</div>
                   </SheetLink>
                   <div className="y-search-result-chips">
-                    <Link className={`y-search-char-chip ${product.characterKey}`} href={`/characters/${product.characterKey}`}>
+                    <button
+                      type="button"
+                      className={`y-search-char-chip ${product.characterKey}`}
+                      onClick={() => navigateAfterSearchClose(characterProfileHref(product.characterKey))}
+                    >
                       {product.characterName} 프로필 보기
-                    </Link>
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
 
             {topCharacter ? (
-              <Link className="y-search-connect" href={`/characters/${resultProducts[0].characterKey}`}>
+              <button
+                type="button"
+                className="y-search-connect"
+                onClick={() =>
+                  navigateAfterSearchClose(characterProfileHref(resultProducts[0].characterKey))
+                }
+              >
                 <div>
                   <div className="y-search-connect-text">{topCharacter.name}에게 직접 물어보기</div>
                   <div className="y-search-connect-char">고민을 직접 말해보세요</div>
@@ -642,7 +707,7 @@ function SearchOverlayDialog({
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                   <path d="M9 18l6-6-6-6" />
                 </svg>
-              </Link>
+              </button>
             ) : null}
           </>
         ) : null}
@@ -658,9 +723,14 @@ function SearchOverlayDialog({
             </div>
             <div className="y-search-empty-btns y-search-empty-btns--grid">
               {Object.entries(CHARACTER_META).map(([key, meta]) => (
-                <Link key={key} className="y-search-empty-btn" href={`/characters/${key}`}>
+                <button
+                  key={key}
+                  type="button"
+                  className="y-search-empty-btn"
+                  onClick={() => navigateAfterSearchClose(characterProfileHref(key))}
+                >
                   {meta.cta}
-                </Link>
+                </button>
               ))}
             </div>
           </div>
@@ -729,6 +799,7 @@ export function SearchOverlayTrigger() {
 export function SearchStandalonePage() {
   const router = useRouter();
   const closeTimerRef = useRef<number | null>(null);
+  const suppressBackRef = useRef(false);
   const [active, setActive] = useState(false);
 
   useEffect(() => {
@@ -743,13 +814,27 @@ export function SearchStandalonePage() {
     [],
   );
 
+  const markExternalNavigate = useCallback(() => {
+    suppressBackRef.current = true;
+  }, []);
+
   const closeOverlay = useCallback(() => {
     setActive(false);
     closeTimerRef.current = window.setTimeout(() => {
+      if (suppressBackRef.current) {
+        suppressBackRef.current = false;
+        return;
+      }
       if (window.history.length > 1) router.back();
       else router.push("/");
     }, OVERLAY_TRANSITION_MS);
   }, [router]);
 
-  return <SearchOverlayDialog active={active} onRequestClose={closeOverlay} />;
+  return (
+    <SearchOverlayDialog
+      active={active}
+      onRequestClose={closeOverlay}
+      markExternalNavigate={markExternalNavigate}
+    />
+  );
 }

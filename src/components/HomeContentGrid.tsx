@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useCallback, useState, type MouseEvent, type ReactNode } from "react";
 
+import { FortuneDuplicateConfirmSheet } from "@/components/fortune/FortuneDuplicateConfirmSheet";
 import { SheetLink } from "@/components/SheetLink";
 import type { Product } from "@/lib/data/content";
+import { findFortuneDuplicateForProduct, fortuneLibraryHref, type FortuneDuplicateHit } from "@/lib/fortune-duplicate-client";
 import { preloadFortuneProduct } from "@/lib/fortune-product-cache";
 import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
 
@@ -390,6 +392,12 @@ export function HomeContentGrid({
   hanDisplayChar?: string;
 }) {
   const router = useRouter();
+  const [duplicateGate, setDuplicateGate] = useState<{
+    href: string;
+    hit: FortuneDuplicateHit;
+  } | null>(null);
+  const [checkingSlug, setCheckingSlug] = useState<string | null>(null);
+
   const suffix = extraSearchParams.startsWith("&") ? extraSearchParams : extraSearchParams ? `&${extraSearchParams}` : "";
   /** 점사 플로우 마스코트는 메뉴 카드 진입(`mc=1`)에서만 표시 */
   const fortuneSearch = (() => {
@@ -398,7 +406,36 @@ export function HomeContentGrid({
     const join = inner.includes("=") ? `${inner}&mc=1` : `mc=1&${inner}`;
     return `?${join}`;
   })();
+
+  const openFortuneProduct = useCallback(
+    async (href: string, slug: string) => {
+      if (checkingSlug) return;
+      setCheckingSlug(slug);
+      try {
+        const hit = await findFortuneDuplicateForProduct(slug);
+        if (hit) {
+          setDuplicateGate({ href, hit });
+          return;
+        }
+        router.push(href);
+      } finally {
+        setCheckingSlug(null);
+      }
+    },
+    [checkingSlug, router],
+  );
+
+  const onFortuneCardClick = useCallback(
+    (e: MouseEvent<HTMLAnchorElement>, href: string, slug: string) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      void openFortuneProduct(href, slug);
+    },
+    [openFortuneProduct],
+  );
+
   return (
+    <>
     <div className="y-content-grid" aria-label="추천 풀이">
       {items.map((p) => {
         const m = cardMetaForSlug(p.slug);
@@ -423,6 +460,8 @@ export function HomeContentGrid({
               router.prefetch(fortuneHref);
             }}
             onTouchStart={() => void preloadFortuneProduct(p.slug)}
+            onClick={(e) => onFortuneCardClick(e, fortuneHref, p.slug)}
+            aria-busy={checkingSlug === p.slug || undefined}
           >
             <div className="y-content-visual">
               {p.badge ? <span className={`y-content-badge ${badgeClass}`}>{p.badge}</span> : null}
@@ -449,5 +488,22 @@ export function HomeContentGrid({
         );
       })}
     </div>
+    {duplicateGate ? (
+      <FortuneDuplicateConfirmSheet
+        viewedAt={duplicateGate.hit.viewedAt}
+        onRetry={() => {
+          const href = duplicateGate.href;
+          setDuplicateGate(null);
+          router.push(href);
+        }}
+        onOpenLibrary={() => {
+          const href = fortuneLibraryHref(duplicateGate.hit.requestId);
+          setDuplicateGate(null);
+          router.push(href);
+        }}
+        onDismiss={() => setDuplicateGate(null)}
+      />
+    ) : null}
+    </>
   );
 }

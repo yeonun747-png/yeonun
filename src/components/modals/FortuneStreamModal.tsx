@@ -35,6 +35,9 @@ import {
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
+import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
+import { appendFortuneDuplicateLocalEntry } from "@/lib/fortune-duplicate-local-index";
+import { readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import { hasVoiceConsultCredits } from "@/lib/voice-consult-credit-gate";
 import {
@@ -606,6 +609,8 @@ export function FortuneStreamModal() {
 
     const resultIdPromise = (async (): Promise<string | null> => {
       const headers = await jsonAuthHeaders();
+      const storedSaju = readStoredSaju();
+      const sajuFingerprint = storedSaju ? buildSajuFingerprint(storedSaju) : undefined;
       const res = await fetch("/api/fortune/save-modal-result", {
         method: "POST",
         headers,
@@ -618,6 +623,7 @@ export function FortuneStreamModal() {
           html,
           ...(toc.length > 0 ? { toc_sections: toc } : {}),
           ...(tocGroups && tocGroups.length > 0 ? { toc_groups: tocGroups } : {}),
+          ...(sajuFingerprint ? { saju_fingerprint: sajuFingerprint } : {}),
           ...(product === TAEKIL_GOODDAY_SLUG
             ? {
                 taekil_purpose:
@@ -630,8 +636,18 @@ export function FortuneStreamModal() {
         saved?: boolean;
         error?: string;
         result_id?: string;
+        request_id?: string;
       };
       if (!res.ok || !j.saved) throw new Error(j.error || "저장에 실패했습니다.");
+      const requestId = typeof j.request_id === "string" ? j.request_id.trim() : "";
+      if (requestId && sajuFingerprint) {
+        appendFortuneDuplicateLocalEntry({
+          requestId,
+          productSlug: product,
+          sajuFingerprint,
+          completedAt: new Date().toISOString(),
+        });
+      }
       const resultId = typeof j.result_id === "string" ? j.result_id.trim() : "";
       if (resultId) libraryResultIdRef.current = resultId;
       setLibrarySaved(true);

@@ -18,14 +18,6 @@ export function SupportMockClient() {
           </div>
         </div>
         <div className="y-support-channels">
-          <a className="y-support-channel" href="https://pf.kakao.com" target="_blank" rel="noopener noreferrer">
-            <div className="y-support-ch-icon kakao">💬</div>
-            <div className="y-support-ch-info">
-              <div className="y-support-ch-name">카카오톡 채널</div>
-              <div className="y-support-ch-desc">@연운 · 평균 응답 30분 이내</div>
-            </div>
-            <span className="y-support-ch-chev">›</span>
-          </a>
           <a className="y-support-channel" href={`mailto:${SUPPORT_FAQ_EMAIL}`}>
             <div className="y-support-ch-icon email">📧</div>
             <div className="y-support-ch-info">

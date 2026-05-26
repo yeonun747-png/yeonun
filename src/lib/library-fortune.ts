@@ -11,6 +11,8 @@ export type FortuneLibraryPayload = {
   character_key?: string | null;
   profile?: string;
   source?: string;
+  /** 본인 생년월일시 fingerprint — 보관함 중복 판별 */
+  saju_fingerprint?: string;
   /** taekil-goodday 보관함 재생 시 목적별 필터(레거시 12섹션 저장본) */
   taekil_purpose?: string;
 };
@@ -51,6 +53,7 @@ function parsePayload(raw: unknown): FortuneLibraryPayload {
     character_key: typeof o.character_key === "string" ? o.character_key : null,
     profile: o.profile === "pair" ? "pair" : "single",
     source: typeof o.source === "string" ? o.source : undefined,
+    saju_fingerprint: typeof o.saju_fingerprint === "string" ? o.saju_fingerprint : undefined,
     taekil_purpose: typeof o.taekil_purpose === "string" ? o.taekil_purpose : undefined,
   };
 }

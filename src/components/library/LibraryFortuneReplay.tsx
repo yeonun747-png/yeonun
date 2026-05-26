@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { FortuneResultSectionChunks, enrichTocWithMenuMedia } from "@/components/fortune/FortuneResultSectionChunks";
 import { FortuneVoiceConsultDock } from "@/components/modals/FortuneVoiceConsultDock";
+import { LibraryFortuneDetailHeader } from "@/components/library/LibraryFortuneDetailHeader";
 import type { Product } from "@/lib/data/content";
 import { flattenTocGroupsToFlatItems } from "@/lib/library-toc-snapshot";
 import { fixForeignScriptInFortuneHtmlAsync } from "@/lib/fortune-foreign-script-fix";
@@ -331,6 +332,7 @@ export function LibraryFortuneReplay(props: {
       aria-label="풀이 결과"
     >
       <div className="y-fs-fullpage-inner">
+        <LibraryFortuneDetailHeader title={heroTitle} />
         <div className="y-modal-scroll y-fs-scroll y-fs-fullpage-scroll">
           <div className="y-fs-scroll-stack">
             <header className="y-fs-hero">

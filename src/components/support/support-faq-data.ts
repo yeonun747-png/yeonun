@@ -148,44 +148,6 @@ export const SUPPORT_FAQ_ITEMS: SupportFaqItem[] = [
       },
     ],
   },
-  {
-    id: "library-extend",
-    question: "보관함 만료 전 연장이 가능한가요?",
-    blocks: [
-      {
-        type: "p",
-        text: "연운 점사 콘텐츠는 결제 후 보관함에 저장되어 반복 열람이 가능합니다.",
-      },
-      {
-        type: "section",
-        title: "기본 보관 기간",
-        lines: ["결제일로부터 1년간 보관됩니다."],
-      },
-      {
-        type: "section",
-        title: "연장 방법",
-        lines: [
-          "마이탭 → 보관함에서 만료 예정 콘텐츠를 확인할 수 있습니다.",
-          "만료 30일 전부터 연장 버튼이 활성화됩니다.",
-          "연장 1회당 1년이 추가됩니다.",
-          "연장 비용은 원래 상품가의 10%입니다.",
-        ],
-      },
-      {
-        type: "section",
-        title: "만료 안내",
-        lines: ["만료 30일 전, 7일 전에 앱 알림으로 안내드립니다."],
-      },
-      {
-        type: "section",
-        title: "만료 후",
-        lines: [
-          "만료된 콘텐츠는 보관함에서 삭제되며 복구되지 않습니다.",
-          "동일 상품을 다시 구매하면 새로운 점사가 생성됩니다.",
-        ],
-      },
-    ],
-  },
 ];
 
 export const SUPPORT_FAQ_EMAIL = "support@yeonun.com";

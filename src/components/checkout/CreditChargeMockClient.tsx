@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useYeonunAuth, useYeonunMember } from "@/components/auth/YeonunAuthProvider";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
 import {
   CREDIT_PACKAGES,
@@ -13,22 +14,14 @@ import {
   packageIntrinsicBonusCredits,
   voiceWholeMinutesFromCredits,
 } from "@/lib/credit-policy";
+import { creditTopupLoginHref } from "@/lib/credit-topup-auth";
 import { readWallet, spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
-
-function paymentHref(pkg: "basic" | "popular" | "premium"): string {
-  const p = CREDIT_PACKAGES[pkg];
-  const title =
-    pkg === "basic" ? "크레딧 기본 충전" : pkg === "popular" ? "크레딧 인기 패키지" : "크레딧 프리미엄 패키지";
-  const first = !readWallet().firstPurchaseDone;
-  let q =
-    `/my?modal=payment&product=credit-package-${pkg}&title=` +
-    encodeURIComponent(title) +
-    `&price=${p.priceKrw}&grant_base=${p.grantCredits}&character_key=yeon&profile=single`;
-  if (first) q += "&first_voice_credit_bonus=1";
-  return q;
-}
+import { fetchServerCredits } from "@/lib/credit-client";
 
 export function CreditChargeMockClient() {
+  const member = useYeonunMember();
+  const { loading: authLoading } = useYeonunAuth();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const backHref = useMemo(() => {
     const raw = searchParams.get("back");
@@ -36,21 +29,50 @@ export function CreditChargeMockClient() {
     return "/my";
   }, [searchParams]);
 
+  const returnTo = useMemo(() => {
+    const qs = searchParams.toString();
+    return qs ? `${pathname}?${qs}` : pathname;
+  }, [pathname, searchParams]);
+
   const [bal, setBal] = useState(0);
   const [first, setFirst] = useState(true);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
+    if (member) {
+      const server = await fetchServerCredits();
+      if (server) {
+        setBal(Math.max(0, server.total));
+        setFirst(!server.first_purchase_done);
+        return;
+      }
+    }
     setBal(spendableTotalCredits());
     setFirst(!readWallet().firstPurchaseDone);
-  }, []);
+  }, [member]);
 
   useEffect(() => {
-    refresh();
-    window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, refresh);
-    return () => window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, refresh);
+    void refresh();
+    const onCredit = () => void refresh();
+    window.addEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
+    return () => window.removeEventListener(YEONUN_CREDIT_UPDATE_EVENT, onCredit);
   }, [refresh]);
 
   const bonusBar = "미리 충전할수록 보너스 크레딧이 더 많아져요. 최대 +30% 추가 지급.";
+
+  const paymentHref = useCallback(
+    (pkg: "basic" | "popular" | "premium") => {
+      const p = CREDIT_PACKAGES[pkg];
+      const title =
+        pkg === "basic" ? "크레딧 기본 충전" : pkg === "popular" ? "크레딧 인기 패키지" : "크레딧 프리미엄 패키지";
+      let q =
+        `/my?modal=payment&product=credit-package-${pkg}&title=` +
+        encodeURIComponent(title) +
+        `&price=${p.priceKrw}&grant_base=${p.grantCredits}&character_key=yeon&profile=single`;
+      if (first) q += "&first_voice_credit_bonus=1";
+      return q;
+    },
+    [first],
+  );
 
   const pack = (key: "basic" | "popular" | "premium", best?: boolean) => {
     const p = CREDIT_PACKAGES[key];
@@ -98,19 +120,42 @@ export function CreditChargeMockClient() {
   return (
     <MySubpageSheet title="크레딧 충전" ariaLabel="크레딧 충전" backHref={backHref}>
       <div className="y-sub-scroll-page">
-        <div className="y-credit-balance">
-          <div className="y-credit-balance-eyebrow">CREDIT · 현재 잔액</div>
-          <div className="y-credit-balance-amount">{bal.toLocaleString("ko-KR")} 크레딧</div>
-          <div className="y-credit-balance-sub">{bonusBar}</div>
-          <div className="y-credit-balance-han">緣</div>
-        </div>
-        <div className="y-credit-packages">
-          {pack("popular", true)}
-          {pack("basic")}
-          {pack("premium")}
-        </div>
-        <div className="y-credit-expire">충전 크레딧은 충전일로부터 365일 동안 유효합니다. 무료 체험 크레딧은 30일입니다.</div>
-        <p className="y-credit-foot">결제 완료 시 크레딧이 즉시 반영됩니다.</p>
+        {authLoading ? (
+          <div className="y-credit-balance" aria-busy="true">
+            <div className="y-credit-balance-eyebrow">CREDIT · 현재 잔액</div>
+            <div className="y-credit-balance-amount">—</div>
+          </div>
+        ) : !member ? (
+          <section className="y-my-credit-guest-panel" aria-label="크레딧 충전 로그인 안내" style={{ padding: "24px 20px 0" }}>
+            <div className="y-my-credit-login-card">
+              <p className="y-my-credit-login-title">크레딧 충전</p>
+              <p className="y-my-credit-login-desc">
+                충전 크레딧은 계정에 저장됩니다.
+                <br />
+                소셜 로그인 후 충전해 주세요.
+              </p>
+              <Link className="y-my-credit-login-btn" href={creditTopupLoginHref(returnTo)}>
+                로그인하고 충전하기
+              </Link>
+            </div>
+          </section>
+        ) : (
+          <>
+            <div className="y-credit-balance">
+              <div className="y-credit-balance-eyebrow">CREDIT · 현재 잔액</div>
+              <div className="y-credit-balance-amount">{bal.toLocaleString("ko-KR")} 크레딧</div>
+              <div className="y-credit-balance-sub">{bonusBar}</div>
+              <div className="y-credit-balance-han">緣</div>
+            </div>
+            <div className="y-credit-packages">
+              {pack("popular", true)}
+              {pack("basic")}
+              {pack("premium")}
+            </div>
+            <div className="y-credit-expire">충전 크레딧은 충전일로부터 365일 동안 유효합니다. 무료 체험 크레딧은 30일입니다.</div>
+            <p className="y-credit-foot">결제 완료 시 크레딧이 즉시 반영됩니다.</p>
+          </>
+        )}
         <div style={{ height: 24 }} />
       </div>
     </MySubpageSheet>

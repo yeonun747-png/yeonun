@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
+
+import { CreditChargeMockClient } from "@/components/checkout/CreditChargeMockClient";
 
 import { useYeonunAuth, useYeonunMember } from "@/components/auth/YeonunAuthProvider";
 import { useMyShelfListsPreload } from "@/hooks/useMyShelfListsPreload";
@@ -21,6 +23,7 @@ import { MySheetLink } from "@/components/my/MySheetLink";
 import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { MyNoticesMenuItemContent } from "@/components/my/MyNoticesMenuMeta";
 import { MyWithdrawAccountMenuItemClient } from "@/components/my/MyWithdrawAccountMenuItemClient";
+import { creditTopupLoginHref } from "@/lib/credit-topup-auth";
 import { preloadMyPayments } from "@/lib/my-payments-cache";
 
 const MY_PREFETCH_ROUTES = [
@@ -48,6 +51,7 @@ export function MyPageBody() {
   const shelfFortune = shelf === "fortune";
   const shelfVoice = shelf === "voice";
   const shelfOpen = shelfFortune || shelfVoice;
+  const creditOpen = sp.get("credit") === "1";
   const listBackHref = useMemo(() => {
     const b = sp.get("back");
     if (typeof b === "string" && b.startsWith("/") && !b.startsWith("//")) return b;
@@ -152,7 +156,7 @@ export function MyPageBody() {
 
             <div className="y-my-menu-section">
               <div className="y-my-menu-section-title">이용 안내</div>
-              <MySheetLink className="y-my-menu-item" href="/checkout/credit">
+              <MySheetLink className="y-my-menu-item" href={creditTopupLoginHref("/my?credit=1")}>
                 <div className="y-my-menu-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="10" />
@@ -161,7 +165,7 @@ export function MyPageBody() {
                 </div>
                 <div className="y-my-menu-text">
                   <div className="y-my-menu-name">크레딧 충전</div>
-                  <div className="y-my-menu-desc">음성·채팅 상담에 사용</div>
+                  <div className="y-my-menu-desc">로그인 후 충전</div>
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
@@ -186,7 +190,7 @@ export function MyPageBody() {
                 </div>
                 <div className="y-my-menu-text">
                   <div className="y-my-menu-name">고객센터</div>
-                  <div className="y-my-menu-desc">카카오톡 채널 · 이메일</div>
+                  <div className="y-my-menu-desc">이메일 문의</div>
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
@@ -281,7 +285,7 @@ export function MyPageBody() {
                   </div>
                 </div>
               </div>
-              <MySheetLink className="y-my-menu-item" href="/checkout/credit">
+              <MySheetLink className="y-my-menu-item" href="/my?credit=1">
                 <div className="y-my-menu-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="10" />
@@ -321,7 +325,7 @@ export function MyPageBody() {
                 </div>
                 <div className="y-my-menu-text">
                   <div className="y-my-menu-name">고객센터</div>
-                  <div className="y-my-menu-desc">카카오톡 채널 · 이메일</div>
+                  <div className="y-my-menu-desc">이메일 문의</div>
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
@@ -351,6 +355,14 @@ export function MyPageBody() {
           <MyTabBackdrop />
           {shelfFortune ? <LibraryListScreenClient backHref={listBackHref} fortuneSnapshot={fortuneSnapshot} /> : null}
           {shelfVoice ? <CallHistoryClient voiceSnapshot={voiceSnapshot} /> : null}
+        </>
+      ) : null}
+      {creditOpen ? (
+        <>
+          <MyTabBackdrop />
+          <Suspense fallback={null}>
+            <CreditChargeMockClient />
+          </Suspense>
         </>
       ) : null}
     </div>

@@ -8,6 +8,7 @@ import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { resolveVoiceUserRef } from "@/lib/voice-user-ref";
 import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 import { VoiceLiveAudioRecorder } from "@/lib/voice-live/audio-recorder";
+import { nameWithSubjectParticle } from "@/lib/korean-subject-particle";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -733,7 +734,7 @@ export default function CallPageClient() {
             <div className="y-call-spec">{meta.spec}</div>
             <div className="y-call-name">{meta.name}</div>
             <div className="y-call-status">
-              {meta.name}가 말하고 있어요
+              {nameWithSubjectParticle(meta.name)} 말하고 있어요
               <span className="pulse-dots" aria-hidden="true">
                 <span />
                 <span />

@@ -7,6 +7,7 @@ import { SocialLoginSection } from "@/components/auth/SocialLoginSection";
 import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
+import { parseCreditTopupAfterAuth } from "@/lib/credit-topup-auth";
 import { persistYeonunSajuV1 } from "@/lib/fortune-ux/sajuStorage";
 import { TIME_TAB_BRANCH_KEYS } from "@/lib/profile-branch-from-time-tab";
 import { YEONUN_SAJU_UPDATED_EVENT } from "@/lib/saju-events";
@@ -107,6 +108,12 @@ export function AuthModal() {
     if (after.startsWith("call:")) {
       const ck = after.slice(5);
       router.replace(`/call-dcc?character_key=${encodeURIComponent(ck)}`);
+      return;
+    }
+
+    const creditDest = parseCreditTopupAfterAuth(after);
+    if (creditDest) {
+      router.replace(creditDest, { scroll: false });
       return;
     }
 

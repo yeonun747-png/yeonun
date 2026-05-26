@@ -107,12 +107,17 @@ export async function POST(request: Request) {
   }
 
   const supabase = supabaseServer();
-  const user_ref = await resolveCheckoutUserRef(request, body.user_ref);
-  const order_no = generateOrderId();
   const isCreditTopup = isCreditTopupProduct(product_slug);
   if (isCreditTopup) {
     await ensureCreditTopupProductExists(supabase, product_slug, body.title, clientAmount);
   }
+
+  const user_ref = await resolveCheckoutUserRef(request, body.user_ref);
+  if (isCreditTopup && !isLoggedInUserId(user_ref)) {
+    return NextResponse.json({ error: "login_required", message: "크레딧 충전은 로그인 후 이용할 수 있습니다." }, { status: 401 });
+  }
+
+  const order_no = generateOrderId();
 
   const { data: productRow, error: productErr } = await supabase
     .from("products")

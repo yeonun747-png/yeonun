@@ -2848,6 +2848,9 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host):not(.y-rv-overlay)
   flex-direction: column;
   animation: ySheetUp 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+.y-modal-sheet > .y-modal-scroll {
+  background: var(--y-bg);
+}
 .y-modal-scroll {
   flex: 1;
   overflow-y: auto;
@@ -4441,6 +4444,67 @@ button.ySortTab {
 .y-call-hist-scroll.y-modal-scroll {
   background: #f9f7f2;
   padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
+
+/* 점사 중복 확인 — 상품 카드 클릭 가드 */
+.y-fortune-dup-modal.y-modal {
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+}
+.y-fortune-dup-card {
+  width: min(100%, 360px);
+  background: #fff;
+  border-radius: 16px;
+  padding: 22px 20px 18px;
+  box-shadow: 0 16px 48px rgba(26, 24, 21, 0.18);
+}
+.y-fortune-dup-title {
+  margin: 0 0 10px;
+  font-family: "Noto Serif KR", serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--y-ink);
+  letter-spacing: -0.02em;
+}
+.y-fortune-dup-desc {
+  margin: 0 0 18px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--y-mute);
+}
+.y-fortune-dup-desc strong {
+  color: var(--y-ink);
+  font-weight: 700;
+}
+.y-fortune-dup-actions {
+  display: flex;
+  gap: 8px;
+}
+.y-fortune-dup-btn {
+  flex: 1;
+  min-height: 46px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+.y-fortune-dup-btn--ghost {
+  border: 1px solid var(--y-line);
+  background: #fff;
+  color: var(--y-ink);
+}
+.y-fortune-dup-btn--primary {
+  border: none;
+  background: var(--y-rose);
+  color: #fff;
+}
+.y-fortune-dup-btn--primary:focus-visible {
+  outline: 2px solid var(--y-rose-deep);
+  outline-offset: 2px;
 }
 @keyframes yArchiveSheetSnap {
   from {
@@ -12199,8 +12263,30 @@ button.y-fs-act-consult:disabled {
   min-height: 100vh;
   overflow: visible;
 }
+.y-lib-replay .y-lib-detail-head {
+  flex-shrink: 0;
+  background: #f9f7f2;
+  border-bottom-color: rgba(26, 24, 21, 0.1);
+  position: relative;
+  z-index: 2;
+}
+.y-lib-detail-head-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+.y-lib-detail-head-spacer {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  margin-right: -6px;
+}
 .y-lib-replay .y-fs-html .subtitle-section {
-  scroll-margin-top: 56px;
+  scroll-margin-top: 64px;
 }
 .y-lib-replay .y-fs-voice-pay-backdrop {
   z-index: 100;
@@ -16138,6 +16224,25 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   font-size: clamp(14px, 3.8vw, 15px);
   color: var(--y-ink);
   outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* 브라우저 기본 search clear(파란 X) — 커스텀 .y-search-clear 만 사용 */
+.y-search-input::-webkit-search-cancel-button,
+.y-search-input::-webkit-search-decoration,
+.y-search-input::-webkit-search-results-button,
+.y-search-input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.y-search-input::-ms-clear,
+.y-search-input::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .y-search-input::placeholder {
@@ -16466,6 +16571,10 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   font-size: 12.5px;
   color: var(--y-mute);
   line-height: 1.6;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .y-search-result-price {
@@ -16492,7 +16601,14 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   background: var(--y-card-2);
   color: var(--y-ink);
   font-size: 12px;
+  font-family: inherit;
   text-decoration: none;
+  cursor: pointer;
+}
+
+button.y-search-char-chip {
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .y-search-char-chip.yeon {
@@ -16529,6 +16645,16 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   align-items: center;
   justify-content: space-between;
   text-decoration: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  text-align: left;
+}
+
+button.y-search-connect {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
 }
 
 .y-search-connect-text {

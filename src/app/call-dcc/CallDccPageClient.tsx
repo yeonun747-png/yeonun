@@ -23,6 +23,7 @@ import {
   CREDIT_VOICE_PER_SECOND,
 } from "@/lib/credit-policy";
 import { clearVoiceManseMeta, readVoiceManseMeta } from "@/lib/voice-dcc-manse-meta";
+import { nameWithSubjectParticle } from "@/lib/korean-subject-particle";
 import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { clearSheetBackdropSnapshot } from "@/components/my/MySheetBackdropFrame";
 import { resolveVoiceUserRef } from "@/lib/voice-user-ref";
@@ -1287,7 +1288,7 @@ export default function CallDccPageClient() {
                     ? "로그인 후 상담을 이어갈 수 있어요"
                     : "크레딧 충전 후 상담을 시작할 수 있어요"
                   : ttsOutputActive
-                    ? `${meta.name}가 말하고 있어요`
+                    ? `${nameWithSubjectParticle(meta.name)} 말하고 있어요`
                     : rtcReady
                       ? status
                       : "연결 중…"}

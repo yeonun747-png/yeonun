@@ -33,6 +33,8 @@ import { abortFortunePrefetch, isFortunePrefetchActive, runFortunePrefetchDetach
 import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
 import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
+import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
+import { appendFortuneDuplicateLocalEntry } from "@/lib/fortune-duplicate-local-index";
 import { pushLocalSajuToServerProfile } from "@/lib/profile-push-to-server";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { computeManseFromFormInput, type ManseRyeokData } from "@/lib/manse-ryeok";
@@ -350,6 +352,8 @@ export function FortunePage({
     savedResultRef.current = true;
     const resultIdPromise = (async (): Promise<string | null> => {
       const headers = await jsonAuthHeaders();
+      const storedSaju = readStoredSaju();
+      const sajuFingerprint = storedSaju ? buildSajuFingerprint(storedSaju) : undefined;
       const res = await fetch("/api/fortune/save-modal-result", {
         method: "POST",
         headers,
@@ -362,6 +366,7 @@ export function FortunePage({
           html,
           toc_sections: result.toc,
           ...(result.tocGroups ? { toc_groups: result.tocGroups } : {}),
+          ...(sajuFingerprint ? { saju_fingerprint: sajuFingerprint } : {}),
           ...(product.slug === TAEKIL_GOODDAY_SLUG
             ? {
                 taekil_purpose:
@@ -374,8 +379,18 @@ export function FortunePage({
         saved?: boolean;
         error?: string;
         result_id?: string;
+        request_id?: string;
       };
       if (!res.ok || !j.saved) throw new Error(j.error || "저장에 실패했습니다.");
+      const requestId = typeof j.request_id === "string" ? j.request_id.trim() : "";
+      if (requestId && sajuFingerprint) {
+        appendFortuneDuplicateLocalEntry({
+          requestId,
+          productSlug: product.slug,
+          sajuFingerprint,
+          completedAt: new Date().toISOString(),
+        });
+      }
       return typeof j.result_id === "string" ? j.result_id.trim() : null;
     })();
 
