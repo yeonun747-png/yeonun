@@ -41,6 +41,8 @@ let paymentCloseWatchTimer: ReturnType<typeof setInterval> | null = null;
 let paymentStoragePollTimer: ReturnType<typeof setInterval> | null = null;
 let paymentStorageListener: ((e: StorageEvent) => void) | null = null;
 let paymentFlowCompletedOrderNo: string | null = null;
+const pgCompleteInflight = new Map<string, Promise<boolean>>();
+const pgFinishInflight = new Map<string, Promise<boolean>>();
 
 /** PG 팝업 폴링·닫힘 감지만 중단 (storage 브리지는 유지) */
 function stopPaymentFlowTimers() {
@@ -97,29 +99,41 @@ async function finishPaymentFromOpener(orderNo: string, opts?: { maxAttempts?: n
   const oid = String(orderNo ?? "").trim();
   if (!oid || paymentFlowCompletedOrderNo === oid) return paymentFlowCompletedOrderNo === oid;
 
-  const handlers = activePgHandlers();
-  if (!handlers) return false;
+  const inflight = pgFinishInflight.get(oid);
+  if (inflight) return inflight;
 
-  const ok = await waitFortune82PgPaidAndComplete(oid, { maxAttempts: opts?.maxAttempts ?? 12 });
-  if (!ok) return false;
+  const run = (async () => {
+    const handlers = activePgHandlers();
+    if (!handlers) return false;
 
-  try {
-    await handlers.onSuccess(oid);
-  } catch {
-    return false;
-  }
+    const ok = await waitFortune82PgPaidAndComplete(oid, { maxAttempts: opts?.maxAttempts ?? 12 });
+    if (!ok) return false;
 
-  paymentFlowCompletedOrderNo = oid;
-  stopPaymentWatchers();
-  clearPaymentSuccessStorage();
-  clearPgPendingSession(oid);
-  try {
-    paymentWindowRef?.close();
-  } catch {
-    /* ignore */
-  }
-  paymentWindowRef = null;
-  return true;
+    if (paymentFlowCompletedOrderNo === oid) return true;
+
+    try {
+      await handlers.onSuccess(oid);
+    } catch {
+      return false;
+    }
+
+    paymentFlowCompletedOrderNo = oid;
+    stopPaymentWatchers();
+    clearPaymentSuccessStorage();
+    clearPgPendingSession(oid);
+    try {
+      paymentWindowRef?.close();
+    } catch {
+      /* ignore */
+    }
+    paymentWindowRef = null;
+    return true;
+  })().finally(() => {
+    pgFinishInflight.delete(oid);
+  });
+
+  pgFinishInflight.set(oid, run);
+  return run;
 }
 
 function startPaymentWatchers(orderNo: string) {
@@ -142,13 +156,10 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** PG pcheck Y 확인 후 /api/payment/complete — 성공 페이지·opener 공통 */
-export async function waitFortune82PgPaidAndComplete(
-  oid: string,
+async function waitFortune82PgPaidAndCompleteInner(
+  orderNo: string,
   opts?: { maxAttempts?: number },
 ): Promise<boolean> {
-  const orderNo = String(oid ?? "").trim();
-  if (!orderNo) return false;
   const maxAttempts = Math.max(1, opts?.maxAttempts ?? 15);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -189,6 +200,24 @@ export async function waitFortune82PgPaidAndComplete(
   }
 
   return false;
+}
+
+/** PG pcheck Y 확인 후 /api/payment/complete — 주문번호당 동시 호출 1회로 합침 */
+export function waitFortune82PgPaidAndComplete(
+  oid: string,
+  opts?: { maxAttempts?: number },
+): Promise<boolean> {
+  const orderNo = String(oid ?? "").trim();
+  if (!orderNo) return Promise.resolve(false);
+
+  const inflight = pgCompleteInflight.get(orderNo);
+  if (inflight) return inflight;
+
+  const run = waitFortune82PgPaidAndCompleteInner(orderNo, opts).finally(() => {
+    pgCompleteInflight.delete(orderNo);
+  });
+  pgCompleteInflight.set(orderNo, run);
+  return run;
 }
 
 function assignWindowHandlers() {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
-import { grantPurchaseCredits, isLoggedInUserId } from "@/lib/credit-server";
+import { fulfillCreditTopupForPaidOrder, isLoggedInUserId } from "@/lib/credit-server";
 import { consumeCheckoutCoupons } from "@/lib/mission-coupon-server";
 import { env } from "@/lib/env";
 import { checkFortune82PaymentStatus, isFortune82PaymentPaid } from "@/lib/payment-fortune82-pcheck";
@@ -24,6 +24,31 @@ function characterKeyForSlug(product_slug: string): string {
   if (["lifetime-master", "saju-classic", "wealth-graph", "career-timing"].includes(product_slug)) return "yeo";
   if (["naming-baby", "taekil-goodday", "dream-lastnight"].includes(product_slug)) return "un";
   return "yeon";
+}
+
+async function applyCheckoutCouponsIfNeeded(
+  order: { user_ref: string | null; amount_krw: number | null },
+  payment: { raw_payload: unknown } | null,
+) {
+  if (!isLoggedInUserId(order.user_ref) || !payment?.raw_payload) return;
+  const raw = payment.raw_payload as Record<string, unknown>;
+  const discount = Number(raw.coupon_discount_krw ?? 0);
+  if (discount <= 0) return;
+
+  const serviceKey = env.supabaseServiceRoleKey;
+  if (!serviceKey) return;
+
+  const svc = createClient(env.supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  await consumeCheckoutCoupons(svc, order.user_ref, {
+    final_price_krw: Math.max(0, Number(order.amount_krw ?? 0)),
+    discount_krw: discount,
+    label: String(raw.coupon_label ?? ""),
+    consume_discount_coupon_id:
+      typeof raw.consume_discount_coupon_id === "string" ? raw.consume_discount_coupon_id : null,
+    consume_dream_pass_id: typeof raw.consume_dream_pass_id === "string" ? raw.consume_dream_pass_id : null,
+  });
 }
 
 /**
@@ -48,14 +73,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "주문을 찾을 수 없습니다." }, { status: 404 });
     }
 
+    const product_slug = String(order.product_slug ?? "");
+    const isCreditTopup = isCreditTopupProduct(product_slug);
+    const paidAt = new Date().toISOString();
+
     if (order.status === "paid") {
-      const paidAt = new Date().toISOString();
       const { payment: backfill } = await ensureOrderPaidPaymentRecord(supabase, order, paidAt);
+      let credit_grant: { granted: boolean } | null = null;
+      if (isCreditTopup && isLoggedInUserId(order.user_ref)) {
+        const raw =
+          backfill?.raw_payload && typeof backfill.raw_payload === "object"
+            ? (backfill.raw_payload as Record<string, unknown>)
+            : null;
+        const grantResult = await fulfillCreditTopupForPaidOrder(order.user_ref, order, raw);
+        credit_grant = { granted: grantResult.granted };
+      }
       return NextResponse.json({
         success: true,
         order,
         payment: backfill,
         already_paid: true,
+        credit_grant,
         pg_check: "Y",
       });
     }
@@ -73,59 +111,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const paidAt = new Date().toISOString();
     const { payment, error: payErr } = await ensureOrderPaidPaymentRecord(supabase, order, paidAt);
 
     if (payErr) {
       return NextResponse.json({ success: false, error: payErr }, { status: 500 });
     }
 
-    await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
+    const { data: claimedOrder } = await supabase
+      .from("orders")
+      .update({ status: "paid" })
+      .eq("id", order.id)
+      .neq("status", "paid")
+      .select("id,order_no,status,amount_krw,product_slug,user_ref")
+      .maybeSingle();
 
-    if (isLoggedInUserId(order.user_ref) && payment?.raw_payload) {
-      const raw = payment.raw_payload as Record<string, unknown>;
-      const discount = Number(raw.coupon_discount_krw ?? 0);
-      if (discount > 0) {
-        const serviceKey = env.supabaseServiceRoleKey;
-        if (serviceKey) {
-          const svc = createClient(env.supabaseUrl, serviceKey, {
-            auth: { persistSession: false, autoRefreshToken: false },
-          });
-          await consumeCheckoutCoupons(svc, order.user_ref, {
-            final_price_krw: Math.max(0, Number(order.amount_krw ?? 0)),
-            discount_krw: discount,
-            label: String(raw.coupon_label ?? ""),
-            consume_discount_coupon_id:
-              typeof raw.consume_discount_coupon_id === "string" ? raw.consume_discount_coupon_id : null,
-            consume_dream_pass_id: typeof raw.consume_dream_pass_id === "string" ? raw.consume_dream_pass_id : null,
-          });
-        }
-      }
-    }
+    const orderPaid = claimedOrder ?? { ...order, status: "paid" as const };
 
-    const product_slug = String(order.product_slug ?? "");
-    const isCreditTopup = isCreditTopupProduct(product_slug);
+    await applyCheckoutCouponsIfNeeded(orderPaid, payment);
 
-    if (isCreditTopup && isLoggedInUserId(order.user_ref)) {
-      const { data: existingGrant } = await supabase
-        .from("user_credit_ledger")
-        .select("id")
-        .eq("user_id", order.user_ref)
-        .eq("kind", "purchase")
-        .eq("ref_id", String(order.id))
-        .maybeSingle();
-
-      if (!existingGrant) {
-        const raw = (payment?.raw_payload ?? {}) as Record<string, unknown>;
-        const grantBase = Number(raw.grant_base);
-        const credits =
-          Number.isFinite(grantBase) && grantBase > 0 ? Math.floor(grantBase) : Math.floor(order.amount_krw ?? 0);
-        const firstBonus = Boolean(raw.first_voice_credit_bonus);
-        await grantPurchaseCredits(order.user_ref, credits, {
-          orderId: String(order.id),
-          firstBonus,
-        });
-      }
+    let credit_grant: { granted: boolean } | null = null;
+    if (isCreditTopup && isLoggedInUserId(orderPaid.user_ref)) {
+      const raw =
+        payment?.raw_payload && typeof payment.raw_payload === "object"
+          ? (payment.raw_payload as Record<string, unknown>)
+          : null;
+      const grantResult = await fulfillCreditTopupForPaidOrder(orderPaid.user_ref, orderPaid, raw);
+      credit_grant = { granted: grantResult.granted };
     }
 
     let fortuneRequest = null;
@@ -139,35 +150,35 @@ export async function POST(request: NextRequest) {
       if (existingFr) {
         fortuneRequest = existingFr;
       } else {
-      const character_key = characterKeyForSlug(product_slug);
-      const [commonPrompt, characterPrompt, persona] = await Promise.all([
-        getServicePrompt("yeonun_fortune_text_system"),
-        getCharacterModePrompt(character_key, "fortune_text"),
-        getCharacterPersona(character_key),
-      ]);
+        const character_key = characterKeyForSlug(product_slug);
+        const [commonPrompt, characterPrompt, persona] = await Promise.all([
+          getServicePrompt("yeonun_fortune_text_system"),
+          getCharacterModePrompt(character_key, "fortune_text"),
+          getCharacterPersona(character_key),
+        ]);
 
-      const { data: fr } = await supabase
-        .from("fortune_requests")
-        .insert({
-          user_ref: order.user_ref ?? "guest",
-          product_slug,
-          order_id: order.id,
-          status: "queued",
-          model: "claude-4.6-sonnet",
-          prompt_version_id: null,
-          payload: {
+        const { data: fr } = await supabase
+          .from("fortune_requests")
+          .insert({
+            user_ref: orderPaid.user_ref ?? "guest",
             product_slug,
-            order_no: order.order_no,
-            payment_method: payment ? "pg" : "pg",
-            character_key,
-            common_system_prompt: commonPrompt?.prompt ?? null,
-            character_system_prompt: characterPrompt?.prompt ?? null,
-            persona_snapshot: persona ?? null,
-          },
-        })
-        .select("id,status")
-        .maybeSingle();
-      fortuneRequest = fr;
+            order_id: order.id,
+            status: "queued",
+            model: "claude-4.6-sonnet",
+            prompt_version_id: null,
+            payload: {
+              product_slug,
+              order_no: order.order_no,
+              payment_method: "pg",
+              character_key,
+              common_system_prompt: commonPrompt?.prompt ?? null,
+              character_system_prompt: characterPrompt?.prompt ?? null,
+              persona_snapshot: persona ?? null,
+            },
+          })
+          .select("id,status")
+          .maybeSingle();
+        fortuneRequest = fr;
       }
     }
 
@@ -175,17 +186,18 @@ export async function POST(request: NextRequest) {
       provider: "fortune82-pg",
       event_type: "payment.complete",
       event_id: orderNo,
-      payload: { order, payment, fortune_request: fortuneRequest },
+      payload: { order: orderPaid, payment, fortune_request: fortuneRequest, credit_grant },
       status: "processed",
       processed_at: paidAt,
     });
 
     return NextResponse.json({
       success: true,
-      order: { ...order, status: "paid" },
+      order: orderPaid,
       payment,
       fortune_request: fortuneRequest,
       is_credit_topup: isCreditTopup,
+      credit_grant,
       pg_check: pcheck.code,
     });
   } catch (error) {

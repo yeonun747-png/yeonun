@@ -17,20 +17,6 @@ import {
 
 const PAGE_BG = "#faf8f5";
 
-async function completePaymentOnServer(oid: string): Promise<boolean> {
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch("/api/payment/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order_no: oid, oid }),
-    });
-    const data = (await res.json().catch(() => ({}))) as { success?: boolean };
-    if (res.ok && data.success) return true;
-    if (attempt < 3) await new Promise((r) => setTimeout(r, 800 * attempt));
-  }
-  return false;
-}
-
 function PaymentSuccessBlank() {
   return <div className="min-h-screen" style={{ background: PAGE_BG }} aria-hidden />;
 }
@@ -54,8 +40,7 @@ function PaymentSuccessContent() {
     ranRef.current = true;
 
     void (async () => {
-      const serverOk = await completePaymentOnServer(oid);
-      const ok = serverOk || (await waitFortune82PgPaidAndComplete(oid, { maxAttempts: 10 }));
+      const ok = await waitFortune82PgPaidAndComplete(oid, { maxAttempts: 12 });
 
       if (!ok) {
         setErrorMsg("결제 확인에 실패했습니다. 잠시 후 다시 시도하거나 고객센터로 문의해 주세요.");

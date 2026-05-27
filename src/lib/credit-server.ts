@@ -1,6 +1,6 @@
 import { syntheticEmail } from "@/lib/auth/social-user-service";
 import type { SocialProvider } from "@/lib/auth/types";
-import { CREDIT_FREE_TRIAL_GRANT, CREDIT_FREE_TRIAL_VALID_DAYS, firstChargeTotalCredits } from "@/lib/credit-policy";
+import { CREDIT_FREE_TRIAL_GRANT, CREDIT_FREE_TRIAL_VALID_DAYS } from "@/lib/credit-policy";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export type CreditLedgerKind =
@@ -205,44 +205,60 @@ export async function spendCredits(
   return { wallet, spent: takeFree + takePaid };
 }
 
+export type GrantPurchaseCreditsResult = {
+  wallet: CreditWalletRow;
+  /** 이번 호출에서 실제로 지급했는지 (중복 complete 시 false) */
+  granted: boolean;
+};
+
+/** PG 충전 완료 — 주문(order.id)당 1회만 지급 (DB unique + RPC) */
 export async function grantPurchaseCredits(
   userId: string,
   baseGrant: number,
   opts: { orderId: string; firstBonus?: boolean },
-): Promise<CreditWalletRow> {
-  let wallet = await ensureWallet(userId);
-  let grant = Math.max(0, Math.floor(baseGrant));
-  if (opts.firstBonus && !wallet.first_purchase_done) {
-    grant = firstChargeTotalCredits(grant);
-  }
+): Promise<GrantPurchaseCreditsResult> {
+  await ensureWallet(userId);
 
-  const newPaid = wallet.paid_balance + grant;
   const sb = supabaseServer();
-  const { data, error } = await sb
-    .from("user_credit_wallets")
-    .update({
-      paid_balance: newPaid,
-      first_purchase_done: opts.firstBonus ? true : wallet.first_purchase_done,
-    })
-    .eq("user_id", userId)
-    .select("*")
-    .single();
-
-  if (error) throw new Error(error.message);
-  wallet = data as CreditWalletRow;
-
-  await insertLedger(userId, {
-    delta_paid: grant,
-    delta_free: 0,
-    paid_after: newPaid,
-    free_after: wallet.free_balance,
-    kind: "purchase",
-    ref_type: "order",
-    ref_id: opts.orderId,
-    memo: "크레딧 충전",
+  const { data, error } = await sb.rpc("grant_purchase_credits_if_new", {
+    p_user_id: userId,
+    p_order_id: opts.orderId,
+    p_base_grant: Math.max(0, Math.floor(baseGrant)),
+    p_first_bonus: Boolean(opts.firstBonus),
   });
 
-  return wallet;
+  if (error) throw new Error(error.message);
+
+  const row = (data ?? {}) as {
+    granted?: boolean;
+    duplicate?: boolean;
+    paid_balance?: number;
+    free_balance?: number;
+    first_purchase_done?: boolean;
+  };
+
+  const wallet = await getWallet(userId);
+  if (!wallet) throw new Error("wallet_not_found_after_grant");
+
+  return {
+    wallet,
+    granted: Boolean(row.granted) && !row.duplicate,
+  };
+}
+
+export async function fulfillCreditTopupForPaidOrder(
+  userId: string,
+  order: { id: string; amount_krw: number | null },
+  paymentRaw: Record<string, unknown> | null | undefined,
+): Promise<GrantPurchaseCreditsResult> {
+  const grantBase = Number(paymentRaw?.grant_base);
+  const credits =
+    Number.isFinite(grantBase) && grantBase > 0 ? Math.floor(grantBase) : Math.floor(order.amount_krw ?? 0);
+  const firstBonus = Boolean(paymentRaw?.first_voice_credit_bonus);
+  return grantPurchaseCredits(userId, credits, {
+    orderId: String(order.id),
+    firstBonus,
+  });
 }
 
 export async function adminAdjustCredits(
