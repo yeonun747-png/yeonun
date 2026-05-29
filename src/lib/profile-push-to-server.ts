@@ -61,6 +61,11 @@ export function localSajuToProfileBody(local: LocalSaju): Record<string, unknown
   const birth_time_unknown = !(Number.isFinite(hNum) && hNum >= 0 && hNum <= 23);
   const birth_branch_key = birth_time_unknown ? null : clockHourToBranchKey(hNum);
 
+  const miRaw = local.minute != null ? String(local.minute).trim() : "";
+  const miNum = miRaw !== "" ? parseInt(miRaw, 10) : NaN;
+  const birth_minute =
+    birth_time_unknown || !Number.isFinite(miNum) || miNum < 0 || miNum > 59 ? null : miNum;
+
   return {
     display_name: String(local.name ?? "").trim() || "회원",
     birth_year: y,
@@ -68,6 +73,7 @@ export function localSajuToProfileBody(local: LocalSaju): Record<string, unknown
     birth_day: d,
     calendar_type,
     birth_branch_key,
+    birth_minute,
     birth_time_unknown,
     gender: local.gender === "male" ? "male" : "female",
     complete_onboarding: true,

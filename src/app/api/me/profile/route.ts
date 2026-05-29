@@ -35,6 +35,7 @@ type ProfileBody = {
   birth_day?: number;
   calendar_type?: CalendarType;
   birth_branch_key?: BirthBranchKey | null;
+  birth_minute?: number | null;
   birth_time_unknown?: boolean;
   gender?: "male" | "female";
   complete_onboarding?: boolean;
@@ -84,6 +85,12 @@ export async function POST(request: Request) {
   const birth_time_unknown = Boolean(body.birth_time_unknown);
   const branch = birth_time_unknown ? null : parseBirthBranchKey(body.birth_branch_key);
 
+  let birth_minute: number | null = null;
+  if (!birth_time_unknown && body.birth_minute != null) {
+    const mi = Number(body.birth_minute);
+    if (Number.isFinite(mi) && mi >= 0 && mi <= 59) birth_minute = Math.floor(mi);
+  }
+
   const patch = {
     id: uid,
     display_name,
@@ -92,6 +99,7 @@ export async function POST(request: Request) {
     birth_day: body.birth_day ?? null,
     calendar_type,
     birth_branch_key: branch,
+    birth_minute,
     birth_time_unknown,
     gender,
     ...(body.complete_onboarding ? { onboarding_completed_at: new Date().toISOString() } : {}),

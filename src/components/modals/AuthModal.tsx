@@ -53,6 +53,7 @@ export function AuthModal() {
   const [birthDay, setBirthDay] = useState("");
   const [calendarType, setCalendarType] = useState<CalendarType>("solar");
   const [timeIdx, setTimeIdx] = useState(3);
+  const [birthMinute, setBirthMinute] = useState("0");
   const [unknownTime, setUnknownTime] = useState(false);
   const [gender, setGender] = useState<"male" | "female">("female");
   const [submitBusy, setSubmitBusy] = useState(false);
@@ -152,6 +153,7 @@ export function AuthModal() {
     setSubmitBusy(true);
     const { y, mo, d } = parseBirthInts();
     const branchKey = unknownTime ? null : TIME_TAB_BRANCH_KEYS[timeIdx];
+    const minuteParsed = Math.min(59, Math.max(0, parseInt(birthMinute, 10) || 0));
 
     let token = session?.access_token ?? null;
     if (!token) {
@@ -176,6 +178,7 @@ export function AuthModal() {
           birth_day: d,
           calendar_type: calendarType,
           birth_branch_key: branchKey,
+          ...(!unknownTime && branchKey != null ? { birth_minute: minuteParsed } : {}),
           birth_time_unknown: unknownTime,
           gender,
           complete_onboarding: true,
@@ -192,7 +195,7 @@ export function AuthModal() {
         const h = PARTNER_HOUR_BRANCH_TO_CLOCK_HOUR[branchKey];
         if (typeof h === "number") {
           hour = String(h);
-          minute = "0";
+          minute = String(minuteParsed);
         }
       }
 
@@ -224,6 +227,7 @@ export function AuthModal() {
   }, [
     birthDay,
     birthMonth,
+    birthMinute,
     birthYear,
     calendarType,
     displayName,
@@ -422,6 +426,25 @@ export function AuthModal() {
                       </button>
                     ))}
                   </div>
+
+                  {!unknownTime ? (
+                    <div className="y-input-row" style={{ marginBottom: 16 }}>
+                      <div className="y-input-cell" style={{ flex: 1 }}>
+                        <div className="y-input-cell-label">MIN · 분</div>
+                        <select
+                          value={birthMinute}
+                          onChange={(e) => setBirthMinute(e.target.value)}
+                          aria-label="출생 분"
+                        >
+                          {Array.from({ length: 60 }, (_, i) => i).map((mm) => (
+                            <option key={mm} value={String(mm)}>
+                              {String(mm).padStart(2, "0")}분
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <button className={`y-time-unknown ${unknownTime ? "checked" : ""}`} type="button" onClick={() => setUnknownTime((v) => !v)}>
                     <div className="y-time-unknown-check">{unknownTime ? "✓" : ""}</div>

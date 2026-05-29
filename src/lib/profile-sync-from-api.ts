@@ -1,8 +1,8 @@
 "use client";
 
 import type { CalendarType } from "@/lib/manse-ryeok";
+import { readStoredSaju, persistYeonunSajuV1 } from "@/lib/fortune-ux/sajuStorage";
 import { YEONUN_SAJU_UPDATED_EVENT } from "@/lib/saju-events";
-import { persistYeonunSajuV1 } from "@/lib/fortune-ux/sajuStorage";
 import { PARTNER_HOUR_BRANCH_TO_CLOCK_HOUR } from "@/lib/partner-hour-branch";
 
 export type ProfileApiRow = {
@@ -12,10 +12,17 @@ export type ProfileApiRow = {
   birth_day?: number | null;
   calendar_type?: string | null;
   birth_branch_key?: string | null;
+  birth_minute?: number | null;
   birth_time_unknown?: boolean | null;
   gender?: string | null;
   onboarding_completed_at?: string | null;
 };
+
+function normalizeMinute(raw: unknown): string {
+  const miNum = parseInt(String(raw ?? "").trim(), 10);
+  if (!Number.isFinite(miNum) || miNum < 0 || miNum > 59) return "0";
+  return String(miNum);
+}
 
 /** 서버 profiles → 로컬 yeonun_saju_v1 (점사·오늘 탭 공통) */
 export function applyProfileRowToLocalStorage(row: ProfileApiRow | null): void {
@@ -29,12 +36,24 @@ export function applyProfileRowToLocalStorage(row: ProfileApiRow | null): void {
     row.calendar_type === "lunar-leap" ? "lunar-leap" : row.calendar_type === "lunar" ? "lunar" : "solar";
 
   let hour = "";
-  let minute = "";
+  let minute = "0";
   if (!row.birth_time_unknown && row.birth_branch_key) {
     const h = PARTNER_HOUR_BRANCH_TO_CLOCK_HOUR[row.birth_branch_key];
     if (typeof h === "number") {
       hour = String(h);
-      minute = "0";
+      if (row.birth_minute != null) {
+        minute = normalizeMinute(row.birth_minute);
+      } else {
+        const local = readStoredSaju();
+        const sameBirth =
+          local &&
+          local.year === y &&
+          local.month === mo &&
+          local.day === d &&
+          local.calendarType === calendarType &&
+          local.hour === hour;
+        minute = sameBirth && local.minute.trim() !== "" ? normalizeMinute(local.minute) : "0";
+      }
     }
   }
 

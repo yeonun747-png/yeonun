@@ -9755,7 +9755,8 @@ button.y-my-menu-item {
   text-transform: uppercase;
   margin-bottom: 4px;
 }
-.y-input-cell input {
+.y-input-cell input,
+.y-input-cell select {
   width: 100%;
   border: none;
   outline: none;
@@ -9765,6 +9766,9 @@ button.y-my-menu-item {
   font-weight: 500;
   color: var(--y-ink);
   padding: 0;
+}
+.y-input-cell select {
+  cursor: pointer;
 }
 .y-onboard-time-tabs {
   display: grid;
