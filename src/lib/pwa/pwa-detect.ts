@@ -31,6 +31,17 @@ export function markInstalledInStorage(): void {
   }
 }
 
+/** 홈 화면에서 제거 후 Chrome이 다시 설치를 제안할 때 플래그 해제 */
+export function clearInstalledInStorage(): void {
+  try {
+    localStorage.removeItem(PWA_INSTALLED_LS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** PWA 앱으로 실행 중이거나, 브라우저에서 설치 완료 직후(제거 전) */
 export function computeIsInstalled(): boolean {
-  return detectStandalone() || readInstalledFromStorage();
+  if (detectStandalone()) return true;
+  return readInstalledFromStorage();
 }

@@ -14,6 +14,7 @@ import {
 import type { BeforeInstallPromptEvent } from "@/lib/pwa/before-install-prompt";
 import { isBeforeInstallPromptEvent } from "@/lib/pwa/before-install-prompt";
 import {
+  clearInstalledInStorage,
   computeIsInstalled,
   detectIOS,
   detectStandalone,
@@ -77,8 +78,11 @@ export function PWAInstallProvider({ children }: { children: ReactNode }) {
     const onBeforeInstall = (e: Event) => {
       if (!isBeforeInstallPromptEvent(e)) return;
       e.preventDefault();
+      // 제거 후 재방문 시 Chrome이 다시 설치 이벤트를 주면 → 마이 메뉴·유도 배너 복구
+      clearInstalledInStorage();
       deferredRef.current = e;
       setDeferredPrompt(e);
+      refreshInstalled();
     };
 
     const onInstalled = () => {
@@ -92,13 +96,22 @@ export function PWAInstallProvider({ children }: { children: ReactNode }) {
 
     const onDisplayMode = () => refreshInstalled();
 
+    const onPageShow = () => refreshInstalled();
+    const onVis = () => {
+      if (document.visibilityState === "visible") refreshInstalled();
+    };
+
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
     window.addEventListener("appinstalled", onInstalled);
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVis);
     window.matchMedia("(display-mode: standalone)").addEventListener("change", onDisplayMode);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
       window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVis);
       window.matchMedia("(display-mode: standalone)").removeEventListener("change", onDisplayMode);
     };
   }, [refreshInstalled]);

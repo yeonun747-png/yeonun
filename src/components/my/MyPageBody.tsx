@@ -23,7 +23,7 @@ import { MySheetLink } from "@/components/my/MySheetLink";
 import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 import { MyNoticesMenuItemContent } from "@/components/my/MyNoticesMenuMeta";
 import { MyWithdrawAccountMenuItemClient } from "@/components/my/MyWithdrawAccountMenuItemClient";
-import { MyPwaInstallMenuItem } from "@/components/pwa/MyPwaInstallMenuItem";
+import { MyPwaInstallGuideSection, MyPwaInstallMenuItem } from "@/components/pwa/MyPwaInstallMenuItem";
 import { creditTopupLoginHref } from "@/lib/credit-topup-auth";
 import { preloadMyPayments } from "@/lib/my-payments-cache";
 
@@ -304,10 +304,7 @@ export function MyPageBody() {
               </MySheetLink>
             </div>
 
-            <div className="y-my-menu-section">
-              <div className="y-my-menu-section-title">이용 안내</div>
-              <MyPwaInstallMenuItem />
-            </div>
+            <MyPwaInstallGuideSection />
 
             <div className="y-my-menu-section">
               <div className="y-my-menu-section-title">설정</div>
