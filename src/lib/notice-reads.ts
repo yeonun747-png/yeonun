@@ -22,6 +22,24 @@ export function readNoticeSlugsFromStorage(): Set<string> {
   }
 }
 
+export function mergeNoticeSlugsIntoStorage(slugs: string[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    const set = readNoticeSlugsFromStorage();
+    let changed = false;
+    for (const slug of slugs) {
+      if (!slug || set.has(slug)) continue;
+      set.add(slug);
+      changed = true;
+    }
+    if (!changed) return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+    window.dispatchEvent(new CustomEvent(NOTICE_READS_CHANGED_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function markNoticeReadInStorage(slug: string): void {
   if (typeof window === "undefined") return;
   try {

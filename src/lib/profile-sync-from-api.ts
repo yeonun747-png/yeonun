@@ -1,6 +1,7 @@
 "use client";
 
 import type { CalendarType } from "@/lib/manse-ryeok";
+import type { FortuneBirthPayload } from "@/lib/fortune-ux/sajuStorage";
 import { readStoredSaju, persistYeonunSajuV1 } from "@/lib/fortune-ux/sajuStorage";
 import { YEONUN_SAJU_UPDATED_EVENT } from "@/lib/saju-events";
 import { PARTNER_HOUR_BRANCH_TO_CLOCK_HOUR } from "@/lib/partner-hour-branch";
@@ -24,13 +25,17 @@ function normalizeMinute(raw: unknown): string {
   return String(miNum);
 }
 
-/** 서버 profiles → 로컬 yeonun_saju_v1 (점사·오늘 탭 공통) */
-export function applyProfileRowToLocalStorage(row: ProfileApiRow | null): void {
-  if (!row?.onboarding_completed_at) return;
+/** 오늘 탭 캐시 키와 동일 — 시·분·성별 등 */
+export function sajuTodayCacheKey(payload: Pick<FortuneBirthPayload, "calendarType" | "year" | "month" | "day" | "hour" | "minute" | "gender">): string {
+  return [payload.calendarType, payload.year, payload.month, payload.day, payload.hour, payload.minute, payload.gender].join("|");
+}
+
+function profileRowToSajuPayload(row: ProfileApiRow): FortuneBirthPayload | null {
+  if (!row?.onboarding_completed_at) return null;
   const y = row.birth_year != null ? String(row.birth_year) : "";
   const mo = row.birth_month != null ? String(row.birth_month) : "";
   const d = row.birth_day != null ? String(row.birth_day) : "";
-  if (!y || !mo || !d) return;
+  if (!y || !mo || !d) return null;
 
   const calendarType: CalendarType =
     row.calendar_type === "lunar-leap" ? "lunar-leap" : row.calendar_type === "lunar" ? "lunar" : "solar";
@@ -57,7 +62,7 @@ export function applyProfileRowToLocalStorage(row: ProfileApiRow | null): void {
     }
   }
 
-  persistYeonunSajuV1({
+  return {
     name: String(row.display_name ?? "").trim(),
     calendarType,
     year: y,
@@ -66,7 +71,25 @@ export function applyProfileRowToLocalStorage(row: ProfileApiRow | null): void {
     hour,
     minute,
     gender: row.gender === "male" ? "male" : "female",
-  });
+  };
+}
+
+/** 서버 profiles → 로컬 yeonun_saju_v1 (점사·오늘 탭 공통) */
+export function applyProfileRowToLocalStorage(row: ProfileApiRow | null): void {
+  const next = row ? profileRowToSajuPayload(row) : null;
+  if (!next) return;
+
+  const local = readStoredSaju();
+  const cacheKeyUnchanged = local != null && sajuTodayCacheKey(local) === sajuTodayCacheKey(next);
+
+  if (cacheKeyUnchanged) {
+    if (local!.name !== next.name) {
+      persistYeonunSajuV1(next);
+    }
+    return;
+  }
+
+  persistYeonunSajuV1(next);
 
   try {
     window.dispatchEvent(new Event(YEONUN_SAJU_UPDATED_EVENT));

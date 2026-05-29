@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { dispatchFortuneResultEnter } from "@/lib/pwa/pwa-events";
 
 import { FortuneResultSectionChunks, enrichTocWithMenuMedia } from "@/components/fortune/FortuneResultSectionChunks";
 import type { FortuneResultState } from "@/components/fortune/fortuneFlowTypes";
@@ -87,6 +89,14 @@ export function Step7Result({
   blockExit?: boolean;
 }) {
   const [page, setPage] = useState(0);
+  const fortuneResultPromptRef = useRef(false);
+
+  useEffect(() => {
+    if (fortuneResultPromptRef.current) return;
+    fortuneResultPromptRef.current = true;
+    dispatchFortuneResultEnter();
+  }, []);
+
   const toc = useMemo(() => enrichTocWithMenuMedia(result.toc, product), [result.toc, product]);
   const groups = useMemo(() => buildFortuneMainGroups(result.toc, result.tocGroups), [result.toc, result.tocGroups]);
   const doneSet = useMemo(() => new Set(result.doneIdx), [result.doneIdx]);

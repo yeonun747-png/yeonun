@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { ensureWallet, getWallet } from "@/lib/credit-server";
+import { ensureWallet, getWallet, reconcileFirstPurchaseDone } from "@/lib/credit-server";
 import { requireMyUserId } from "@/lib/my-route-auth";
+import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as {
     local_paid?: number;
     local_free?: number;
+    local_first_purchase_done?: boolean;
   };
 
   try {
@@ -21,6 +23,19 @@ export async function POST(request: Request) {
         importPaid: Number(body.local_paid) || 0,
         importFree: Number(body.local_free) || 0,
       });
+    }
+
+    wallet = (await reconcileFirstPurchaseDone(auth.userId)) ?? wallet;
+
+    if (!wallet.first_purchase_done && body.local_first_purchase_done) {
+      const sb = supabaseServer();
+      const { data: repaired, error: repairErr } = await sb
+        .from("user_credit_wallets")
+        .update({ first_purchase_done: true })
+        .eq("user_id", auth.userId)
+        .select("*")
+        .single();
+      if (!repairErr && repaired) wallet = repaired as typeof wallet;
     }
 
     const freeEff =

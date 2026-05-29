@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getWallet, listLedger } from "@/lib/credit-server";
+import { getWallet, listLedger, reconcileFirstPurchaseDone } from "@/lib/credit-server";
 import { requireMyUserId } from "@/lib/my-route-auth";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +30,9 @@ export async function GET(request: Request) {
         ledger: [],
       });
     }
+    const repaired = (await reconcileFirstPurchaseDone(auth.userId)) ?? wallet;
     const ledger = await listLedger(auth.userId, 20);
-    return NextResponse.json({ ok: true, wallet: walletPayload(wallet), ledger });
+    return NextResponse.json({ ok: true, wallet: walletPayload(repaired), ledger });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "fetch_failed";
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

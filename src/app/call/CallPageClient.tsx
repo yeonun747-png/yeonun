@@ -9,6 +9,7 @@ import { resolveVoiceUserRef } from "@/lib/voice-user-ref";
 import { __YEONUN_VOICE_UNLOCK_KEY__ } from "@/components/meet/MeetCallButton";
 import { VoiceLiveAudioRecorder } from "@/lib/voice-live/audio-recorder";
 import { nameWithSubjectParticle } from "@/lib/korean-subject-particle";
+import { dispatchVoiceCallEnded } from "@/lib/pwa/pwa-events";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -605,6 +606,11 @@ export default function CallPageClient() {
       liveSseRef.current = null;
     };
   }, [unlocked, sessionId]);
+
+  useEffect(() => {
+    if (!ended) return;
+    dispatchVoiceCallEnded();
+  }, [ended]);
 
   const endCall = () => {
     setEnded(true);

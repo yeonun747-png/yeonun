@@ -3,13 +3,16 @@
 import { useEffect } from "react";
 
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
-import { markNoticeReadInStorage } from "@/lib/notice-reads";
+import { markNoticeRead } from "@/lib/notice-reads-sync";
 import { noticeBadgeClass, noticeCategoryLabel, type NoticeView } from "@/lib/notices-types";
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 
 export function NoticeDetailClient({ notice }: { notice: NoticeView }) {
+  const { session } = useYeonunAuth();
+
   useEffect(() => {
-    markNoticeReadInStorage(notice.slug);
-  }, [notice.slug]);
+    markNoticeRead(notice.slug, session?.access_token ?? null);
+  }, [notice.slug, session?.access_token]);
 
   return (
     <MySubpageSheet title="공지사항" ariaLabel="공지사항" backHref="/notices">

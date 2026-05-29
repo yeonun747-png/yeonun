@@ -7,6 +7,7 @@ import { ContentCatalogPreloader } from "@/components/content/ContentCatalogPrel
 import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
 import { ArchiveReviewProvider } from "@/components/reviews/ArchiveReviewProvider";
 import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetProvider";
+import { AppProviders } from "@/app/providers";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -25,9 +26,18 @@ export const metadata: Metadata = {
   },
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "연운",
+    statusBarStyle: "default",
+  },
   icons: {
-    icon: [{ url: APP_ICON_PATH, type: "image/svg+xml" }],
-    apple: [{ url: APP_ICON_PATH, type: "image/svg+xml" }],
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: APP_ICON_PATH, type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   openGraph: {
     title: SITE_TITLE,
@@ -89,8 +99,14 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&display=swap"
           rel="stylesheet"
         />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="연운" />
       </head>
       <body>
+        <AppProviders>
         <YeonunAuthProvider>
           <ArchiveReviewProvider>
             <WriteReviewSheetProvider>
@@ -105,6 +121,7 @@ export default function RootLayout({
             <ModalLayer />
           </Suspense>
         </YeonunAuthProvider>
+        </AppProviders>
       </body>
     </html>
   );

@@ -36,6 +36,7 @@ import {
   isGuestVoiceFreeTrialAvailableClient,
   markGuestVoiceTrialUsedClient,
 } from "@/lib/voice-balance-local";
+import { dispatchVoiceCallEnded } from "@/lib/pwa/pwa-events";
 
 type CharacterKey = "yeon" | "byeol" | "yeo" | "un";
 type CharacterMeta = { key: CharacterKey; name: string; han: string; spec: string };
@@ -492,6 +493,7 @@ export default function CallDccPageClient() {
     setUiError("비회원 무료 시간(3분)이 끝났습니다. 이어서 이용하려면 로그인해 주세요.");
     void (async () => {
       await finalizeVoiceSession();
+      dispatchVoiceCallEnded();
       router.replace(
         `/meet?modal=auth&after_auth=${encodeURIComponent(`call:${characterKey}`)}`,
       );
@@ -521,6 +523,7 @@ export default function CallDccPageClient() {
     setUiError("크레딧이 부족해요. 충전 후 이어서 이용해 주세요.");
     void (async () => {
       await finalizeVoiceSession();
+      dispatchVoiceCallEnded();
       router.push("/checkout/credit");
     })();
   }, [guestCapActive, creditBlocked, sessionId, meterElapsedWallSec, finalizeVoiceSession, router]);
@@ -1258,6 +1261,7 @@ export default function CallDccPageClient() {
                   // ignore
                 }
                 await finalizeVoiceSession();
+                dispatchVoiceCallEnded();
                 router.push("/meet");
               })();
             }}
@@ -1446,6 +1450,7 @@ export default function CallDccPageClient() {
                 setStatus("종료");
                 void (async () => {
                   await finalizeVoiceSession();
+                  dispatchVoiceCallEnded();
                   router.push("/meet");
                 })();
               }}

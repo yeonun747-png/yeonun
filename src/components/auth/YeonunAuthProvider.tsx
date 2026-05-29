@@ -9,6 +9,7 @@ import { ReferralCaptureClient } from "@/components/referral/ReferralCaptureClie
 import { migrateLegacyChatConsultSessions, setChatConsultUserScope } from "@/lib/chat-consult-archive";
 import { clearPendingReferral, readPendingReferral } from "@/lib/referral-pending";
 import { setCreditAuthAccessToken, syncCreditsFromServer } from "@/lib/credit-client";
+import { syncNoticeReadsFromServer } from "@/lib/notice-reads-sync";
 import { syncLocalSajuToServerIfNeeded } from "@/lib/profile-push-to-server";
 import { syncProfileFromServer } from "@/lib/profile-sync-from-api";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -26,6 +27,7 @@ const YeonunAuthContext = createContext<YeonunAuthContextValue | null>(null);
 async function runPostLoginSync(tok: string, opts?: { isNewUser?: boolean }) {
   await syncProfileFromServer(tok);
   await syncLocalSajuToServerIfNeeded(tok);
+  await syncNoticeReadsFromServer(tok);
   if (!opts?.isNewUser) {
     await syncCreditsFromServer();
     return;

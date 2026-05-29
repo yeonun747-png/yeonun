@@ -395,6 +395,31 @@ export async function listLedger(userId: string, limit = 30): Promise<CreditLedg
   return (data ?? []) as CreditLedgerRow[];
 }
 
+/** purchase 원장이 있으면 first_purchase_done을 true로 보정 */
+export async function reconcileFirstPurchaseDone(userId: string): Promise<CreditWalletRow | null> {
+  let wallet = await getWallet(userId);
+  if (!wallet) return null;
+  if (wallet.first_purchase_done) return wallet;
+
+  const sb = supabaseServer();
+  const { count, error } = await sb
+    .from("user_credit_ledger")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("kind", "purchase");
+  if (error) throw new Error(error.message);
+  if (!count || count <= 0) return wallet;
+
+  const { data, error: updErr } = await sb
+    .from("user_credit_wallets")
+    .update({ first_purchase_done: true })
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+  if (updErr) throw new Error(updErr.message);
+  return data as CreditWalletRow;
+}
+
 export type AdminMemberSearchHit = {
   user_id: string;
   display_name: string;

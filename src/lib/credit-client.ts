@@ -62,6 +62,7 @@ export async function syncCreditsFromServer(): Promise<boolean> {
     body: JSON.stringify({
       local_paid: local.paid,
       local_free: local.free,
+      local_first_purchase_done: local.firstPurchaseDone,
     }),
   });
   const data = await res.json().catch(() => ({}));
