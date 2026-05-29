@@ -19,6 +19,7 @@ import {
   detectIOS,
   detectStandalone,
   markInstalledInStorage,
+  reconcileInstalledState,
 } from "@/lib/pwa/pwa-detect";
 import { PWA_INSTALL_PROMPT_SHOWN_KEY } from "@/lib/pwa/pwa-storage";
 
@@ -57,7 +58,9 @@ function showInstalledToast(): void {
 
 export function PWAInstallProvider({ children }: { children: ReactNode }) {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(() =>
+    typeof window !== "undefined" ? computeIsInstalled() : false,
+  );
   const [isIOS, setIsIOS] = useState(false);
   const [isInStandaloneMode, setIsInStandaloneMode] = useState(false);
   const [installPromptOpen, setInstallPromptOpen] = useState(false);
@@ -66,7 +69,7 @@ export function PWAInstallProvider({ children }: { children: ReactNode }) {
 
   const refreshInstalled = useCallback(() => {
     setIsInStandaloneMode(detectStandalone());
-    setIsInstalled(computeIsInstalled());
+    void reconcileInstalledState().then(setIsInstalled);
   }, []);
 
   useEffect(() => {

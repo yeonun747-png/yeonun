@@ -2,6 +2,7 @@
   "name": "연운 緣運",
   "short_name": "연운",
   "description": "나의 인연과 운명을 읽다",
+  "id": "/",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FFF8F0",
