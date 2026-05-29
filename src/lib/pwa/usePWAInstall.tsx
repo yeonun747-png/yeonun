@@ -32,9 +32,9 @@ export type PWAInstallContextValue = {
   installPromptOpen: boolean;
   /** 마이 탭·설치하기 등에서 연 iOS 안내 모달 */
   iosGuideOpen: boolean;
-  openInstallPrompt: () => void;
+  openInstallPrompt: (opts?: { userInitiated?: boolean }) => void;
   closeInstallPrompt: (opts?: { dismissSession?: boolean }) => void;
-  triggerInstall: () => Promise<void>;
+  triggerInstall: (opts?: { userInitiated?: boolean; fromBanner?: boolean }) => Promise<void>;
   releasePrompt: () => void;
   openIosGuide: () => void;
   closeIosGuide: () => void;
@@ -53,6 +53,26 @@ function markPromptShownSession(): void {
 function showInstalledToast(): void {
   window.dispatchEvent(
     new CustomEvent("yeonun:toast", { detail: { message: "연운이 홈 화면에 추가됐어요 🌸" } }),
+  );
+}
+
+function showManualInstallHint(): void {
+  window.dispatchEvent(
+    new CustomEvent("yeonun:toast", {
+      detail: {
+        message: "주소창 오른쪽 「앱 설치」 또는 「앱에서 열기」 버튼을 확인해주세요",
+      },
+    }),
+  );
+}
+
+function showAlreadyInstalledHint(): void {
+  window.dispatchEvent(
+    new CustomEvent("yeonun:toast", {
+      detail: {
+        message: "연운이 이미 설치되어 있어요. 주소창 「앱에서 열기」로 실행할 수 있습니다",
+      },
+    }),
   );
 }
 
@@ -128,12 +148,35 @@ export function PWAInstallProvider({ children }: { children: ReactNode }) {
     releasePromptInternal();
   }, []);
 
-  const openInstallPrompt = useCallback(() => {
-    if (computeIsInstalled()) return;
+  const runNativeInstall = useCallback(async (): Promise<boolean> => {
+    const prompt = deferredRef.current;
+    if (!prompt) return false;
+
     try {
-      if (sessionStorage.getItem(PWA_INSTALL_PROMPT_SHOWN_KEY) === "true") return;
+      await prompt.prompt();
+      const choice = await prompt.userChoice;
+      releasePromptInternal();
+      setInstallPromptOpen(false);
+      if (choice.outcome === "accepted") {
+        markInstalledInStorage();
+        refreshInstalled();
+        showInstalledToast();
+      }
+      return true;
     } catch {
-      /* ignore */
+      releasePromptInternal();
+      return false;
+    }
+  }, [refreshInstalled]);
+
+  const openInstallPrompt = useCallback((opts?: { userInitiated?: boolean }) => {
+    if (computeIsInstalled()) return;
+    if (!opts?.userInitiated) {
+      try {
+        if (sessionStorage.getItem(PWA_INSTALL_PROMPT_SHOWN_KEY) === "true") return;
+      } catch {
+        /* ignore */
+      }
     }
     setInstallPromptOpen(true);
   }, []);
@@ -153,33 +196,44 @@ export function PWAInstallProvider({ children }: { children: ReactNode }) {
     markPromptShownSession();
   }, []);
 
-  const triggerInstall = useCallback(async () => {
-    if (computeIsInstalled()) return;
-
-    if (detectIOS()) {
-      openIosGuide();
-      return;
-    }
-
-    const prompt = deferredRef.current;
-    if (!prompt) {
-      openInstallPrompt();
-      return;
-    }
-
-    try {
-      await prompt.prompt();
-      const choice = await prompt.userChoice;
-      releasePromptInternal();
-      if (choice.outcome === "accepted") {
-        markInstalledInStorage();
-        refreshInstalled();
-        showInstalledToast();
+  const triggerInstall = useCallback(
+    async (opts?: { userInitiated?: boolean; fromBanner?: boolean }) => {
+      const installed = await reconcileInstalledState();
+      setIsInstalled(installed);
+      if (installed) {
+        setInstallPromptOpen(false);
+        if (opts?.fromBanner || opts?.userInitiated) showAlreadyInstalledHint();
+        return;
       }
-    } catch {
-      releasePromptInternal();
-    }
-  }, [openInstallPrompt, openIosGuide, refreshInstalled]);
+
+      if (detectIOS()) {
+        if (opts?.userInitiated) {
+          setIosGuideOpen(true);
+        } else {
+          openIosGuide();
+        }
+        return;
+      }
+
+      const ranNative = await runNativeInstall();
+      if (ranNative) return;
+
+      if (opts?.fromBanner) {
+        const related = await reconcileInstalledState();
+        setIsInstalled(related);
+        if (related) {
+          setInstallPromptOpen(false);
+          showAlreadyInstalledHint();
+          return;
+        }
+        showManualInstallHint();
+        return;
+      }
+
+      openInstallPrompt({ userInitiated: opts?.userInitiated });
+    },
+    [openInstallPrompt, openIosGuide, runNativeInstall],
+  );
 
   const value = useMemo<PWAInstallContextValue>(
     () => ({

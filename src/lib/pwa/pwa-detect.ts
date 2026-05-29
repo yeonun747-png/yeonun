@@ -59,7 +59,7 @@ export async function probeInstalledRelatedApps(): Promise<boolean | null> {
   if (!fn) return null;
   try {
     const apps = await fn.call(navigator);
-    return apps.some((app) => app.platform === "webapp");
+    return apps.length > 0;
   } catch {
     return null;
   }

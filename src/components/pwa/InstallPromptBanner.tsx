@@ -31,7 +31,11 @@ export function InstallPromptBanner() {
               <p className="y-pwa-install-banner-desc">홈 화면에서 빠르게 접속할 수 있어요</p>
             </div>
             <div className="y-pwa-install-banner-actions">
-              <button type="button" className="y-pwa-install-btn primary" onClick={() => void triggerInstall()}>
+              <button
+                type="button"
+                className="y-pwa-install-btn primary"
+                onClick={() => void triggerInstall({ fromBanner: true })}
+              >
                 설치하기
               </button>
               <button

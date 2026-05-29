@@ -23,7 +23,7 @@ export function MyPwaInstallMenuItem() {
 
   if (isInstalled) return null;
 
-  return <PwaInstallMenuButton onClick={() => void triggerInstall()} />;
+  return <PwaInstallMenuButton onClick={() => void triggerInstall({ userInitiated: true })} />;
 }
 
 /** 회원 마이 — 설치 전에만 「이용 안내」 섹션 전체 표시 */
@@ -35,7 +35,7 @@ export function MyPwaInstallGuideSection() {
   return (
     <div className="y-my-menu-section">
       <div className="y-my-menu-section-title">이용 안내</div>
-      <PwaInstallMenuButton onClick={() => void triggerInstall()} />
+      <PwaInstallMenuButton onClick={() => void triggerInstall({ userInitiated: true })} />
     </div>
   );
 }
