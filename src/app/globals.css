@@ -6702,6 +6702,26 @@ button.y-dw-listen:disabled {
   content: " ›";
   color: var(--y-rose);
 }
+@media (pointer: fine) {
+  .y-drag-scroll {
+    cursor: grab;
+    user-select: none;
+  }
+  .y-drag-scroll.y-drag-scroll--active {
+    cursor: grabbing;
+  }
+  .y-drag-scroll * {
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+  /* PC 드래그 스크롤 시 카드 스냅으로 끊기는 현상 방지 (만남·풀이 탭과 동일한 느낌) */
+  .yCarousel.y-drag-scroll {
+    scroll-snap-type: none;
+  }
+  .yCarousel.y-drag-scroll .yCharCard {
+    scroll-snap-align: none;
+  }
+}
 .yCarousel {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

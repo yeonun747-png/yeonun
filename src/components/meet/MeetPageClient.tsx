@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 
 import { BottomNav } from "@/components/BottomNav";
+import { useDragScroll } from "@/hooks/useDragScroll";
 import { MeetCallButton } from "@/components/meet/MeetCallButton";
 import { MeetChatButton } from "@/components/meet/MeetChatButton";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
@@ -23,6 +24,7 @@ export function MeetPageClient({ characters }: { characters: Character[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const guest = !useYeonunMember();
+  const presetsScrollRef = useDragScroll<HTMLDivElement>();
 
   const openAuthSheet = () => {
     const qs = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
@@ -47,7 +49,7 @@ export function MeetPageClient({ characters }: { characters: Character[] }) {
 
         <div className="y-meet-presets" aria-label="이렇게 시작해보세요">
           <div className="y-meet-presets-title">이렇게 시작해보세요</div>
-          <div className="y-meet-presets-scroll">
+          <div className="y-meet-presets-scroll" ref={presetsScrollRef}>
             <div className="y-meet-presets-track">
               {PRESETS.map((t) => (
                 <button key={t} className="y-preset-chip" type="button">

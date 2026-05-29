@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { SheetLink } from "@/components/SheetLink";
+import { useDragScroll } from "@/hooks/useDragScroll";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import { preloadContentCatalog } from "@/lib/content-catalog-cache";
 import {
@@ -139,6 +140,7 @@ function CardVisual({ k }: { k: CarouselCharKey }) {
 
 export function CharacterCarousel() {
   const prefetchRoutes = CAROUSEL_CHAR_KEYS.map((k) => characterSheetHref(k, "home"));
+  const carouselRef = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
     void preloadContentCatalog();
@@ -154,7 +156,7 @@ export function CharacterCarousel() {
         </h2>
       </div>
 
-      <div className="yCarousel">
+      <div className="yCarousel" ref={carouselRef}>
         <div className="yCarouselTrack">
           {CAROUSEL_CHAR_KEYS.map((k) => (
             <SheetLink

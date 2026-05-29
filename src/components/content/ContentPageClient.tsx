@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { BottomNav } from "@/components/BottomNav";
 import { FortuneExitScrollRestore } from "@/components/fortune/FortuneExitScrollRestore";
+import { useDragScroll } from "@/hooks/useDragScroll";
 import { HomeContentGrid } from "@/components/HomeContentGrid";
 import { RoutePrefetcher } from "@/components/RoutePrefetcher";
 import { TopNav } from "@/components/TopNav";
@@ -102,6 +103,7 @@ export function ContentPageClient({
   );
 
   const showSkeleton = allProducts.length === 0 && !hasContentCatalogCache();
+  const catTabsScrollRef = useDragScroll<HTMLDivElement>();
 
   return (
     <div className="yeonunPage">
@@ -119,7 +121,7 @@ export function ContentPageClient({
             </div>
           </div>
 
-          <div className="yCatTabsScroll" aria-label={t.catAria}>
+          <div className="yCatTabsScroll" ref={catTabsScrollRef} aria-label={t.catAria}>
             <div className="yCatTabsTrack">
               {categories.map((c) => {
                 const active = c.slug === category;
