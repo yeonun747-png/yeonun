@@ -7,7 +7,7 @@ import { HomeContentGrid } from "@/components/HomeContentGrid";
 import { HomeFaq } from "@/components/HomeFaq";
 import { HomeReviewsSectionClient } from "@/components/reviews/HomeReviewsSectionClient";
 import type { ContentCatalogSnapshot } from "@/lib/content-catalog";
-import { preloadContentCatalog, readContentCatalogCache } from "@/lib/content-catalog-cache";
+import { preloadContentCatalog, resolveInitialContentCatalog } from "@/lib/content-catalog-cache";
 import type { Product } from "@/lib/data/content";
 import { HOME_WEEKLY_SLUGS } from "@/lib/home-product-slugs";
 import { preloadHomeReviewsBlock } from "@/lib/home-reviews-cache";
@@ -21,16 +21,19 @@ function pickProducts(bySlug: Map<string, Product>, slugs: readonly string[]) {
   return slugs.map((s) => bySlug.get(s)).filter(isProduct);
 }
 
-export function HomeMoreSections() {
-  const [catalog, setCatalog] = useState<ContentCatalogSnapshot | null>(() => readContentCatalogCache());
+export function HomeMoreSections({ serverCatalog }: { serverCatalog: ContentCatalogSnapshot }) {
+  // 초기 렌더는 서버 스냅샷으로 통일 → SSR HTML과 일치(하이드레이션 불일치 방지)
+  const [catalog, setCatalog] = useState<ContentCatalogSnapshot>(serverCatalog);
 
   useEffect(() => {
+    // 마운트 후: 더 신선한 클라이언트 캐시가 있으면 업그레이드
+    setCatalog(resolveInitialContentCatalog(serverCatalog));
     void preloadContentCatalog().then((next) => {
       if (next?.products.length) setCatalog(next);
     });
     void preloadHomeReviewsBlock();
     void preloadReviewsPage();
-  }, []);
+  }, [serverCatalog]);
 
   const bySlug = useMemo(
     () => new Map((catalog?.products ?? []).map((p) => [p.slug, p] as const)),

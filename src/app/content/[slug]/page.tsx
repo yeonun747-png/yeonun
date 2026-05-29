@@ -341,12 +341,9 @@ export default async function ContentDetailPage({ params, searchParams }: Props)
   }
 
   return (
-    <>
-      <SheetBackdropFrame />
-      <YeonunRoutedBottomSheetPortal backHref={backHref} ariaLabel="상세 풀이" title="상세 풀이">
-        {Page}
-      </YeonunRoutedBottomSheetPortal>
-    </>
+    <YeonunRoutedBottomSheetPortal backHref={backHref} ariaLabel="상세 풀이" title="상세 풀이">
+      {Page}
+    </YeonunRoutedBottomSheetPortal>
   );
 }
 

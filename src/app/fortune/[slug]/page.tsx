@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import { FortuneProductClient } from "@/components/fortune/FortuneProductClient";
+import { getCharactersCached } from "@/lib/data/characters";
 import { getProductBySlugCached } from "@/lib/data/content";
 
 type Props = {
@@ -27,10 +29,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-/** 서버 대기 없이 클라이언트 캐시·API로 즉시 진입 */
+/** 서버에서 상품·캐릭터 스냅샷을 내려 SSR과 하이드레이션 일치(시트→점사 하드 내비 포함) */
 export default async function FortuneProductPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const sp = (await searchParams) ?? {};
+
+  const product = await getProductBySlugCached(slug);
+  if (!product) notFound();
+  const characters = await getCharactersCached();
+  const character = characters.find((c) => c.key === product.character_key) ?? null;
 
   return (
     <FortuneProductClient
@@ -38,6 +45,13 @@ export default async function FortuneProductPage({ params, searchParams }: Props
       themeKey={typeof sp.ck === "string" ? sp.ck : ""}
       backRaw={typeof sp.back === "string" ? sp.back : undefined}
       menuCardEntry={sp.mc === "1"}
+      initialBundle={{
+        v: 1,
+        slug,
+        product,
+        character,
+        fetchedAt: 0,
+      }}
     />
   );
 }

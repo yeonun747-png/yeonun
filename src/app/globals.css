@@ -2772,9 +2772,9 @@ ul {
 .y-my-sheet-backdrop-frame {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: 9090;
   overflow: hidden;
-  pointer-events: none;
+  pointer-events: none !important;
   background: var(--y-bg);
 }
 /* 스냅샷 HTML은 표시만; 자식이 pointer-events:auto로 되살아 클릭을 삼키는 경우 방지 */
@@ -2826,11 +2826,20 @@ ul {
 .y-modal.open {
   display: flex;
 }
-/** body 포털 시트(캐릭터·콘텐츠) — 검색 오버레이(9000) 위에 즉시 표시, 검색은 닫히는 애니메이션만 재생 */
-body > .y-modal.open {
+/** body 포털 시트(캐릭터·콘텐츠) — 검색(9000) 위, 백드롭(9090) 위 */
+body > .y-modal.open,
+.y-modal.open.yeonun-routed-sheet {
   z-index: 9100;
+  pointer-events: auto;
 }
-body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host):not(.y-rv-overlay) {
+.y-modal.open.yeonun-routed-sheet .y-modal-sheet {
+  pointer-events: auto;
+}
+.y-modal.open.yeonun-routed-sheet .y-modal-head {
+  position: relative;
+  z-index: 2;
+}
+body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host):not(.y-rv-overlay):not(.y-search-overlay) {
   filter: blur(6px);
 }
 @keyframes yModalFade {
@@ -16160,6 +16169,18 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
 
 .y-search-overlay.open {
   transform: translateY(0);
+}
+
+/** 닫히는 중·캐릭터 시트 위 — 검색 오버레이가 포인터를 가로채지 않도록 */
+.y-search-overlay:not(.open) {
+  pointer-events: none !important;
+  visibility: hidden;
+}
+
+body:has(.yeonun-routed-sheet.y-modal.open) > .y-search-overlay,
+body:has(> .y-modal.open) > .y-search-overlay {
+  pointer-events: none !important;
+  visibility: hidden;
 }
 
 .y-search-header {

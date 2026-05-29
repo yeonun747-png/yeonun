@@ -109,6 +109,7 @@ export async function CharacterDetailExtensions({
             fallbackSvgBySlug={thumbFallback}
             extraSearchParams={contentLinkExtra}
             hanDisplayChar={c.han}
+            fullPageNav={voiceCallFullPage}
           />
         )}
       </section>

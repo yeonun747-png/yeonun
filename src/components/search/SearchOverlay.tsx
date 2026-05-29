@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { rememberSheetBackdropScrollY } from "@/components/my/MySheetBackdropFrame";
 import { SheetLink } from "@/components/SheetLink";
@@ -329,10 +330,13 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 function SearchOverlayDialog({
   active,
   onRequestClose,
+  onDismissImmediately,
   markExternalNavigate,
 }: {
   active: boolean;
   onRequestClose: () => void;
+  /** 프로필 시트 등 외부 이동 — 닫힘 애니 중 클릭 가로채기 방지용 즉시 언마운트 */
+  onDismissImmediately?: () => void;
   /** /search 단독 페이지: 닫기 후 router.back() 억제(프로필 시트 등 외부 이동) */
   markExternalNavigate?: () => void;
 }) {
@@ -462,15 +466,21 @@ function SearchOverlayDialog({
     [currentHref],
   );
 
-  /** 검색 닫기 애니메이션 + 동시에 프로필 시트(z-index 9100) 오픈 */
+  /** 검색 즉시 닫고 프로필 바텀시트로 이동 (오버레이가 시트 클릭을 가로채지 않도록) */
   const navigateAfterSearchClose = useCallback(
     (href: string) => {
       markExternalNavigate?.();
+      if (onDismissImmediately) {
+        flushSync(() => {
+          onDismissImmediately();
+        });
+      } else {
+        onRequestClose();
+      }
       rememberSheetBackdropScrollY();
-      onRequestClose();
       router.push(href);
     },
-    [markExternalNavigate, onRequestClose, router],
+    [markExternalNavigate, onDismissImmediately, onRequestClose, router],
   );
 
   const characterProfileHref = useCallback(
@@ -763,6 +773,15 @@ export function SearchOverlayTrigger() {
     }, OVERLAY_TRANSITION_MS);
   }, []);
 
+  const dismissImmediately = useCallback(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setActive(false);
+    setMounted(false);
+  }, []);
+
   useEffect(() => {
     if (!mounted) return undefined;
     const raf = window.requestAnimationFrame(() => setActive(true));
@@ -787,7 +806,11 @@ export function SearchOverlayTrigger() {
 
       {mounted ? (
         <YeonunSheetPortal>
-          <SearchOverlayDialog active={active} onRequestClose={closeOverlay} />
+          <SearchOverlayDialog
+            active={active}
+            onRequestClose={closeOverlay}
+            onDismissImmediately={dismissImmediately}
+          />
         </YeonunSheetPortal>
       ) : null}
     </>
@@ -799,6 +822,7 @@ export function SearchStandalonePage() {
   const closeTimerRef = useRef<number | null>(null);
   const suppressBackRef = useRef(false);
   const [active, setActive] = useState(false);
+  const [mounted, setMounted] = useState(true);
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => setActive(true));
@@ -828,7 +852,24 @@ export function SearchStandalonePage() {
     }, OVERLAY_TRANSITION_MS);
   }, [router]);
 
+  const dismissImmediately = useCallback(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    suppressBackRef.current = true;
+    setActive(false);
+    setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
   return (
-    <SearchOverlayDialog active={active} onRequestClose={closeOverlay} markExternalNavigate={markExternalNavigate} />
+    <SearchOverlayDialog
+      active={active}
+      onRequestClose={closeOverlay}
+      onDismissImmediately={dismissImmediately}
+      markExternalNavigate={markExternalNavigate}
+    />
   );
 }

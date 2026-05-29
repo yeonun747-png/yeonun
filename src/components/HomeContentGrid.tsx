@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState, type MouseEvent, type ReactNode } from "react";
 
 import { FortuneDuplicateConfirmSheet } from "@/components/fortune/FortuneDuplicateConfirmSheet";
+import { clearSheetBackdropSnapshot } from "@/components/my/MySheetBackdropFrame";
 import { SheetLink } from "@/components/SheetLink";
 import type { Product } from "@/lib/data/content";
 import { findFortuneDuplicateForProduct, fortuneLibraryHref, type FortuneDuplicateHit } from "@/lib/fortune-duplicate-client";
@@ -384,14 +385,30 @@ export function HomeContentGrid({
   extraSearchParams = "",
   /** 캐릭터 상세 등: 카드 워터마크 한자를 상품별이 아닌 안내자 한자로 통일 */
   hanDisplayChar,
+  /** 인터셉트 바텀시트(@modal) 안에서 사용 시 — 소프트 내비로는 모달 슬롯이 안 닫히므로 전체화면 hard navigate */
+  fullPageNav = false,
 }: {
   items: Product[];
   /** DB에 thumbnail_svg가 없을 때 `public/product-thumbnails/{slug}.svg` 등에서 채운 문자열 */
   fallbackSvgBySlug?: Record<string, string>;
   extraSearchParams?: string;
   hanDisplayChar?: string;
+  fullPageNav?: boolean;
 }) {
   const router = useRouter();
+
+  /** 시트 위에서는 /fortune 전체화면 전환을 위해 hard navigate(모달 슬롯·백드롭 스냅샷 정리) */
+  const navigate = useCallback(
+    (href: string) => {
+      if (fullPageNav && typeof window !== "undefined") {
+        clearSheetBackdropSnapshot();
+        window.location.assign(href);
+        return;
+      }
+      router.push(href);
+    },
+    [fullPageNav, router],
+  );
   const [duplicateGate, setDuplicateGate] = useState<{
     href: string;
     hit: FortuneDuplicateHit;
@@ -417,12 +434,12 @@ export function HomeContentGrid({
           setDuplicateGate({ href, hit });
           return;
         }
-        router.push(href);
+        navigate(href);
       } finally {
         setCheckingSlug(null);
       }
     },
-    [checkingSlug, router],
+    [checkingSlug, navigate],
   );
 
   const onFortuneCardClick = useCallback(
@@ -494,12 +511,12 @@ export function HomeContentGrid({
         onRetry={() => {
           const href = duplicateGate.href;
           setDuplicateGate(null);
-          router.push(href);
+          navigate(href);
         }}
         onOpenLibrary={() => {
           const href = fortuneLibraryHref(duplicateGate.hit.requestId);
           setDuplicateGate(null);
-          router.push(href);
+          navigate(href);
         }}
         onDismiss={() => setDuplicateGate(null)}
       />

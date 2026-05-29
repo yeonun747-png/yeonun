@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { clearSheetBackdropSnapshot, SheetBackdropFrame } from "@/components/my/MySheetBackdropFrame";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 
 /** 홈/만남 등에서 라우트된 상세를 시트로 열 때 — 배경 블러가 페이지 전체에 적용되도록 body 포털 */
@@ -12,6 +13,8 @@ export function YeonunRoutedBottomSheetPortal({
   title,
   children,
   onClose,
+  withBackdrop = true,
+  dismissWithHistoryBack = false,
 }: {
   backHref: string;
   ariaLabel: string;
@@ -19,25 +22,30 @@ export function YeonunRoutedBottomSheetPortal({
   children: ReactNode;
   /** 닫기 직전 클라이언트 상태 정리(즉시 시트 등) */
   onClose?: () => void;
+  /** 스냅샷 백드롭을 시트와 같은 body 포털에 두어 클릭 스택 간섭 방지 */
+  withBackdrop?: boolean;
+  /** @modal 인터셉트 시트 — replace는 parallel slot을 안 닫아 back() 사용 */
+  dismissWithHistoryBack?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
 
   const close = () => {
     onClose?.();
-    // 홈에서 즉시 시트만 띄운 상태(아직 /characters 로 안 바뀜) — 상태만 정리
     if (pathname === backHref) return;
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    clearSheetBackdropSnapshot();
+    if (dismissWithHistoryBack && typeof window !== "undefined" && window.history.length > 1) {
       router.back();
       return;
     }
-    router.push(backHref);
+    router.replace(backHref, { scroll: false });
   };
 
   return (
     <YeonunSheetPortal>
+      {withBackdrop ? <SheetBackdropFrame /> : null}
       <div
-        className="y-modal open"
+        className="y-modal open yeonun-routed-sheet"
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}

@@ -25,5 +25,12 @@ export default async function CharacterSheetInterceptPage({ params, searchParams
   const closeHref = characterSheetCloseHref(sp.from);
   const contentLinkExtra = characterContentLinkExtra(c, sp.from);
 
-  return <CharacterSheetRoute c={c} closeHref={closeHref} contentLinkExtra={contentLinkExtra} />;
+  return (
+    <CharacterSheetRoute
+      c={c}
+      closeHref={closeHref}
+      contentLinkExtra={contentLinkExtra}
+      dismissWithHistoryBack
+    />
+  );
 }

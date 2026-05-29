@@ -588,7 +588,12 @@ export function FortunePage({
       return;
     }
     if (step === 0) {
-      router.back();
+      // 메뉴 카드→하드 내비 진입 후 back()은 @modal+본문 시트가 겹쳐 바텀시트 2중 표시
+      if (menuCardEntry) {
+        router.replace(headerBackHref);
+      } else {
+        router.back();
+      }
       return;
     }
     /** 저장 없이 입력만 있는 메뉴 카드: 스텝0은 빈 화면 → 뒤로는 이전(메뉴) 화면으로 */

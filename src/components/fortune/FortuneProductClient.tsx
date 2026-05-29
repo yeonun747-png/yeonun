@@ -7,7 +7,7 @@ import { FortunePage } from "@/components/fortune/FortunePage";
 import { FortuneProductLoadingShell } from "@/components/fortune/FortuneProductLoadingShell";
 import {
   preloadFortuneProduct,
-  readFortuneProductCache,
+  resolveInitialFortuneProduct,
   type FortuneProductBundle,
 } from "@/lib/fortune-product-cache";
 
@@ -16,17 +16,19 @@ export function FortuneProductClient({
   themeKey,
   backRaw,
   menuCardEntry,
+  initialBundle,
 }: {
   slug: string;
   themeKey: string;
   backRaw?: string;
   menuCardEntry: boolean;
+  initialBundle: FortuneProductBundle;
 }) {
-  const [bundle, setBundle] = useState<FortuneProductBundle | null>(() => readFortuneProductCache(slug));
+  const [bundle, setBundle] = useState<FortuneProductBundle | null>(initialBundle);
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
-    setBundle(readFortuneProductCache(slug));
+    setBundle(resolveInitialFortuneProduct(slug, initialBundle));
     setMissing(false);
     let cancelled = false;
     void preloadFortuneProduct(slug).then((next) => {
