@@ -412,7 +412,7 @@ function MascotGuideInner({
   bubbleDockFixedLeft?: boolean;
   /** 명식 탭 설명만 말풍선 폭 대폭 확대(뷰포트와 겹쳐도 됨) */
   bubbleDockExtraWide?: boolean;
-  /** 동일 문구 재탭 시 말풍선·8초 페이드 타이머 재시작(0이면 무시) */
+  /** 동일 문구 재탭 시 말풍선·15초 페이드 타이머 재시작(0이면 무시) */
   bubbleReplayToken?: number;
   onArrive?: () => void;
   /** Step0–6: 말풍선 상단 정중앙 + 마스코트 가운데 정렬 */
@@ -1074,7 +1074,7 @@ function MascotGuideInner({
     bubbleEl.style.setProperty("--bubble-adjust-y", `${Math.round(ay)}px`);
   }, [bubble.text, bubbleLeftOfMascot, guide.text, hasArrived, modelReady, useFixedBubbleDock, view.pos]);
 
-  /** 명식 스텝만 8초, 그 외 5초 뒤 말풍선 페이드아웃 */
+  /** 명식 스텝만 15초, 그 외 5초 뒤 말풍선 페이드아웃 */
   useEffect(() => {
     const cur = bubbleFadeTimersRef.current;
     if (cur.t1 != null) window.clearTimeout(cur.t1);
@@ -1087,7 +1087,7 @@ function MascotGuideInner({
     }
 
     setBubbleFade("show");
-    const delayMs = fortuneStep === ms.myungsik ? 8000 : 5000;
+    const delayMs = fortuneStep === ms.myungsik ? 15_000 : 5000;
     bubbleFadeTimersRef.current.t1 = window.setTimeout(() => {
       setBubbleFade("fading");
       bubbleFadeTimersRef.current.t2 = window.setTimeout(() => setBubbleFade("gone"), 1000);
