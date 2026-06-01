@@ -1,9 +1,9 @@
 import type { ClaudeFortuneUserInfo } from "@/lib/fortune-claude-payload";
 import { CAROUSEL_CHAR, isCarouselCharKey } from "@/lib/characters/character-carousel-static";
-import { getKstParts, kstStartOfDay, kstStartOfMonth, kstStartOfWeekMonday } from "@/lib/datetime/kst";
+import { getKstParts, kstAddDays, kstStartOfDay } from "@/lib/datetime/kst";
 import { supabaseServer } from "@/lib/supabase/server";
 
-export type AdminPaymentUsersPeriod = "day" | "week" | "month";
+export type AdminPaymentUsersPeriod = "today" | "yesterday" | "7d" | "30d";
 
 export type AdminPaymentSajuLine = {
   birth: string;
@@ -40,7 +40,6 @@ export type AdminPaymentUsersPayload = {
   count: number;
   totalKrw: number;
   rows: AdminPaymentUserRow[];
-  dataNotes: string[];
 };
 
 const BRANCH_LABEL: Record<string, string> = {
@@ -87,10 +86,21 @@ export function adminPaymentPeriodFrom(iso: string): Date {
   return new Date(iso);
 }
 
-export function resolveAdminPaymentUsersRange(period: AdminPaymentUsersPeriod, now = new Date()): Date {
-  if (period === "week") return kstStartOfWeekMonday(now);
-  if (period === "month") return kstStartOfMonth(now);
-  return kstStartOfDay(now);
+export function resolveAdminPaymentUsersRange(
+  period: AdminPaymentUsersPeriod,
+  now = new Date(),
+): { from: Date; to: Date } {
+  const today = kstStartOfDay(now);
+  const tomorrow = kstAddDays(today, 1);
+  if (period === "today") return { from: today, to: tomorrow };
+  if (period === "yesterday") return { from: kstAddDays(today, -1), to: today };
+  if (period === "7d") return { from: kstAddDays(today, -6), to: tomorrow };
+  return { from: kstAddDays(today, -29), to: tomorrow };
+}
+
+function inPaymentRange(iso: string, from: Date, to: Date): boolean {
+  const t = new Date(iso).getTime();
+  return t >= from.getTime() && t < to.getTime();
 }
 
 function formatPaymentDatetime(iso: string): { date: string; time: string } {
@@ -201,9 +211,9 @@ function extractUserInfoFromPayload(payload: unknown): {
 /** PG: 카드 · 휴대폰 · 크레딧만 사용 */
 function paymentMethodLabel(method: string): string {
   const m = String(method ?? "").trim().toLowerCase();
-  if (m === "card") return "카드결제";
-  if (m === "phone") return "휴대폰결제";
-  if (m === "credit") return "크레딧결제";
+  if (m === "card") return "카드";
+  if (m === "phone") return "휴대폰";
+  if (m === "credit") return "크레딧";
   return "—";
 }
 
@@ -223,7 +233,7 @@ export async function loadAdminPaymentUsers(
   period: AdminPaymentUsersPeriod,
 ): Promise<AdminPaymentUsersPayload> {
   const sb = supabaseServer();
-  const from = resolveAdminPaymentUsersRange(period);
+  const { from, to } = resolveAdminPaymentUsersRange(period);
   const fromIso = from.toISOString();
 
   const { data: paymentRows, error: payErr } = await sb
@@ -237,7 +247,7 @@ export async function loadAdminPaymentUsers(
 
   const payments = (paymentRows ?? []).filter((p) => {
     const at = effectivePaidAt(p.paid_at, p.created_at);
-    return new Date(at).getTime() >= from.getTime();
+    return inPaymentRange(at, from, to);
   });
 
   const orderIds = [...new Set(payments.map((p) => p.order_id).filter(Boolean))] as string[];
@@ -403,12 +413,5 @@ export async function loadAdminPaymentUsers(
   const count = rows.length;
   const totalKrw = rows.reduce((s, r) => (r.status === "refund" ? s : s + r.amountKrw), 0);
 
-  const dataNotes = [
-    "회원 식별: 별도 public.users 테이블 없음 — orders.user_ref → profiles(이름·사주) + Supabase Auth 이메일.",
-    "본인 사주: 회원은 profiles, 점사(프리페치) 시작 후에는 fortune_requests.payload.client_body.user_info 우선.",
-    "궁합 상대: 점사 시작 후 client_body.partner_info에 저장된 경우에만 표시(결제 직후·미진행 주문은 —).",
-    "결제수단: 카드결제 · 휴대폰결제 · 크레딧결제(payments.method).",
-  ];
-
-  return { period, count, totalKrw, rows, dataNotes };
+  return { period, count, totalKrw, rows };
 }

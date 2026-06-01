@@ -1,10 +1,14 @@
 ﻿"use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AdminInquiryQueueModal } from "@/components/admin/AdminPendingInquiriesPanel";
+import { AdminMemberFileModal } from "@/components/admin/AdminMemberFileModal";
 import { AdminPaymentUsersPanel } from "@/components/admin/AdminPaymentUsersPanel";
+import type { AdminMemberFileTab } from "@/components/admin/AdminMemberFilePanel";
 import type { AdminDashboardData, AdminDashboardPeriod } from "@/lib/admin-dashboard-data";
 
 const PERIODS: { id: AdminDashboardPeriod; label: string }[] = [
+  { id: "today", label: "오늘" },
   { id: "yesterday", label: "어제" },
   { id: "7d", label: "7일" },
   { id: "30d", label: "30일" },
@@ -30,9 +34,31 @@ function deltaLabel(current: number, prev: number, compare = "전일") {
 }
 
 function periodSub(p: AdminDashboardPeriod) {
+  if (p === "today") return "오늘 기준";
   if (p === "yesterday") return "어제 기준";
   if (p === "7d") return "최근 7일";
   return "최근 30일";
+}
+
+function periodRankLabel(p: AdminDashboardPeriod) {
+  if (p === "today") return "오늘";
+  if (p === "yesterday") return "어제";
+  if (p === "7d") return "7일";
+  return "30일";
+}
+
+function periodRevenueLabel(p: AdminDashboardPeriod) {
+  if (p === "today") return "오늘 결제 매출";
+  if (p === "yesterday") return "어제 결제 매출";
+  if (p === "7d") return "7일 결제 매출";
+  return "30일 결제 매출";
+}
+
+function periodRevenueCompare(p: AdminDashboardPeriod) {
+  if (p === "today") return "전일(어제)";
+  if (p === "yesterday") return "전일";
+  if (p === "7d") return "직전 7일";
+  return "직전 30일";
 }
 
 /** KPI 카드 안에서 금액 숫자가 라운드 박스를 넘지 않도록 폰트 크기 자동 조절 */
@@ -225,18 +251,37 @@ function SocialDonut({ social }: { social: AdminDashboardData["socialLogin"] }) 
 }
 
 export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
-  const [period, setPeriod] = useState<AdminDashboardPeriod>("yesterday");
+  const [period, setPeriod] = useState<AdminDashboardPeriod>("today");
+  const [inquiryModalOpen, setInquiryModalOpen] = useState(false);
+  const [csUserId, setCsUserId] = useState<string | null>(null);
+  const [csInitialTab, setCsInitialTab] = useState<AdminMemberFileTab>("inquiries");
   const slice = data.slices[period];
   const ops = data.opsKpis;
-  const revDelta = deltaLabel(ops.yesterdayRevenueKrw, ops.yesterdayRevenuePrevKrw, "전일");
+  const periodRevDelta = deltaLabel(slice.revenueKrw, slice.revenuePrevKrw, periodRevenueCompare(period));
   const weekDelta = deltaLabel(ops.weekRevenueKrw, ops.weekRevenuePrevKrw, "직전 7일");
   const dauDelta = deltaLabel(ops.yesterdayDau, ops.yesterdayDauPrev, "전일");
   const signupDelta = deltaLabel(ops.yesterdaySignups, ops.yesterdaySignupsPrev, "전일");
   const dateLabel = data.aggregationLabel;
   const chartTitle =
-    period === "30d" ? "30일 결제 매출" : period === "7d" ? "7일 결제 매출" : "7일 결제 매출 (어제 포함)";
+    period === "30d"
+      ? "30일 결제 매출"
+      : period === "7d"
+        ? "7일 결제 매출"
+        : period === "today"
+          ? "7일 결제 매출 (오늘 포함)"
+          : "7일 결제 매출 (어제 포함)";
   const starMax = Math.max(...data.reviews.starCounts, 1);
   const starsDisplay = "★".repeat(Math.round(data.reviews.avg)) + "☆".repeat(5 - Math.round(data.reviews.avg));
+
+  const openMemberCs = useCallback((userId: string) => {
+    setCsUserId(userId);
+    setCsInitialTab("inquiries");
+    setInquiryModalOpen(false);
+  }, []);
+
+  const openInquiryFromAlert = useCallback(() => {
+    setInquiryModalOpen(true);
+  }, []);
 
   const funnelSteps = [
     { label: "소셜 계정 누적", val: slice.funnel.membersTotal, width: 100, cvr: null as string | null },
@@ -311,9 +356,9 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
           </div>
         ))}
         <div className="y-admin-v2-kc">
-          <div className="y-admin-v2-kc-label">어제 결제 매출</div>
-          <KpiMoneyValue krw={ops.yesterdayRevenueKrw} />
-          <span className={"y-admin-v2-kc-delta " + revDelta.cls}>{revDelta.text}</span>
+          <div className="y-admin-v2-kc-label">{periodRevenueLabel(period)}</div>
+          <KpiMoneyValue krw={slice.revenueKrw} />
+          <span className={"y-admin-v2-kc-delta " + periodRevDelta.cls}>{periodRevDelta.text}</span>
         </div>
         <div className="y-admin-v2-kc">
           <div className="y-admin-v2-kc-label">최근 7일 결제 매출</div>
@@ -419,7 +464,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
         <div className="y-admin-v2-card">
           <div className="y-admin-v2-card-title">결제 상품 순위</div>
           <div className="y-admin-v2-card-sub">
-            paid 주문 · {period === "yesterday" ? "어제" : period === "7d" ? "7일" : "30일"} Top 5
+            paid 주문 · {periodRankLabel(period)} Top 5
           </div>
           <div className="y-admin-v2-rank-rows">
             {slice.productRank.length === 0 ? (
@@ -499,18 +544,46 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
       <div className="y-admin-v2-sl">운영 알림</div>
       <div className="y-admin-v2-card">
         <div className="y-admin-v2-alerts">
-          {data.alerts.map((a, i) => (
-            <div key={i} className={"y-admin-v2-al " + a.tone}>
-              <span className="y-admin-v2-al-dot" />
-              <div className="y-admin-v2-al-body">
-                <div className="y-admin-v2-al-title">{a.title}</div>
-                <div className="y-admin-v2-al-desc">{a.desc}</div>
-                <div className="y-admin-v2-al-time">{a.time}</div>
+          {data.alerts.map((a, i) =>
+            a.kind === "inquiry" ? (
+              <button
+                key={i}
+                type="button"
+                className={"y-admin-v2-al y-admin-v2-al--clickable " + a.tone}
+                onClick={openInquiryFromAlert}
+              >
+                <span className="y-admin-v2-al-dot" />
+                <div className="y-admin-v2-al-body">
+                  <div className="y-admin-v2-al-title">{a.title}</div>
+                  <div className="y-admin-v2-al-desc">{a.desc}</div>
+                  <div className="y-admin-v2-al-time">{a.time} · 클릭하여 처리</div>
+                </div>
+              </button>
+            ) : (
+              <div key={i} className={"y-admin-v2-al " + a.tone}>
+                <span className="y-admin-v2-al-dot" />
+                <div className="y-admin-v2-al-body">
+                  <div className="y-admin-v2-al-title">{a.title}</div>
+                  <div className="y-admin-v2-al-desc">{a.desc}</div>
+                  <div className="y-admin-v2-al-time">{a.time}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            ),
+          )}
         </div>
       </div>
+
+      <AdminInquiryQueueModal
+        open={inquiryModalOpen}
+        onClose={() => setInquiryModalOpen(false)}
+        onOpenMember={openMemberCs}
+      />
+      <AdminMemberFileModal
+        userId={csUserId}
+        initialTab={csInitialTab}
+        onClose={() => setCsUserId(null)}
+        enableCreditAdjust
+      />
     </div>
   );
 }

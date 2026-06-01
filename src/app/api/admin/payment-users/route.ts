@@ -9,8 +9,8 @@ import {
 export const dynamic = "force-dynamic";
 
 function parsePeriod(raw: string | null): AdminPaymentUsersPeriod {
-  if (raw === "week" || raw === "month") return raw;
-  return "day";
+  if (raw === "yesterday" || raw === "7d" || raw === "30d") return raw;
+  return "today";
 }
 
 export async function GET(request: Request) {

@@ -466,6 +466,18 @@ function csEmailFromSocial(s: {
   return null;
 }
 
+/** PostgREST ilike 와일드카드 이스케이프 */
+function escapeIlikePattern(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+function isEmailLocalPartQuery(raw: string): boolean {
+  const q = raw.trim();
+  if (!q || q.includes("@")) return false;
+  if (q.length < 2) return false;
+  return /^[\w.\-+]+$/.test(q);
+}
+
 function hitFromSocialRow(s: AdminSocialSearchRow, displayName?: string): AdminMemberSearchHit {
   const email = csEmailFromSocial(s);
   return {
@@ -524,6 +536,17 @@ export async function searchMembersForAdmin(query: string): Promise<AdminMemberS
         social_name: null,
       });
     }
+  }
+
+  if (isEmailLocalPartQuery(q)) {
+    const localEsc = escapeIlikePattern(q);
+    const { data: byLocalEmail } = await sb
+      .from("yeonun_social_users")
+      .select(SOCIAL_SEARCH_SELECT)
+      .ilike("email", `%${localEsc}%@%`)
+      .is("deleted_at", null)
+      .limit(20);
+    await addFromSocialRows((byLocalEmail ?? []) as AdminSocialSearchRow[]);
   }
 
   if (q.includes("@")) {

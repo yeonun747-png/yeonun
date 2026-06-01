@@ -4,12 +4,13 @@ import { useState } from "react";
 
 import type {
   AdminMemberFile,
+  AdminMemberFileInquiryRow,
   AdminMemberFilePaymentRow,
   AdminMemberFileReviewRow,
   AdminMemberFileUsageRow,
 } from "@/lib/admin-cs-member";
 
-export type AdminMemberFileTab = "info" | "usage" | "payments" | "reviews";
+export type AdminMemberFileTab = "info" | "usage" | "payments" | "reviews" | "inquiries";
 
 export type AdminMemberFileAdjustProps = {
   busy: boolean;
@@ -166,6 +167,69 @@ function PaymentLogTable({ rows }: { rows: AdminMemberFilePaymentRow[] }) {
   );
 }
 
+function InquiriesTable({
+  rows,
+  resolveBusyId,
+  onResolve,
+}: {
+  rows: AdminMemberFileInquiryRow[];
+  resolveBusyId?: string | null;
+  onResolve?: (id: string) => void;
+}) {
+  if (rows.length === 0) {
+    return <p className="y-admin-member-credits-empty">접수된 문의가 없습니다.</p>;
+  }
+  return (
+    <div className="y-admin-member-credits-table-wrap">
+      <table className="y-admin-cs-file-data y-admin-member-credits-table">
+        <thead>
+          <tr>
+            <th>이름</th>
+            <th>이메일</th>
+            <th>전화번호</th>
+            <th>상태</th>
+            <th>문의 내용</th>
+            <th>접수일</th>
+            {onResolve ? <th>처리</th> : null}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>{row.name}</td>
+              <td>{row.email}</td>
+              <td className="y-admin-cs-mono">{row.phone || "—"}</td>
+              <td>
+                <span className={`y-admin-cs-inquiry-status ${row.status === "pending" ? "pending" : "done"}`}>
+                  {row.status === "pending" ? "미처리" : "처리완료"}
+                </span>
+              </td>
+              <td className="y-admin-cs-inquiry-body">{row.body}</td>
+              <td className="y-admin-member-credits-cell-time">{fmtDt(row.created_at)}</td>
+              {onResolve ? (
+                <td>
+                  {row.status === "pending" ? (
+                    <button
+                      type="button"
+                      className="y-admin-cs-inquiry-resolve-btn"
+                      disabled={resolveBusyId === row.id}
+                      onClick={() => onResolve(row.id)}
+                    >
+                      {resolveBusyId === row.id ? "처리 중…" : "처리완료"}
+                    </button>
+                  ) : (
+                    <span className="y-admin-cs-muted">{fmtDt(row.resolved_at)}</span>
+                  )}
+                </td>
+              ) : null}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function ReviewsTable({ rows }: { rows: AdminMemberFileReviewRow[] }) {
   if (rows.length === 0) {
     return <p className="y-admin-member-credits-empty">작성한 후기가 없습니다.</p>;
@@ -204,17 +268,24 @@ function ReviewsTable({ rows }: { rows: AdminMemberFileReviewRow[] }) {
   );
 }
 
+export type AdminMemberFileInquiryResolveProps = {
+  busyId: string | null;
+  onResolve: (id: string) => void;
+};
+
 export function AdminMemberFilePanel({
   file,
   initialTab = "info",
   adjust,
+  inquiryResolve,
 }: {
   file: AdminMemberFile;
   initialTab?: AdminMemberFileTab;
   adjust?: AdminMemberFileAdjustProps;
+  inquiryResolve?: AdminMemberFileInquiryResolveProps;
 }) {
   const [tab, setTab] = useState<AdminMemberFileTab>(initialTab);
-  const { member, wallet, profiles, payment_totals_by_year, payments, usage_log, reviews, activity } = file;
+  const { member, wallet, profiles, payment_totals_by_year, payments, usage_log, reviews, inquiries, activity } = file;
   const email = member.email ?? "—";
 
   return (
@@ -231,6 +302,7 @@ export function AdminMemberFilePanel({
             ["usage", "이용로그"],
             ["payments", "결제로그"],
             ["reviews", "후기보기"],
+            ["inquiries", "문의내용보기"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -410,6 +482,19 @@ export function AdminMemberFilePanel({
             {email}님의 후기 · 총 {reviews.length}건
           </p>
           <ReviewsTable rows={reviews} />
+        </div>
+      ) : null}
+
+      {tab === "inquiries" ? (
+        <div className="y-admin-cs-file-panel y-admin-cs-file-panel--full">
+          <p className="y-admin-cs-file-subhead">
+            {email}님의 문의 · 총 {inquiries.length}건
+          </p>
+          <InquiriesTable
+            rows={inquiries}
+            resolveBusyId={inquiryResolve?.busyId}
+            onResolve={inquiryResolve?.onResolve}
+          />
         </div>
       ) : null}
     </div>

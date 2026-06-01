@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 
 import { AdminMemberFilePanel } from "@/components/admin/AdminMemberFilePanel";
+import { useAdminInquiryResolve } from "@/hooks/useAdminInquiryResolve";
 import type { AdminMemberFile } from "@/lib/admin-cs-member";
 
 type MemberHit = {
@@ -128,6 +129,20 @@ export function AdminMemberCreditsClient() {
     }
   }, [adjustKind, deltaFree, deltaPaid, loadFile, memo, refId, selected]);
 
+  const { busyId: resolvingInquiryId, resolve: resolveInquiryRaw } = useAdminInquiryResolve(async () => {
+    if (!selected) return;
+    setMessageTone("ok");
+    setMessage("문의를 처리완료했습니다.");
+    await loadFile(selected.user_id);
+  });
+
+  const resolveInquiry = useCallback(
+    (inquiryId: string) => {
+      void resolveInquiryRaw(inquiryId);
+    },
+    [resolveInquiryRaw],
+  );
+
   return (
     <div className="y-admin-member-credits">
       <p className="y-admin-member-credits-lead">
@@ -144,7 +159,7 @@ export function AdminMemberCreditsClient() {
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="CS이메일(kakao.*@oauth), 카카오ID, 닉네임, UUID, YN주문"
+            placeholder="CS이메일·@앞 id(macju), 카카오ID, 닉네임, UUID, YN주문"
             onKeyDown={(e) => {
               if (e.key === "Enter") void search();
             }}
@@ -212,6 +227,10 @@ export function AdminMemberCreditsClient() {
             onMemo: setMemo,
             onRefId: setRefId,
             onAdjust: () => void applyAdjust(),
+          }}
+          inquiryResolve={{
+            busyId: resolvingInquiryId,
+            onResolve: resolveInquiry,
           }}
         />
       ) : searched && members.length > 0 && selected && !file && busy ? (

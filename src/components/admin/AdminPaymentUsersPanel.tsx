@@ -6,9 +6,10 @@ import { AdminMemberFileModal } from "@/components/admin/AdminMemberFileModal";
 import type { AdminPaymentUserRow, AdminPaymentUsersPeriod } from "@/lib/admin-payment-users";
 
 const PERIODS: { id: AdminPaymentUsersPeriod; label: string }[] = [
-  { id: "day", label: "오늘" },
-  { id: "week", label: "이번주" },
-  { id: "month", label: "이번달" },
+  { id: "today", label: "오늘" },
+  { id: "yesterday", label: "어제" },
+  { id: "7d", label: "7일" },
+  { id: "30d", label: "30일" },
 ];
 
 function fmtKrw(n: number) {
@@ -55,11 +56,10 @@ function SajuCell({ row }: { row: AdminPaymentUserRow }) {
 }
 
 export function AdminPaymentUsersPanel() {
-  const [period, setPeriod] = useState<AdminPaymentUsersPeriod>("day");
+  const [period, setPeriod] = useState<AdminPaymentUsersPeriod>("today");
   const [count, setCount] = useState(0);
   const [totalKrw, setTotalKrw] = useState(0);
   const [rows, setRows] = useState<AdminPaymentUserRow[]>([]);
-  const [dataNotes, setDataNotes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [csUserId, setCsUserId] = useState<string | null>(null);
@@ -77,7 +77,6 @@ export function AdminPaymentUsersPanel() {
         count?: number;
         totalKrw?: number;
         rows?: AdminPaymentUserRow[];
-        dataNotes?: string[];
       };
       if (!res.ok || !j.ok) {
         throw new Error(j.error || "목록을 불러오지 못했습니다.");
@@ -85,7 +84,6 @@ export function AdminPaymentUsersPanel() {
       setCount(Number(j.count) || 0);
       setTotalKrw(Number(j.totalKrw) || 0);
       setRows(Array.isArray(j.rows) ? j.rows : []);
-      setDataNotes(Array.isArray(j.dataNotes) ? j.dataNotes : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "목록을 불러오지 못했습니다.");
       setRows([]);
@@ -144,6 +142,17 @@ export function AdminPaymentUsersPanel() {
 
       <div className="y-admin-v2-pay-table-wrap">
         <table className="y-admin-v2-pay-table">
+          <colgroup>
+            <col className="y-admin-v2-pay-col-no" />
+            <col className="y-admin-v2-pay-col-dt" />
+            <col className="y-admin-v2-pay-col-user" />
+            <col className="y-admin-v2-pay-col-saju" />
+            <col className="y-admin-v2-pay-col-char" />
+            <col className="y-admin-v2-pay-col-prod" />
+            <col className="y-admin-v2-pay-col-amt" />
+            <col className="y-admin-v2-pay-col-method" />
+            <col className="y-admin-v2-pay-col-status" />
+          </colgroup>
           <thead>
             <tr>
               <th>#</th>
@@ -232,14 +241,6 @@ export function AdminPaymentUsersPanel() {
           </tbody>
         </table>
       </div>
-
-      {dataNotes.length > 0 ? (
-        <ul className="y-admin-v2-pay-notes">
-          {dataNotes.map((note) => (
-            <li key={note}>{note}</li>
-          ))}
-        </ul>
-      ) : null}
 
       <AdminMemberFileModal userId={csUserId} onClose={() => setCsUserId(null)} enableCreditAdjust />
     </div>

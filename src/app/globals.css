@@ -438,6 +438,20 @@ body:has(.y-admin-shell--v2) {
 .y-admin-v2-al.red .y-admin-v2-al-dot {
   background: #b83232;
 }
+.y-admin-v2-al--clickable {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: filter 0.12s;
+}
+.y-admin-v2-al--clickable:hover {
+  filter: brightness(0.98);
+}
+.y-admin-v2-al--clickable:focus-visible {
+  outline: 2px solid #c94b6a;
+  outline-offset: 2px;
+}
 .y-admin-v2-period {
   display: flex;
   gap: 2px;
@@ -511,9 +525,9 @@ body:has(.y-admin-shell--v2) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   flex-wrap: wrap;
-  padding: 16px 20px;
+  padding: 16px 18px;
   border-bottom: 1px solid #e6e0d8;
 }
 .y-admin-v2-pay-head-left {
@@ -548,13 +562,13 @@ body:has(.y-admin-shell--v2) {
 .y-admin-v2-pay-head-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 .y-admin-v2-pay-summary {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 .y-admin-v2-pay-sum-item {
   text-align: right;
@@ -588,7 +602,7 @@ body:has(.y-admin-shell--v2) {
   padding: 2px;
 }
 .y-admin-v2-pay-toggle button {
-  padding: 4px 14px;
+  padding: 4px 11px;
   border-radius: 5px;
   border: none;
   font-size: 11px;
@@ -604,35 +618,65 @@ body:has(.y-admin-shell--v2) {
   color: #fafaf7;
 }
 .y-admin-v2-pay-table-wrap {
-  overflow-x: auto;
+  overflow-x: visible;
 }
 .y-admin-v2-pay-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 960px;
+  table-layout: fixed;
+}
+.y-admin-v2-pay-col-no {
+  width: 2.5%;
+}
+.y-admin-v2-pay-col-dt {
+  width: 8.5%;
+}
+.y-admin-v2-pay-col-user {
+  width: 11%;
+}
+.y-admin-v2-pay-col-saju {
+  width: 17.5%;
+}
+.y-admin-v2-pay-col-char {
+  width: 6.5%;
+}
+.y-admin-v2-pay-col-prod {
+  width: 20.5%;
+}
+.y-admin-v2-pay-col-amt {
+  width: 7.5%;
+}
+.y-admin-v2-pay-col-method {
+  width: 6.5%;
+}
+.y-admin-v2-pay-col-status {
+  width: 6.5%;
 }
 .y-admin-v2-pay-table thead tr {
   background: #f0ebe3;
 }
 .y-admin-v2-pay-table th {
-  padding: 9px 14px;
+  padding: 8px 6px;
   text-align: left;
   font-size: 9.5px;
   font-weight: 700;
   color: #ada49a;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   border-bottom: 1px solid #e6e0d8;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .y-admin-v2-pay-table th.r {
   text-align: right;
 }
 .y-admin-v2-pay-table td {
-  padding: 11px 14px;
+  padding: 9px 6px;
   font-size: 12px;
   color: #1a1815;
   border-bottom: 1px solid #e6e0d8;
   vertical-align: middle;
+  overflow: hidden;
 }
 .y-admin-v2-pay-table tbody tr:last-child td {
   border-bottom: none;
@@ -695,6 +739,9 @@ body:has(.y-admin-shell--v2) {
 .y-admin-v2-pay-email {
   font-size: 10.5px;
   color: #ada49a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .y-admin-v2-pay-saju-cell {
   display: flex;
@@ -727,6 +774,8 @@ body:has(.y-admin-shell--v2) {
   color: #1a1815;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .y-admin-v2-pay-muted {
   font-size: 11px;
@@ -752,17 +801,25 @@ body:has(.y-admin-shell--v2) {
 .y-admin-v2-pay-char-name {
   font-size: 11.5px;
   color: #7a7169;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .y-admin-v2-pay-prod-cell {
   font-size: 12px;
   color: #1a1815;
   font-weight: 500;
-  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .y-admin-v2-pay-prod-cat {
   font-size: 10px;
   color: #ada49a;
   margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .y-admin-v2-pay-amt {
   font-size: 13px;
@@ -777,10 +834,11 @@ body:has(.y-admin-shell--v2) {
   background: #f0ebe3;
   border: 1px solid #e6e0d8;
   border-radius: 5px;
-  padding: 2px 7px;
+  padding: 2px 6px;
   font-size: 10px;
   color: #7a7169;
   font-weight: 600;
+  white-space: nowrap;
 }
 .y-admin-v2-pay-status {
   display: inline-flex;
@@ -788,8 +846,9 @@ body:has(.y-admin-shell--v2) {
   gap: 4px;
   font-size: 10.5px;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 3px 7px;
   border-radius: 5px;
+  white-space: nowrap;
 }
 .y-admin-v2-pay-status.ok {
   background: #f0faf4;
@@ -2569,6 +2628,287 @@ textarea.y-admin-review-body {
   line-height: 1.45;
   color: #7a7169;
   white-space: pre-wrap;
+}
+.y-admin-cs-inquiry-body {
+  max-width: 320px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #7a7169;
+  white-space: pre-wrap;
+}
+.y-admin-cs-inquiry-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: #f5f0ea;
+  color: #7a7169;
+}
+.y-admin-cs-inquiry-status.pending {
+  background: #fff4e6;
+  color: #b45309;
+}
+.y-admin-cs-inquiry-resolve-btn {
+  appearance: none;
+  border: 1px solid #e6e0d8;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #1a1815;
+  background: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.y-admin-cs-inquiry-resolve-btn:hover:not(:disabled) {
+  background: #f0faf4;
+  border-color: #2d6a4f;
+  color: #2d6a4f;
+}
+.y-admin-cs-inquiry-resolve-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.y-admin-inq-panel--highlight {
+  animation: yAdminInqHighlight 1.4s ease;
+}
+@keyframes yAdminInqHighlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(201, 75, 106, 0.35);
+  }
+  40% {
+    box-shadow: 0 0 0 4px rgba(201, 75, 106, 0.22);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+.y-admin-inq-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.y-admin-inq-refresh-btn {
+  flex-shrink: 0;
+  border: 1px solid #e6e0d8;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fff;
+  cursor: pointer;
+}
+.y-admin-inq-refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.y-admin-inq-resolved-title {
+  margin: 18px 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #7a7169;
+}
+.y-admin-inq-empty {
+  margin: 0;
+  padding: 20px 0;
+  text-align: center;
+  font-size: 12px;
+  color: #ada49a;
+}
+.y-admin-inq-error {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fdf4f4;
+  color: #b83232;
+  font-size: 12px;
+}
+.y-admin-inq-table-wrap {
+  overflow-x: auto;
+}
+.y-admin-inq-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.y-admin-inq-table th {
+  padding: 8px 6px;
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #ada49a;
+  border-bottom: 1px solid #e6e0d8;
+  white-space: nowrap;
+}
+.y-admin-inq-table td {
+  padding: 9px 6px;
+  border-bottom: 1px solid #e6e0d8;
+  vertical-align: top;
+  color: #1a1815;
+}
+.y-admin-inq-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.y-admin-inq-mono {
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+}
+.y-admin-inq-body {
+  max-width: 280px;
+  line-height: 1.45;
+  color: #7a7169;
+  white-space: pre-wrap;
+}
+.y-admin-inq-time {
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: #7a7169;
+}
+.y-admin-inq-link {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: #c94b6a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.y-admin-inq-guest {
+  font-size: 10.5px;
+  color: #ada49a;
+}
+.y-admin-inq-ghost-btn {
+  border: 1px solid #e6e0d8;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  background: #fff;
+  cursor: pointer;
+}
+.y-admin-inq-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.y-admin-inq-modal--detail {
+  z-index: 250;
+}
+.y-admin-inq-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(26, 24, 21, 0.45);
+  cursor: pointer;
+}
+.y-admin-inq-modal-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  max-height: min(88vh, 720px);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(26, 24, 21, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+.y-admin-inq-modal-dialog--wide {
+  width: min(100%, 960px);
+}
+.y-admin-inq-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e6e0d8;
+}
+.y-admin-inq-modal-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.y-admin-inq-modal-close {
+  border: none;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  color: #7a7169;
+  cursor: pointer;
+}
+.y-admin-inq-modal-body {
+  padding: 16px 18px;
+}
+.y-admin-inq-modal-body--scroll {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.y-admin-inq-modal-foot {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 12px 18px 16px;
+  border-top: 1px solid #e6e0d8;
+}
+.y-admin-inq-modal-primary {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #2d6a4f;
+  color: #fff;
+  cursor: pointer;
+}
+.y-admin-inq-modal-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.y-admin-inq-modal-ghost {
+  border: 1px solid #e6e0d8;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+.y-admin-inq-detail-kv {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin: 0;
+}
+.y-admin-inq-detail-kv .full {
+  grid-column: 1 / -1;
+}
+.y-admin-inq-detail-kv dt {
+  font-size: 10px;
+  font-weight: 700;
+  color: #ada49a;
+  margin-bottom: 4px;
+}
+.y-admin-inq-detail-kv dd {
+  margin: 0;
+  font-size: 12.5px;
+  color: #1a1815;
+}
+.y-admin-inq-detail-body {
+  white-space: pre-wrap;
+  line-height: 1.55;
+  color: #7a7169;
+}
+.y-admin-cs-muted {
+  font-size: 10.5px;
+  color: #ada49a;
+  white-space: nowrap;
 }
 
 .y-admin-cs-file-note {
@@ -9483,6 +9823,213 @@ button.y-my-menu-item {
   margin-top: 10px;
   font-size: 10px;
   color: var(--y-mute-2);
+}
+.y-my-withdraw-foot {
+  margin: 10px 20px 0;
+  padding: 0 4px 4px;
+  text-align: center;
+}
+.y-my-withdraw-foot-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--y-mute);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+}
+.y-my-withdraw-foot-btn:hover,
+.y-my-withdraw-foot-btn:focus-visible {
+  color: var(--y-rose-deep);
+}
+.y-my-withdraw-foot-desc {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--y-mute-2);
+}
+
+/* 마이 — 회원 탈퇴 확인 팝업 */
+.y-my-withdraw-modal.y-modal {
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+}
+.y-my-withdraw-modal-card {
+  width: min(100%, 360px);
+  background: #fff;
+  border-radius: 16px;
+  padding: 22px 20px 18px;
+  box-shadow: 0 16px 48px rgba(26, 24, 21, 0.18);
+}
+.y-my-withdraw-modal-title {
+  margin: 0 0 10px;
+  font-family: "Noto Serif KR", serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--y-ink);
+  letter-spacing: -0.02em;
+}
+.y-my-withdraw-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.y-my-withdraw-modal-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--y-mute);
+}
+.y-my-withdraw-modal-desc strong {
+  color: var(--y-rose-deep);
+  font-weight: 700;
+}
+.y-my-withdraw-modal-actions {
+  display: flex;
+  gap: 8px;
+}
+.y-my-withdraw-modal-btn {
+  flex: 1;
+  min-height: 46px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+.y-my-withdraw-modal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.y-my-withdraw-modal-btn--ghost {
+  border: 1px solid var(--y-line);
+  background: #fff;
+  color: var(--y-ink);
+}
+.y-my-withdraw-modal-btn--danger {
+  border: none;
+  background: #c0392b;
+  color: #fff;
+}
+.y-my-withdraw-modal-btn--danger:focus-visible {
+  outline: 2px solid #922b21;
+  outline-offset: 2px;
+}
+
+/* 마이 — 문의하기 입력 시트 */
+.y-my-inquiry-modal.y-modal {
+  z-index: 220;
+}
+.y-my-inquiry-sheet.y-modal-sheet {
+  max-height: min(92vh, 640px);
+}
+.y-my-inquiry-modal .y-modal-head .y-modal-title {
+  flex: 1;
+  text-align: center;
+}
+.y-my-inquiry-head-spacer {
+  width: 32px;
+  flex-shrink: 0;
+  margin-left: -6px;
+}
+.y-my-inquiry-scroll.y-modal-scroll {
+  margin-right: 0;
+  padding: 0 20px 28px;
+}
+.y-my-inquiry-top-gap {
+  height: 1.55em;
+}
+.y-my-inquiry-lead {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--y-mute);
+}
+.y-my-inquiry-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.y-my-inquiry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.y-my-inquiry-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--y-ink);
+  letter-spacing: -0.02em;
+}
+.y-my-inquiry-label em {
+  font-style: normal;
+  color: var(--y-rose-deep);
+}
+.y-my-inquiry-field input,
+.y-my-inquiry-field textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-left: 0;
+  margin-right: 0;
+  border: 1px solid var(--y-line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--y-ink);
+  background: #fff;
+  resize: vertical;
+}
+.y-my-inquiry-field input:focus-visible,
+.y-my-inquiry-field textarea:focus-visible {
+  outline: 2px solid rgba(201, 75, 106, 0.35);
+  outline-offset: 0;
+  border-color: var(--y-rose);
+}
+.y-my-inquiry-field input:disabled,
+.y-my-inquiry-field textarea:disabled {
+  opacity: 0.65;
+}
+.y-my-inquiry-error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #c0392b;
+}
+.y-my-inquiry-submit {
+  margin-top: 4px;
+  margin-left: 0;
+  margin-right: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: var(--y-rose);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+.y-my-inquiry-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ===== Auth / Call / Payment 기본 스타일 (목업에서 필요한 부분 이식) ===== */

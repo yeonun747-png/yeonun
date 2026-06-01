@@ -16,6 +16,7 @@ import { MyCreditBalanceLine } from "@/components/my/MyCreditBalanceLine";
 import { CallHistoryClient } from "@/components/history/CallHistoryClient";
 import { LibraryListScreenClient } from "@/components/library/LibraryListScreenClient";
 import { MyCreditOverviewSection } from "@/components/my/MyCreditOverviewSection";
+import { MyInquiryMenuItemClient } from "@/components/my/MyInquiryMenuItemClient";
 import { MyLogoutMenuItemClient } from "@/components/my/MyLogoutMenuItemClient";
 import { MyMemberProfileHeader } from "@/components/my/MyMemberProfileHeader";
 import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
@@ -200,6 +201,7 @@ export function MyPageBody() {
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>
+              <MyInquiryMenuItemClient />
               <MyPwaInstallMenuItem />
             </div>
 
@@ -340,7 +342,6 @@ export function MyPageBody() {
               </MySheetLink>
 
               <MyLogoutMenuItemClient />
-              <MyWithdrawAccountMenuItemClient />
             </div>
 
             <div className="y-my-foot" aria-label="약관">
@@ -353,6 +354,8 @@ export function MyPageBody() {
               </Link>
               <div className="y-my-version">연운 v1.0.0 (2026.04.26)</div>
             </div>
+
+            <MyWithdrawAccountMenuItemClient placement="foot" />
           </>
         )}
 

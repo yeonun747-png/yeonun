@@ -5,6 +5,7 @@ import {
   type CreditLedgerRow,
   type CreditWalletRow,
 } from "@/lib/credit-server";
+import { listInquiriesForMember, type AdminMemberFileInquiryRow } from "@/lib/user-inquiries-server";
 import { supabaseServer } from "@/lib/supabase/server";
 
 const BRANCH_LABEL: Record<string, string> = {
@@ -134,6 +135,8 @@ export type AdminMemberFileReviewRow = {
   created_at: string;
 };
 
+export type { AdminMemberFileInquiryRow };
+
 export type AdminMemberFile = {
   member: AdminMemberFileMember;
   profiles: AdminMemberFileProfile[];
@@ -142,6 +145,7 @@ export type AdminMemberFile = {
   payments: AdminMemberFilePaymentRow[];
   usage_log: AdminMemberFileUsageRow[];
   reviews: AdminMemberFileReviewRow[];
+  inquiries: AdminMemberFileInquiryRow[];
   activity: AdminMemberFileActivity;
 };
 
@@ -443,6 +447,8 @@ export async function getAdminMemberFile(userId: string): Promise<AdminMemberFil
     created_at: String(r.created_at ?? ""),
   }));
 
+  const inquiries = await listInquiriesForMember(userId, member.email);
+
   return {
     member,
     profiles,
@@ -460,6 +466,7 @@ export async function getAdminMemberFile(userId: string): Promise<AdminMemberFil
     payments,
     usage_log,
     reviews,
+    inquiries,
     activity: {
       fortune_requests: fortuneCount.count ?? 0,
       voice_sessions: voiceCount.count ?? 0,

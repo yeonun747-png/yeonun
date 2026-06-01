@@ -8,6 +8,7 @@ import {
   type AdminMemberFileAdjustProps,
   type AdminMemberFileTab,
 } from "@/components/admin/AdminMemberFilePanel";
+import { useAdminInquiryResolve } from "@/hooks/useAdminInquiryResolve";
 import type { AdminMemberFile } from "@/lib/admin-cs-member";
 
 export function AdminMemberFileModal({
@@ -33,6 +34,20 @@ export function AdminMemberFileModal({
   const [refId, setRefId] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "ok" | "err">("info");
+
+  const { busyId: resolvingInquiryId, resolve: resolveInquiryRaw } = useAdminInquiryResolve(async () => {
+    if (!userId) return;
+    setMessageTone("ok");
+    setMessage("문의를 처리완료했습니다.");
+    await loadFile(userId);
+  });
+
+  const resolveInquiry = useCallback(
+    (inquiryId: string) => {
+      void resolveInquiryRaw(inquiryId);
+    },
+    [resolveInquiryRaw],
+  );
 
   const loadFile = useCallback(async (uid: string) => {
     const res = await fetch(`/api/admin/credits/file?user_id=${encodeURIComponent(uid)}`, {
@@ -174,7 +189,15 @@ export function AdminMemberFileModal({
               {error}
             </p>
           ) : file ? (
-            <AdminMemberFilePanel file={file} initialTab={initialTab} adjust={adjust} />
+            <AdminMemberFilePanel
+              file={file}
+              initialTab={initialTab}
+              adjust={adjust}
+              inquiryResolve={{
+                busyId: resolvingInquiryId,
+                onResolve: resolveInquiry,
+              }}
+            />
           ) : null}
         </div>
       </div>

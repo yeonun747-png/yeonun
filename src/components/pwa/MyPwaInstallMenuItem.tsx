@@ -1,5 +1,6 @@
 "use client";
 
+import { MyInquiryMenuItemClient } from "@/components/my/MyInquiryMenuItemClient";
 import { usePWAInstall } from "@/lib/pwa/usePWAInstall";
 
 function PwaInstallMenuButton({ onClick }: { onClick: () => void }) {
@@ -26,16 +27,17 @@ export function MyPwaInstallMenuItem() {
   return <PwaInstallMenuButton onClick={() => void triggerInstall({ userInitiated: true })} />;
 }
 
-/** 회원 마이 — 설치 전에만 「이용 안내」 섹션 전체 표시 */
+/** 회원 마이 — 이용 안내 (PWA 설치 · 문의하기) */
 export function MyPwaInstallGuideSection() {
   const { isInstalled, triggerInstall } = usePWAInstall();
-
-  if (isInstalled) return null;
 
   return (
     <div className="y-my-menu-section">
       <div className="y-my-menu-section-title">이용 안내</div>
-      <PwaInstallMenuButton onClick={() => void triggerInstall({ userInitiated: true })} />
+      {!isInstalled ? (
+        <PwaInstallMenuButton onClick={() => void triggerInstall({ userInitiated: true })} />
+      ) : null}
+      <MyInquiryMenuItemClient />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { isFortuneMenuCatalogProductSlug } from "@/lib/credit-package-products";
 import { formatKstConsultHeaderKo, getKstParts, kstAddDays, kstStartOfDay } from "@/lib/datetime/kst";
 import { supabaseServer } from "@/lib/supabase/server";
+import { listPendingInquiries } from "@/lib/user-inquiries-server";
 
-export type AdminDashboardPeriod = "yesterday" | "7d" | "30d";
+export type AdminDashboardPeriod = "today" | "yesterday" | "7d" | "30d";
 
 export type AdminDashboardPeriodSlice = {
   revenueKrw: number;
@@ -59,7 +60,7 @@ export type AdminDashboardData = {
   opsKpis: AdminDashboardOpsKpis;
   socialLogin: { google: number; kakao: number; naver: number; total: number };
   reviews: { total: number; avg: number; starCounts: [number, number, number, number, number] };
-  alerts: { tone: "red" | "warn" | "ok"; title: string; desc: string; time: string }[];
+  alerts: { tone: "red" | "warn" | "ok"; title: string; desc: string; time: string; kind?: "inquiry" }[];
   slices: Record<AdminDashboardPeriod, AdminDashboardPeriodSlice>;
 };
 
@@ -236,16 +237,38 @@ function buildSlice(
   products: Map<string, ProductRow>,
 ): AdminDashboardPeriodSlice {
   let from: Date;
+  let to: Date;
   let prevFrom: Date;
   let prevTo: Date;
   let chartDays: number;
 
-  if (period === "yesterday") {
+  if (period === "today") {
+    from = today;
+    to = kstAddDays(today, 1);
+    prevFrom = kstAddDays(today, -1);
+    prevTo = today;
+    chartDays = 7;
+  } else if (period === "yesterday") {
     from = kstAddDays(today, -1);
-    const to = today;
+    to = today;
     prevFrom = kstAddDays(today, -2);
     prevTo = kstAddDays(today, -1);
     chartDays = 7;
+  } else if (period === "7d") {
+    from = kstAddDays(today, -6);
+    to = kstAddDays(today, 1);
+    prevFrom = kstAddDays(today, -13);
+    prevTo = kstAddDays(today, -6);
+    chartDays = 7;
+  } else {
+    from = kstAddDays(today, -29);
+    to = kstAddDays(today, 1);
+    prevFrom = kstAddDays(today, -59);
+    prevTo = kstAddDays(today, -29);
+    chartDays = 30;
+  }
+
+  if (period === "today" || period === "yesterday") {
     const periodOrders = orders.filter((o) => inRange(o.created_at, from, to));
     const prevOrders = orders.filter((o) => inRange(o.created_at, prevFrom, prevTo));
     const creditOrders = periodOrders.filter((o) => String(o.product_slug).startsWith("credit-package-"));
@@ -279,21 +302,6 @@ function buildSlice(
     };
   }
 
-  if (period === "7d") {
-    from = kstAddDays(today, -7);
-    const to = today;
-    prevFrom = kstAddDays(today, -14);
-    prevTo = kstAddDays(today, -7);
-    chartDays = 7;
-  } else {
-    from = kstAddDays(today, -30);
-    const to = today;
-    prevFrom = kstAddDays(today, -60);
-    prevTo = kstAddDays(today, -30);
-    chartDays = 30;
-  }
-
-  const to = today;
   const periodOrders = orders.filter((o) => inRange(o.created_at, from, to));
   const prevOrders = orders.filter((o) => inRange(o.created_at, prevFrom, prevTo));
   const creditOrders = periodOrders.filter((o) => String(o.product_slug).startsWith("credit-package-"));
@@ -393,11 +401,14 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
     user_mask?: string;
   }[];
 
+  const chatToday = (chatRes.data ?? []).filter((m: { created_at: string }) =>
+    inRange(m.created_at, today, kstAddDays(today, 1)),
+  ).length;
   const chatYesterday = (chatRes.data ?? []).filter((m: { created_at: string }) =>
     inRange(m.created_at, yesterday, today),
   ).length;
   const chat7d = (chatRes.data ?? []).filter((m: { created_at: string }) =>
-    inRange(m.created_at, kstAddDays(today, -7), today),
+    inRange(m.created_at, kstAddDays(today, -6), kstAddDays(today, 1)),
   ).length;
   const chat30d = (chatRes.data ?? []).length;
 
@@ -421,6 +432,7 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
   const chatSessions = chatSessionsRes.error ? [] : ((chatSessionsRes.data ?? []) as ChatSessionRow[]);
 
   const slices: Record<AdminDashboardPeriod, AdminDashboardPeriodSlice> = {
+    today: buildSlice("today", today, orders, socials, voices, fortunes, chatSessions, chatToday, products),
     yesterday: buildSlice("yesterday", today, orders, socials, voices, fortunes, chatSessions, chatYesterday, products),
     "7d": buildSlice("7d", today, orders, socials, voices, fortunes, chatSessions, chat7d, products),
     "30d": buildSlice("30d", today, orders, socials, voices, fortunes, chatSessions, chat30d, products),
@@ -458,7 +470,28 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
   });
   const failedFortune = llmFortuneErrYesterday;
 
+  const pendingInquiries = await listPendingInquiries(50);
+
   const alerts: AdminDashboardData["alerts"] = [];
+  if (pendingInquiries.length > 0) {
+    const sample = pendingInquiries
+      .slice(0, 2)
+      .map((q) => {
+        const preview = q.body.length > 36 ? `${q.body.slice(0, 36)}…` : q.body;
+        return `${q.name} · ${q.email} · ${preview}`;
+      })
+      .join(" / ");
+    alerts.push({
+      tone: "warn",
+      title: `고객 문의 ${pendingInquiries.length}건 (미처리)`,
+      desc:
+        pendingInquiries.length === 1
+          ? sample
+          : `${sample}${pendingInquiries.length > 2 ? " …" : ""}`,
+      time: "미처리",
+      kind: "inquiry",
+    });
+  }
   if (failedFortune > 0) {
     alerts.push({
       tone: "warn",
