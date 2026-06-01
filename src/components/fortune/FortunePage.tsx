@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
+import { MascotGlbErrorBoundary } from "@/components/mascot/MascotGlbErrorBoundary";
 import { onMissionProductPaid } from "@/lib/mission-complete";
 
 const MascotGuide = dynamic(
   () => import("@/components/fortune/MascotGuide").then((m) => m.MascotGuide),
-  { ssr: false },
+  { ssr: false, loading: () => null },
 );
 const MascotPreloadClient = dynamic(
   () => import("@/components/mascot/MascotPreloadClient").then((m) => m.MascotPreloadClient),
@@ -666,7 +667,11 @@ export function FortunePage({
       data-extra-slug={layout.hasProductExtras && step === 2 ? product.slug : undefined}
       style={guideTop == null ? undefined : ({ "--fortune-v2-guide-top": `${guideTop}px` } as CSSProperties)}
     >
-      {menuCardEntry ? <MascotPreloadClient /> : null}
+      {menuCardEntry ? (
+        <MascotGlbErrorBoundary label="MascotPreloadClient">
+          <MascotPreloadClient />
+        </MascotGlbErrorBoundary>
+      ) : null}
       <header className="y-fortune-v2-header">
         {step === layout.stepResult ? (
           showFortuneResultHeaderExit ? (
@@ -699,18 +704,20 @@ export function FortunePage({
         className={`y-fortune-v2-stage y-fortune-v2-stage--${direction} ${stageReady ? "is-ready" : "is-walking"} ${stageBottomScreenUi ? "y-fortune-v2-stage--bottom-screen-ui" : ""} ${stageLockedViewport ? "y-fortune-v2-stage--locked-viewport" : ""} ${stageAnchorTop ? "y-fortune-v2-stage--anchor-top" : ""}`}
       >
         {showFortuneMascot ? (
-          <MascotGuide
-            guide={guide}
-            fortuneStep={step}
-            milestoneSteps={mascotMilestoneSteps}
-            bubbleDockFixedLeft={step === layout.stepMyungsik && Boolean(guideTextOverride)}
-            bubbleDockExtraWide={step === layout.stepMyungsik && Boolean(guideTextOverride)}
-            bubbleReplayToken={step === layout.stepMyungsik ? pillarTalkTick : 0}
-            reactClip={answerReactClip}
+          <MascotGlbErrorBoundary label="MascotGuide">
+            <MascotGuide
+              guide={guide}
+              fortuneStep={step}
+              milestoneSteps={mascotMilestoneSteps}
+              bubbleDockFixedLeft={step === layout.stepMyungsik && Boolean(guideTextOverride)}
+              bubbleDockExtraWide={step === layout.stepMyungsik && Boolean(guideTextOverride)}
+              bubbleReplayToken={step === layout.stepMyungsik ? pillarTalkTick : 0}
+              reactClip={answerReactClip}
             onReactClipDone={onAnswerReactDone}
             onArrive={onMascotArrive}
             layoutTopCenter={false}
           />
+          </MascotGlbErrorBoundary>
         ) : null}
         {step === 0 ? (
           <Step0Welcome

@@ -10,6 +10,15 @@ const withPWA = withPWAInit({
     /** 배포 후 stale JS 청크(ChunkLoadError) 방지 — _next/static은 네트워크 우선 */
     runtimeCaching: [
       {
+        urlPattern: /\/mascot\/.*\.glb$/i,
+        handler: "NetworkFirst",
+        options: {
+          cacheName: "mascot-glb",
+          expiration: { maxEntries: 64, maxAgeSeconds: 60 * 60 * 24 },
+          networkTimeoutSeconds: 12,
+        },
+      },
+      {
         urlPattern: /\/_next\/static\/.*/i,
         handler: "NetworkFirst",
         options: {

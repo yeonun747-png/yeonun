@@ -17,6 +17,7 @@ import {
 } from "@/components/mascot/mascotAnimation";
 import { UN, UN_GLB, YEON, YEON_GLB } from "@/components/mascot/mascotAssets";
 import { getClipPlaybackMode } from "@/components/mascot/mascotClipPools";
+import { MascotGlbErrorBoundary } from "@/components/mascot/MascotGlbErrorBoundary";
 import { getFortuneMascotGlbUrl } from "@/components/mascot/mascotSplitGlbs";
 import type { FortuneGuideState, MascotKind, MascotPosKey } from "@/components/fortune/fortuneFlowTypes";
 
@@ -343,33 +344,37 @@ function GuideCanvas({
   const glbUrl = getFortuneMascotGlbUrl(kind === "yeon" ? "yeon" : "un", clipLogical, fallback);
 
   return (
-    <Canvas
-      frameloop="always"
-      dpr={[1, 1.5]}
-      camera={{ position: [0.25, 0, 6.35], fov: 36, near: 0.1, far: 100 }}
-      gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-      style={{ width: 128, height: 180 }}
-      onCreated={({ gl, invalidate }) => {
-        gl.setClearColor(0x000000, 0);
-        gl.outputColorSpace = THREE.SRGBColorSpace;
-        invalidate();
-      }}
-    >
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[4, 6, 5]} intensity={1.65} />
-      <Suspense fallback={null}>
-        {/* 분할 GLB(idle↔walk)마다 리마운트해야 워크 믹서가 붙음. key=kind만 두면 같은 인스턴스에서 GLB만 바뀌어 걷기 없이 CSS만 이동하는 증상 발생 */}
-        <GuideModel
-          key={glbUrl}
-          kind={kind}
-          clipLogical={clipLogical}
-          yaw={yaw}
-          onReady={onReady}
-          onOnceFinished={onOnceFinished}
-          onWalkMotionReady={onWalkMotionReady}
-        />
-      </Suspense>
-    </Canvas>
+    <MascotGlbErrorBoundary label={glbUrl}>
+      <Canvas
+        frameloop="always"
+        dpr={[1, 1.5]}
+        camera={{ position: [0.25, 0, 6.35], fov: 36, near: 0.1, far: 100 }}
+        gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+        style={{ width: 128, height: 180 }}
+        onCreated={({ gl, invalidate }) => {
+          gl.setClearColor(0x000000, 0);
+          gl.outputColorSpace = THREE.SRGBColorSpace;
+          invalidate();
+        }}
+      >
+        <ambientLight intensity={0.75} />
+        <directionalLight position={[4, 6, 5]} intensity={1.65} />
+        <MascotGlbErrorBoundary label={`model:${glbUrl}`}>
+          <Suspense fallback={null}>
+            {/* 분할 GLB(idle↔walk)마다 리마운트해야 워크 믹서가 붙음. key=kind만 두면 같은 인스턴스에서 GLB만 바뀌어 걷기 없이 CSS만 이동하는 증상 발생 */}
+            <GuideModel
+              key={glbUrl}
+              kind={kind}
+              clipLogical={clipLogical}
+              yaw={yaw}
+              onReady={onReady}
+              onOnceFinished={onOnceFinished}
+              onWalkMotionReady={onWalkMotionReady}
+            />
+          </Suspense>
+        </MascotGlbErrorBoundary>
+      </Canvas>
+    </MascotGlbErrorBoundary>
   );
 }
 
