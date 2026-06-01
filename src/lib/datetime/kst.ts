@@ -64,6 +64,28 @@ export function kstAddDays(anchor: Date, deltaDays: number): Date {
   return new Date(`${key}T00:00:00+09:00`);
 }
 
+/** KST 당월 1일 00:00:00 */
+export function kstStartOfMonth(date: Date = new Date()): Date {
+  const { year, month } = getKstParts(date);
+  return new Date(`${year}-${pad2(month)}-01T00:00:00+09:00`);
+}
+
+/** KST 이번 주 월요일 00:00:00 */
+export function kstStartOfWeekMonday(date: Date = new Date()): Date {
+  const start = kstStartOfDay(date);
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: KST_IANA, weekday: "short" }).format(start);
+  const offset: Record<string, number> = {
+    Sun: -6,
+    Mon: 0,
+    Tue: -1,
+    Wed: -2,
+    Thu: -3,
+    Fri: -4,
+    Sat: -5,
+  };
+  return kstAddDays(start, offset[wd] ?? 0);
+}
+
 export function formatKstConsultHeaderEn(date: Date = new Date()): string {
   const { year, day } = getKstParts(date);
   const wd = new Intl.DateTimeFormat("en-US", { timeZone: KST_IANA, weekday: "short" }).format(date);

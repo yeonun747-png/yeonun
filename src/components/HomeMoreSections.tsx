@@ -179,16 +179,16 @@ export function HomeMoreSections({ serverCatalog }: { serverCatalog: ContentCata
             <p className="y-price-tagline">차분히 읽으며 보관</p>
             <div className="y-price-amount">
               <span className="y-price-currency">₩</span>
-              <span className="y-price-num">4,900</span>
+              <span className="y-price-num">1,900</span>
             </div>
             <div className="y-price-period">부터 (콘텐츠별)</div>
             <div className="y-price-spacer" />
             <ul className="y-price-features">
-              <li>꿈해몽 4,900원</li>
-              <li>재회비책 14,900원</li>
-              <li>정통 사주 19,900원</li>
+              <li>꿈해몽 1,900원</li>
+              <li>재회비책 9,900원</li>
+              <li>정통 사주 9,900원</li>
               <li>사주궁합 19,900원</li>
-              <li>평생사주 49,900원</li>
+              <li>평생사주 19,900원</li>
               <li>60일 보관함 무료</li>
             </ul>
             <Link className="y-price-cta" href="/content">
@@ -296,7 +296,7 @@ export function HomeMoreSections({ serverCatalog }: { serverCatalog: ContentCata
           <div className="y-footer-copy">© 2026 연운(YEONUN) · All rights reserved.</div>
           <div className="y-footer-bizinfo">
             <p>㈜테크앤조이 │ 대표 : 서주형</p>
-            <p>대표전화 : 02-516-1975 │ 팩스 : 02-2210-7865</p>
+            <p>대표전화 : 070-4323-7006 │ 팩스 : 02-2210-7865</p>
             <p>서울특별시 성동구 상원12길 34 (성수동1가, 서울숲에이원) 213호</p>
             <p>사업자등록번호 : 108-81-84400 │ 통신판매업신고번호 : 2022-서울성동-00643</p>
           </div>

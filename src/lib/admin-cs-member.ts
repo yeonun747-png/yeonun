@@ -122,6 +122,18 @@ export type AdminMemberFileActivity = {
   text_chat_sessions: number;
 };
 
+export type AdminMemberFileReviewRow = {
+  id: string;
+  product_slug: string;
+  product_title: string;
+  stars: number;
+  body: string;
+  tags: string[];
+  is_published: boolean;
+  source_type: string | null;
+  created_at: string;
+};
+
 export type AdminMemberFile = {
   member: AdminMemberFileMember;
   profiles: AdminMemberFileProfile[];
@@ -129,6 +141,7 @@ export type AdminMemberFile = {
   payment_totals_by_year: { year: number; total_krw: number }[];
   payments: AdminMemberFilePaymentRow[];
   usage_log: AdminMemberFileUsageRow[];
+  reviews: AdminMemberFileReviewRow[];
   activity: AdminMemberFileActivity;
 };
 
@@ -397,11 +410,38 @@ export async function getAdminMemberFile(userId: string): Promise<AdminMemberFil
     .map(([year, total_krw]) => ({ year, total_krw }))
     .sort((a, b) => b.year - a.year);
 
-  const [fortuneCount, voiceCount, chatCount] = await Promise.all([
+  const [fortuneCount, voiceCount, chatCount, reviewRes] = await Promise.all([
     sb.from("fortune_requests").select("id", { count: "exact", head: true }).eq("user_ref", userId),
     sb.from("voice_sessions").select("id", { count: "exact", head: true }).eq("user_ref", userId),
     sb.from("text_chat_sessions").select("id", { count: "exact", head: true }).eq("user_ref", userId),
+    sb
+      .from("reviews")
+      .select("id,product_slug,stars,body,tags,is_published,source_type,created_at")
+      .eq("user_ref", userId)
+      .order("created_at", { ascending: false })
+      .limit(80),
   ]);
+
+  const reviewSlugs = [...new Set((reviewRes.data ?? []).map((r) => String(r.product_slug ?? "").trim()).filter(Boolean))];
+  const reviewProductTitles = new Map<string, string>();
+  if (reviewSlugs.length > 0) {
+    const { data: reviewProducts } = await sb.from("products").select("slug,title").in("slug", reviewSlugs);
+    for (const p of reviewProducts ?? []) {
+      reviewProductTitles.set(String(p.slug), String(p.title ?? p.slug));
+    }
+  }
+
+  const reviews: AdminMemberFileReviewRow[] = (reviewRes.data ?? []).map((r) => ({
+    id: String(r.id),
+    product_slug: String(r.product_slug ?? ""),
+    product_title: reviewProductTitles.get(String(r.product_slug ?? "")) ?? String(r.product_slug ?? "—"),
+    stars: Number(r.stars) || 0,
+    body: String(r.body ?? ""),
+    tags: Array.isArray(r.tags) ? r.tags.map(String) : [],
+    is_published: Boolean(r.is_published),
+    source_type: r.source_type ? String(r.source_type) : null,
+    created_at: String(r.created_at ?? ""),
+  }));
 
   return {
     member,
@@ -419,6 +459,7 @@ export async function getAdminMemberFile(userId: string): Promise<AdminMemberFil
     payment_totals_by_year,
     payments,
     usage_log,
+    reviews,
     activity: {
       fortune_requests: fortuneCount.count ?? 0,
       voice_sessions: voiceCount.count ?? 0,

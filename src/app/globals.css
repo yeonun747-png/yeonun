@@ -499,6 +499,335 @@ body:has(.y-admin-shell--v2) {
   margin-top: 8px;
   padding: 0 1px;
 }
+/* 어드민 대시보드 — 결제 유저 현황 (yeonun_admin_v3 목업) */
+.y-admin-v2-pay-card {
+  background: #fff;
+  border: 1px solid #e6e0d8;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.y-admin-v2-pay-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e6e0d8;
+}
+.y-admin-v2-pay-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.y-admin-v2-pay-head-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1815;
+}
+.y-admin-v2-pay-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2d6a4f;
+  flex-shrink: 0;
+  animation: y-admin-v2-pay-pulse 2s ease-in-out infinite;
+}
+@keyframes y-admin-v2-pay-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
+}
+.y-admin-v2-pay-head-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.y-admin-v2-pay-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.y-admin-v2-pay-sum-item {
+  text-align: right;
+}
+.y-admin-v2-pay-sum-label {
+  font-size: 9.5px;
+  color: #ada49a;
+  letter-spacing: 0.04em;
+}
+.y-admin-v2-pay-sum-val {
+  font-family: "Noto Serif KR", serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1815;
+  line-height: 1.2;
+}
+.y-admin-v2-pay-sum-val.rose {
+  color: #c94b6a;
+}
+.y-admin-v2-pay-sum-div {
+  width: 1px;
+  height: 28px;
+  background: #e6e0d8;
+}
+.y-admin-v2-pay-toggle {
+  display: flex;
+  gap: 2px;
+  background: #f0ebe3;
+  border: 1px solid #e6e0d8;
+  border-radius: 7px;
+  padding: 2px;
+}
+.y-admin-v2-pay-toggle button {
+  padding: 4px 14px;
+  border-radius: 5px;
+  border: none;
+  font-size: 11px;
+  color: #7a7169;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.12s;
+}
+.y-admin-v2-pay-toggle button.on {
+  background: #1a1815;
+  color: #fafaf7;
+}
+.y-admin-v2-pay-table-wrap {
+  overflow-x: auto;
+}
+.y-admin-v2-pay-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 960px;
+}
+.y-admin-v2-pay-table thead tr {
+  background: #f0ebe3;
+}
+.y-admin-v2-pay-table th {
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #ada49a;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid #e6e0d8;
+  white-space: nowrap;
+}
+.y-admin-v2-pay-table th.r {
+  text-align: right;
+}
+.y-admin-v2-pay-table td {
+  padding: 11px 14px;
+  font-size: 12px;
+  color: #1a1815;
+  border-bottom: 1px solid #e6e0d8;
+  vertical-align: middle;
+}
+.y-admin-v2-pay-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.y-admin-v2-pay-table tbody tr:hover {
+  background: #fafaf7;
+}
+.y-admin-v2-pay-table td.r {
+  text-align: right;
+}
+.y-admin-v2-pay-no {
+  font-size: 11px;
+  color: #ada49a;
+  font-weight: 600;
+}
+.y-admin-v2-pay-datetime {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.y-admin-v2-pay-datetime > div:first-child {
+  font-size: 11px;
+  color: #1a1815;
+  font-weight: 500;
+}
+.y-admin-v2-pay-datetime-sub {
+  font-size: 10.5px;
+  color: #ada49a;
+}
+.y-admin-v2-pay-user-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.y-admin-v2-pay-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1a1815;
+}
+.y-admin-v2-pay-name-btn {
+  display: inline-block;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #c94b6a;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: #c94b6a44;
+  text-underline-offset: 2px;
+}
+.y-admin-v2-pay-name-btn:hover {
+  color: #a83a58;
+}
+.y-admin-v2-pay-email {
+  font-size: 10.5px;
+  color: #ada49a;
+}
+.y-admin-v2-pay-saju-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.y-admin-v2-pay-saju-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.y-admin-v2-pay-saju-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.y-admin-v2-pay-saju-tag.me {
+  background: #fff0f3;
+  color: #c94b6a;
+}
+.y-admin-v2-pay-saju-tag.pt {
+  background: #eef6ff;
+  color: #2563eb;
+}
+.y-admin-v2-pay-saju-info {
+  font-size: 11px;
+  color: #1a1815;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.y-admin-v2-pay-muted {
+  font-size: 11px;
+  color: #ada49a;
+}
+.y-admin-v2-pay-char {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.y-admin-v2-pay-char-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-family: "Noto Serif KR", serif;
+}
+.y-admin-v2-pay-char-name {
+  font-size: 11.5px;
+  color: #7a7169;
+}
+.y-admin-v2-pay-prod-cell {
+  font-size: 12px;
+  color: #1a1815;
+  font-weight: 500;
+  max-width: 200px;
+}
+.y-admin-v2-pay-prod-cat {
+  font-size: 10px;
+  color: #ada49a;
+  margin-top: 1px;
+}
+.y-admin-v2-pay-amt {
+  font-size: 13px;
+  font-weight: 700;
+  color: #c94b6a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.y-admin-v2-pay-method {
+  display: inline-flex;
+  align-items: center;
+  background: #f0ebe3;
+  border: 1px solid #e6e0d8;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 10px;
+  color: #7a7169;
+  font-weight: 600;
+}
+.y-admin-v2-pay-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.y-admin-v2-pay-status.ok {
+  background: #f0faf4;
+  color: #2d6a4f;
+}
+.y-admin-v2-pay-status.refund {
+  background: #fdf4f4;
+  color: #b83232;
+}
+.y-admin-v2-pay-status.pending {
+  background: #fdfaf0;
+  color: #b07a00;
+}
+.y-admin-v2-pay-empty {
+  text-align: center;
+  padding: 28px 14px !important;
+  color: #ada49a;
+}
+.y-admin-v2-pay-error {
+  margin: 0;
+  padding: 10px 20px;
+  font-size: 12px;
+  color: #b83232;
+  background: #fdf4f4;
+  border-bottom: 1px solid #e6e0d8;
+}
+.y-admin-v2-pay-notes {
+  margin: 0;
+  padding: 12px 20px 16px;
+  list-style: disc;
+  padding-left: 36px;
+  font-size: 10.5px;
+  color: #ada49a;
+  line-height: 1.55;
+  background: #fafaf7;
+  border-top: 1px solid #e6e0d8;
+}
+
 .y-admin-v2-bar-rows {
   display: flex;
   flex-direction: column;
@@ -2150,6 +2479,98 @@ textarea.y-admin-review-body {
 .y-admin-cs-file-data tbody tr:nth-child(even) {
   background: #fdfcfa;
 }
+.y-admin-cs-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.y-admin-cs-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(26, 24, 21, 0.52);
+  cursor: pointer;
+}
+.y-admin-cs-modal-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(960px, 100%);
+  max-height: min(90vh, 920px);
+  display: flex;
+  flex-direction: column;
+  background: #fafaf7;
+  border: 1px solid #e6e0d8;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(26, 24, 21, 0.22);
+  overflow: hidden;
+}
+.y-admin-cs-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #e6e0d8;
+  background: #fff;
+  flex-shrink: 0;
+}
+.y-admin-cs-modal-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1815;
+}
+.y-admin-cs-modal-close {
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #e6e0d8;
+  background: #f0ebe3;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a7169;
+  cursor: pointer;
+  font-family: inherit;
+}
+.y-admin-cs-modal-close:hover {
+  background: #e6e0d8;
+  color: #1a1815;
+}
+.y-admin-cs-modal-body {
+  overflow: auto;
+  padding: 16px 18px 20px;
+  flex: 1;
+  min-height: 0;
+}
+.y-admin-cs-modal-body .y-admin-cs-file {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.y-admin-cs-review-pub {
+  display: inline-flex;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #f0ebe3;
+  color: #7a7169;
+}
+.y-admin-cs-review-pub.on {
+  background: #f0faf4;
+  color: #2d6a4f;
+}
+.y-admin-cs-review-body {
+  max-width: 280px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #7a7169;
+  white-space: pre-wrap;
+}
+
 .y-admin-cs-file-note {
   margin: 10px 0 0;
   font-size: 11px;

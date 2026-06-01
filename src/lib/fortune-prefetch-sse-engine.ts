@@ -4,6 +4,7 @@ import {
   scheduleFortuneSectionForeignFix,
 } from "@/lib/fortune-section-foreign-fix";
 import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import { readFortunePrefetchContextKey } from "@/lib/fortune-prefetch-storage";
 import {
   normalizeFortuneSsePayload,
   parseFortuneSseBlock,
@@ -59,8 +60,10 @@ export function createFortunePrefetchPump(opts: FortunePrefetchPumpOptions): For
   const isAlreadyComplete = Boolean(initial?.complete);
 
   const flush = (complete: boolean) => {
+    const ctx = readFortunePrefetchContextKey();
     const payload: FortunePrefetchV1 = {
       v: 1,
+      ...(ctx ? { context_key: ctx } : {}),
       sectionsMode: !claudeStreamMode,
       complete,
       toc,

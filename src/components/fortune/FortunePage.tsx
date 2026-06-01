@@ -38,7 +38,9 @@ import { fortuneResultFromPrefetch, useFortuneResultStream } from "@/components/
 import type { Character } from "@/lib/data/characters";
 import type { Product } from "@/lib/data/content";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
-import { fortunePrefetchStorageKey, readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import { clearFortunePrefetchProduct, readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
+import { registerFortunePrefetchSajuInvalidation } from "@/lib/fortune-prefetch-invalidation";
+import { YEONUN_SAJU_UPDATED_EVENT } from "@/lib/saju-events";
 import { abortFortunePrefetch, isFortunePrefetchActive, runFortunePrefetchDetached } from "@/lib/fortune-prefetch-runner";
 import { notifyFortuneLibrarySaved } from "@/lib/fortune-library-list-refresh";
 import { orderAccessAuthHeaders } from "@/lib/order-access-client";
@@ -240,6 +242,31 @@ export function FortunePage({
     if (prev === product.slug) return;
     setMascot(Math.random() < 0.5 ? "yeon" : "un");
   }, [product.slug]);
+
+  useEffect(() => registerFortunePrefetchSajuInvalidation(), []);
+
+  const resetPrefetchAfterSajuChange = useCallback(() => {
+    abortFortunePrefetch(product.slug);
+    clearFortunePrefetchProduct(product.slug);
+    setPrefetch(null);
+    setResult(null);
+    setResultStreamEnabled(false);
+    savedResultRef.current = false;
+    setPendingOrderNo(null);
+    const prev = readStoredSaju();
+    setStored(prev);
+  }, [product.slug]);
+
+  useEffect(() => {
+    const onSajuChanged = () => resetPrefetchAfterSajuChange();
+    const onPrefetchInvalidated = () => resetPrefetchAfterSajuChange();
+    window.addEventListener(YEONUN_SAJU_UPDATED_EVENT, onSajuChanged);
+    window.addEventListener("yeonun:fortune-prefetch-invalidated", onPrefetchInvalidated);
+    return () => {
+      window.removeEventListener(YEONUN_SAJU_UPDATED_EVENT, onSajuChanged);
+      window.removeEventListener("yeonun:fortune-prefetch-invalidated", onPrefetchInvalidated);
+    };
+  }, [resetPrefetchAfterSajuChange]);
 
   useEffect(() => {
     const prev = readStoredSaju();
@@ -453,11 +480,7 @@ export function FortunePage({
         const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
         if (token) await pushLocalSajuToServerProfile(token, { force: true });
       })();
-      try {
-        sessionStorage.removeItem(fortunePrefetchStorageKey(product.slug));
-      } catch {
-        // ignore
-      }
+      clearFortunePrefetchProduct(product.slug);
       setPrefetch(null);
       void runFortunePrefetchDetached({
         productSlug: product.slug,

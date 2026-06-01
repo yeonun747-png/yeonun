@@ -18,3 +18,9 @@ export function buildSajuFingerprint(input: FortuneBirthPayload): string {
     input.gender === "female" ? "f" : "m",
   ].join("|");
 }
+
+/** 점사 prefetch·스트림 캐시 무효화 — 생년월일시 + 이름 */
+export function buildFortunePrefetchContextKey(input: FortuneBirthPayload): string {
+  const name = String(input.name ?? "").trim();
+  return `${buildSajuFingerprint(input)}|n:${name}`;
+}

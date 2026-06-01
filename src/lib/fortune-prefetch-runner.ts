@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  clearFortunePrefetchProduct,
   inferFortunePrefetchComplete,
   normalizeFortunePrefetchSnapshot,
   readFortunePrefetch,
+  readFortunePrefetchContextKey,
   readServerPrefetchAccessToken,
   readServerPrefetchRequestId,
   writeFortunePrefetch,
@@ -70,6 +72,12 @@ async function runFortuneServerPrefetchDetached(
     args.onPatch?.(prefetch);
   };
 
+  const ctxKey = readFortunePrefetchContextKey();
+  if (!ctxKey) {
+    clearFortunePrefetchProduct(slug);
+    throw new Error("prefetch: saju context missing");
+  }
+
   const cached = readFortunePrefetch(slug);
   if (cached?.complete) {
     notify(cached);
@@ -78,6 +86,12 @@ async function runFortuneServerPrefetchDetached(
 
   let requestId = readServerPrefetchRequestId(slug);
   let prefetchAccess = readServerPrefetchAccessToken(slug);
+
+  if (requestId && !cached) {
+    clearFortunePrefetchProduct(slug);
+    requestId = "";
+    prefetchAccess = "";
+  }
 
   if (!requestId) {
     const startRes = await fetch("/api/fortune/prefetch-start", {
@@ -209,4 +223,10 @@ export function abortFortunePrefetch(productSlug: string): void {
   if (!run) return;
   run.ac.abort();
   activeBySlug.delete(slug);
+}
+
+export function abortAllFortunePrefetch(): void {
+  for (const slug of [...activeBySlug.keys()]) {
+    abortFortunePrefetch(slug);
+  }
 }

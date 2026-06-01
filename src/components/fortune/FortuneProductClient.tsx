@@ -10,6 +10,7 @@ import {
   readFortuneProductCache,
   type FortuneProductBundle,
 } from "@/lib/fortune-product-cache";
+import { registerFortunePrefetchSajuInvalidation } from "@/lib/fortune-prefetch-invalidation";
 
 /** Three.js/WebGL — SSR 시 서버 500 방지 */
 const FortunePage = dynamic(
@@ -98,6 +99,7 @@ export function FortuneProductClient({
 
   useEffect(() => {
     void import("@/components/fortune/FortunePage");
+    return registerFortunePrefetchSajuInvalidation();
   }, []);
 
   useEffect(() => {

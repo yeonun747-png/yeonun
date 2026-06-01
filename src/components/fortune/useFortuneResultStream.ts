@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FortuneResultState } from "@/components/fortune/fortuneFlowTypes";
 import {
-  fortunePrefetchStorageKey,
+  clearFortunePrefetchProduct,
   inferFortunePrefetchComplete,
   readFortunePrefetch,
+  readFortunePrefetchContextKey,
   type FortunePrefetchV1,
 } from "@/lib/fortune-prefetch-storage";
 import {
@@ -84,13 +85,10 @@ export function useFortuneResultStream(args: {
   const startFresh = useCallback(() => {
     if (!productSlug.trim()) return;
     setError(null);
-    try {
-      sessionStorage.removeItem(fortunePrefetchStorageKey(productSlug));
-    } catch {
-      /* ignore */
-    }
+    clearFortunePrefetchProduct(productSlug);
     abortFortunePrefetch(productSlug);
-    const runKey = `${productSlug}:${profile}:${orderNo ?? ""}`;
+    const ctx = readFortunePrefetchContextKey() ?? "";
+    const runKey = `${productSlug}:${profile}:${orderNo ?? ""}:${ctx}`;
     runKeyRef.current = runKey;
     setResult(null);
     setPhaseTracked("streaming");
@@ -128,7 +126,8 @@ export function useFortuneResultStream(args: {
       return;
     }
 
-    const runKey = `${productSlug}:${profile}:${orderNo ?? ""}`;
+    const ctx = readFortunePrefetchContextKey() ?? "";
+    const runKey = `${productSlug}:${profile}:${orderNo ?? ""}:${ctx}`;
     const cached = readFortunePrefetch(productSlug);
     const cachedResult = fortuneResultFromPrefetch(cached, profile, orderNo, true);
 

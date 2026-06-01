@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AdminPaymentUsersPanel } from "@/components/admin/AdminPaymentUsersPanel";
 import type { AdminDashboardData, AdminDashboardPeriod } from "@/lib/admin-dashboard-data";
 
 const PERIODS: { id: AdminDashboardPeriod; label: string }[] = [
@@ -410,6 +411,8 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
           <SocialDonut social={data.socialLogin} />
         </div>
       </div>
+
+      <AdminPaymentUsersPanel />
 
       <div className="y-admin-v2-sl">콘텐츠 · 전환</div>
       <div className="y-admin-v2-row y-admin-v2-row-3">
