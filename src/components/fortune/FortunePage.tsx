@@ -1,12 +1,20 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
-import { MascotGuide } from "@/components/fortune/MascotGuide";
 import { onMissionProductPaid } from "@/lib/mission-complete";
-import { MascotPreloadClient } from "@/components/mascot/MascotPreloadClient";
+
+const MascotGuide = dynamic(
+  () => import("@/components/fortune/MascotGuide").then((m) => m.MascotGuide),
+  { ssr: false },
+);
+const MascotPreloadClient = dynamic(
+  () => import("@/components/mascot/MascotPreloadClient").then((m) => m.MascotPreloadClient),
+  { ssr: false },
+);
 import type {
   FortuneFlowForm,
   FortuneGuideState,

@@ -11637,6 +11637,20 @@ button.y-my-menu-item {
   font-weight: 500;
   color: var(--y-fs-ink);
 }
+.y-fs-html table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+}
+.y-fs-html th,
+.y-fs-html td {
+  border: 1px solid rgba(51, 51, 51, 0.14);
+  padding: 8px 10px;
+  vertical-align: top;
+}
+.y-fs-html th {
+  font-weight: 600;
+}
 .y-fs-caret {
   display: inline-block;
   width: 2px;

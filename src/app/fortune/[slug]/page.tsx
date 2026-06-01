@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { FortuneProductClient } from "@/components/fortune/FortuneProductClient";
 import { getCharactersCached } from "@/lib/data/characters";
 import { getProductBySlugCached } from "@/lib/data/content";
+import { stripFortuneProductForSsrProps } from "@/lib/fortune-product-ssr";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -48,7 +49,7 @@ export default async function FortuneProductPage({ params, searchParams }: Props
       initialBundle={{
         v: 1,
         slug,
-        product,
+        product: stripFortuneProductForSsrProps(product),
         character,
         fetchedAt: 0,
       }}

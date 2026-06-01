@@ -31,7 +31,7 @@ export function FortuneProductClient({
     setBundle(resolveInitialFortuneProduct(slug, initialBundle));
     setMissing(false);
     let cancelled = false;
-    void preloadFortuneProduct(slug).then((next) => {
+    void preloadFortuneProduct(slug, { force: true }).then((next) => {
       if (cancelled) return;
       if (!next) {
         setMissing(true);
@@ -42,7 +42,7 @@ export function FortuneProductClient({
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, initialBundle]);
 
   if (missing) notFound();
 
