@@ -241,7 +241,7 @@ export function AdminPaymentUsersPanel() {
         </ul>
       ) : null}
 
-      <AdminMemberFileModal userId={csUserId} onClose={() => setCsUserId(null)} enableCreditAdjust={false} />
+      <AdminMemberFileModal userId={csUserId} onClose={() => setCsUserId(null)} enableCreditAdjust />
     </div>
   );
 }
