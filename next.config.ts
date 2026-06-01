@@ -39,20 +39,21 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   async headers() {
-    const isDev = process.env.NODE_ENV === "development";
+    /** Three.js GLTF(WASM meshopt/draco) — dev와 동일하게 prod에서도 WASM·eval 허용 */
     const scriptSrc = [
       "'self'",
       "'unsafe-inline'",
-      ...(isDev ? ["'unsafe-eval'"] : []),
+      "'wasm-unsafe-eval'",
+      "'unsafe-eval'",
       "https://www.googletagmanager.com",
     ].join(" ");
 
     const csp = [
       "default-src 'self'",
       `script-src ${scriptSrc}`,
-      "style-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
       "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://www.fortune82.com https://*.fortune82.com",
       "worker-src 'self' blob:",
       "media-src 'self' blob:",

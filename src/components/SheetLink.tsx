@@ -21,7 +21,8 @@ export function SheetLink({ children, href, scroll = false, onPointerEnter, onCl
       scroll={scroll}
       prefetch={props.prefetch ?? true}
       onPointerEnter={(e) => {
-        if (hrefStr) router.prefetch(hrefStr);
+        const shouldPrefetch = props.prefetch ?? true;
+        if (hrefStr && shouldPrefetch) router.prefetch(hrefStr);
         onPointerEnter?.(e);
       }}
       onClick={(e) => {

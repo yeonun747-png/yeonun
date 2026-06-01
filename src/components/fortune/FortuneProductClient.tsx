@@ -1,15 +1,21 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Component, useEffect, useState, type ReactNode } from "react";
 
-import { FortunePage } from "@/components/fortune/FortunePage";
 import { FortuneProductLoadingShell } from "@/components/fortune/FortuneProductLoadingShell";
 import {
   preloadFortuneProduct,
   readFortuneProductCache,
   type FortuneProductBundle,
 } from "@/lib/fortune-product-cache";
+
+/** Three.js/WebGL — SSR 시 서버 500 방지 */
+const FortunePage = dynamic(
+  () => import("@/components/fortune/FortunePage").then((m) => m.FortunePage),
+  { ssr: false },
+);
 
 class FortuneFlowErrorBoundary extends Component<
   { children: ReactNode; backHref: string; title?: string; onRetry: () => void },

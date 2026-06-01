@@ -468,6 +468,7 @@ export function HomeContentGrid({
           <SheetLink
             key={p.slug}
             href={fortuneHref}
+            prefetch={false}
             className={`y-content-card ${variant}`}
             data-fortune-card={p.slug}
             onPointerEnter={() => {
