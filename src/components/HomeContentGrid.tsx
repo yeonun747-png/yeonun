@@ -514,11 +514,6 @@ export function HomeContentGrid({
     {duplicateGate ? (
       <FortuneDuplicateConfirmSheet
         viewedAt={duplicateGate.hit.viewedAt}
-        onRetry={() => {
-          const href = duplicateGate.href;
-          setDuplicateGate(null);
-          navigate(href);
-        }}
         onOpenLibrary={() => {
           const href = fortuneLibraryHref(duplicateGate.hit.requestId);
           setDuplicateGate(null);
