@@ -4,6 +4,22 @@ import withPWAInit from "@ducanh2912/next-pwa";
 const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
+  workboxOptions: {
+    skipWaiting: true,
+    clientsClaim: true,
+    /** 배포 후 stale JS 청크(ChunkLoadError) 방지 — _next/static은 네트워크 우선 */
+    runtimeCaching: [
+      {
+        urlPattern: /\/_next\/static\/.*/i,
+        handler: "NetworkFirst",
+        options: {
+          cacheName: "next-static-assets",
+          expiration: { maxEntries: 128, maxAgeSeconds: 60 * 60 * 24 },
+          networkTimeoutSeconds: 8,
+        },
+      },
+    ],
+  },
 });
 
 const nextConfig: NextConfig = {
@@ -28,7 +44,8 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://www.fortune82.com https://*.fortune82.com",
+      "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.openai.com https://api.anthropic.com https://www.fortune82.com https://*.fortune82.com",
+      "worker-src 'self' blob:",
       "media-src 'self' blob:",
       "frame-src 'self' https://www.fortune82.com https://*.fortune82.com",
       "object-src 'none'",

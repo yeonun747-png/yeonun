@@ -397,10 +397,12 @@ export function HomeContentGrid({
 }) {
   const router = useRouter();
 
-  /** 시트 위에서는 /fortune 전체화면 전환을 위해 hard navigate(모달 슬롯·백드롭 스냅샷 정리) */
+  /** /fortune·시트: soft nav(RSC flight) 대신 hard navigate — 점사 청크·@modal 슬롯 충돌 방지 */
   const navigate = useCallback(
     (href: string) => {
-      if (fullPageNav && typeof window !== "undefined") {
+      const useHardNav =
+        typeof window !== "undefined" && (fullPageNav || href.startsWith("/fortune/"));
+      if (useHardNav) {
         clearSheetBackdropSnapshot();
         window.location.assign(href);
         return;
@@ -470,13 +472,16 @@ export function HomeContentGrid({
             data-fortune-card={p.slug}
             onPointerEnter={() => {
               void preloadFortuneProduct(p.slug);
-              router.prefetch(fortuneHref);
+              void import("@/components/fortune/FortunePage");
             }}
             onFocus={() => {
               void preloadFortuneProduct(p.slug);
-              router.prefetch(fortuneHref);
+              void import("@/components/fortune/FortunePage");
             }}
-            onTouchStart={() => void preloadFortuneProduct(p.slug)}
+            onTouchStart={() => {
+              void preloadFortuneProduct(p.slug);
+              void import("@/components/fortune/FortunePage");
+            }}
             onClick={(e) => onFortuneCardClick(e, fortuneHref, p.slug)}
             aria-busy={checkingSlug === p.slug || undefined}
           >

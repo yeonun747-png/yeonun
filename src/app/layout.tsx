@@ -10,6 +10,7 @@ import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetP
 import { AppProviders } from "@/app/providers";
 import { StorageNoticeBanner } from "@/components/legal/StorageNoticeBanner";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
+import { ChunkLoadRecovery } from "@/components/ChunkLoadRecovery";
 import { getSiteUrl } from "@/lib/site-url";
 
 const SITE_TITLE = "연운 緣運 — 운명을, 듣다";
@@ -115,6 +116,7 @@ export default function RootLayout({
               <ContentCatalogPreloader />
               {children}
               {modal}
+              <ChunkLoadRecovery />
               <YeonunToastHost />
               <Suspense fallback={null}>
                 <StorageNoticeBanner />
