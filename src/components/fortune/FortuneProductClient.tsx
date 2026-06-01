@@ -1,54 +1,99 @@
 "use client";
 
-import { notFound } from "next/navigation";
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { FortunePage } from "@/components/fortune/FortunePage";
 import { FortuneProductLoadingShell } from "@/components/fortune/FortuneProductLoadingShell";
 import {
   preloadFortuneProduct,
-  resolveInitialFortuneProduct,
+  readFortuneProductCache,
   type FortuneProductBundle,
 } from "@/lib/fortune-product-cache";
+
+const FortunePage = dynamic(
+  () => import("@/components/fortune/FortunePage").then((m) => m.FortunePage),
+  { ssr: false },
+);
 
 export function FortuneProductClient({
   slug,
   themeKey,
   backRaw,
   menuCardEntry,
-  initialBundle,
+  loadingTitle,
 }: {
   slug: string;
   themeKey: string;
   backRaw?: string;
   menuCardEntry: boolean;
-  initialBundle: FortuneProductBundle;
+  /** SSR 메타용 제목 — 로딩 셸에만 표시 */
+  loadingTitle?: string;
 }) {
-  const [bundle, setBundle] = useState<FortuneProductBundle | null>(initialBundle);
-  const [missing, setMissing] = useState(false);
+  const [bundle, setBundle] = useState<FortuneProductBundle | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    setBundle(resolveInitialFortuneProduct(slug, initialBundle));
-    setMissing(false);
     let cancelled = false;
+    setLoadError(false);
+
+    const cached = readFortuneProductCache(slug);
+    if (cached) setBundle(cached);
+
     void preloadFortuneProduct(slug, { force: true }).then((next) => {
       if (cancelled) return;
       if (!next) {
-        setMissing(true);
+        setLoadError(true);
         return;
       }
-      setBundle((prev) => (!prev || next.fetchedAt >= prev.fetchedAt ? next : prev));
+      setBundle(next);
     });
+
     return () => {
       cancelled = true;
     };
-  }, [slug, initialBundle]);
+  }, [slug]);
 
-  if (missing) notFound();
+  const backHref = backRaw?.trim() || "/content";
+
+  if (loadError && !bundle) {
+    return (
+      <div className="y-fortune-v2-root" data-fortune-load-error="1">
+        <header className="y-fortune-v2-header">
+          <Link href={backHref} className="y-fortune-v2-back" aria-label="뒤로" prefetch={false}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 18 L9 12 L15 6" />
+            </svg>
+          </Link>
+          <div className="y-fortune-v2-header-title">
+            <h1>{loadingTitle?.trim() || "점사"}</h1>
+          </div>
+          <span className="y-fortune-v2-header-link" aria-hidden="true" />
+        </header>
+        <main className="y-fortune-v2-stage y-fortune-v2-stage--forward is-ready">
+          <p className="y-fortune-product-loading-msg" role="alert">
+            풀이 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+          </p>
+          <button
+            type="button"
+            className="y-fortune-product-retry-btn"
+            onClick={() => {
+              setLoadError(false);
+              void preloadFortuneProduct(slug, { force: true }).then((next) => {
+                if (next) setBundle(next);
+                else setLoadError(true);
+              });
+            }}
+          >
+            다시 시도
+          </button>
+        </main>
+      </div>
+    );
+  }
 
   if (!bundle) {
-    const backHref = backRaw?.trim() || "/content";
-    return <FortuneProductLoadingShell backHref={backHref} />;
+    return <FortuneProductLoadingShell backHref={backHref} title={loadingTitle} />;
   }
 
   return (

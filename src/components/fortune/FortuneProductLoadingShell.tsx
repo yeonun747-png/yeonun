@@ -3,7 +3,13 @@
 import Link from "next/link";
 
 /** 캐시/API 대기 중 점사 플로우 골격 — 전체 스켈레톤 대신 헤더만 */
-export function FortuneProductLoadingShell({ backHref = "/content" }: { backHref?: string }) {
+export function FortuneProductLoadingShell({
+  backHref = "/content",
+  title,
+}: {
+  backHref?: string;
+  title?: string;
+}) {
   return (
     <div className="y-fortune-v2-root" data-step={0} data-fortune-loading="1">
       <header className="y-fortune-v2-header">
@@ -13,7 +19,9 @@ export function FortuneProductLoadingShell({ backHref = "/content" }: { backHref
           </svg>
         </Link>
         <div className="y-fortune-v2-header-title">
-          <h1 className="y-fortune-product-loading-title" aria-hidden="true" />
+          <h1 className={title?.trim() ? undefined : "y-fortune-product-loading-title"}>
+            {title?.trim() || "\u00a0"}
+          </h1>
           <p className="y-fortune-product-loading-sub" aria-hidden="true" />
         </div>
         <span className="y-fortune-v2-header-link" aria-hidden="true" />

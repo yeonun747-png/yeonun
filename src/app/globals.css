@@ -14388,6 +14388,19 @@ html:has(.y-fortune-v2-root[data-step="8"]) {
   font-size: 13px;
   color: var(--y-mute);
 }
+.y-fortune-product-retry-btn {
+  display: block;
+  margin: 16px auto 0;
+  padding: 10px 18px;
+  border: 1px solid var(--y-line);
+  border-radius: 999px;
+  background: var(--y-card);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--y-ink);
+  cursor: pointer;
+}
 
 .y-fortune-v2-header-link {
   width: 56px;
