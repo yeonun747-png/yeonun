@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { SocialLoginButtons } from "@/components/auth/SocialLoginButtons";
 import { authErrorMessage } from "@/lib/auth/auth-error-messages";
 
-function SocialLoginWithErrors() {
+function SocialLoginWithErrors({ oauthDisabled }: { oauthDisabled?: boolean }) {
   const sp = useSearchParams();
   const err = authErrorMessage(sp.get("auth_error"), sp.get("auth_error_provider"), sp.get("auth_error_hint"));
 
@@ -21,15 +21,15 @@ function SocialLoginWithErrors() {
           {err}
         </p>
       ) : null}
-      <SocialLoginButtons />
+      <SocialLoginButtons disabled={oauthDisabled} />
     </>
   );
 }
 
-export function SocialLoginSection() {
+export function SocialLoginSection({ oauthDisabled }: { oauthDisabled?: boolean }) {
   return (
-    <Suspense fallback={<SocialLoginButtons />}>
-      <SocialLoginWithErrors />
+    <Suspense fallback={<SocialLoginButtons disabled={oauthDisabled} />}>
+      <SocialLoginWithErrors oauthDisabled={oauthDisabled} />
     </Suspense>
   );
 }

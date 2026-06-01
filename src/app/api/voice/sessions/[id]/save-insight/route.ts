@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { requireVoiceSessionRollSecret } from "@/lib/voice-roll-secret";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const body = (await request.json().catch(() => ({}))) as Body;
+
+  const supabase = supabaseServer();
+  const access = await requireVoiceSessionRollSecret(supabase, sessionId, request, body);
+  if (!access.ok) {
+    return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
+  }
+
   const category = String(body.category ?? "").trim().toLowerCase();
   const detail = String(body.detail ?? "").trim();
   let importance = Number(body.importance_level);
@@ -34,7 +42,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!Number.isFinite(importance)) importance = 3;
   importance = Math.min(5, Math.max(1, Math.round(importance)));
 
-  const supabase = supabaseServer();
   const { data: sess, error: sessErr } = await supabase
     .from("voice_sessions")
     .select("id,character_key,user_ref,status")

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { env } from "@/lib/env";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -38,6 +39,9 @@ function extForImage(contentType: string): string {
 }
 
 export async function POST(request: Request) {
+  if (!(await isAdminRequest())) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   if (!env.supabaseServiceRoleKey) {
     return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, { status: 501 });
   }
@@ -110,6 +114,9 @@ export async function POST(request: Request) {
 
 /** 어드민: `fortune_menu_assets` 공개 URL에 해당하는 객체만 스토리지에서 수동 삭제 */
 export async function DELETE(request: Request) {
+  if (!(await isAdminRequest())) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   if (!env.supabaseServiceRoleKey) {
     return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured" }, { status: 501 });
   }

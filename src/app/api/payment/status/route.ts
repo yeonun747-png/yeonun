@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { assertOrderCallerAccess } from "@/lib/order-access";
 import { checkFortune82PaymentStatus } from "@/lib/payment-fortune82-pcheck";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -12,6 +13,9 @@ export async function GET(request: NextRequest) {
     if (!oid) {
       return NextResponse.json({ success: false, error: "주문번호가 없습니다." }, { status: 400 });
     }
+
+    const access = await assertOrderCallerAccess(request, oid);
+    if (!access.ok) return access.response;
 
     const supabase = supabaseServer();
     const { data: order, error } = await supabase

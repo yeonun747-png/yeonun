@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
 import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
 import { buildClaudeFortunePromptPieces } from "@/lib/fortune-claude-payload";
+import { gateFortuneOrderStream } from "@/lib/llm-stream-gate";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 
 export const runtime = "nodejs";
@@ -53,6 +54,9 @@ function normUser(u: ChatStreamBody["user_info"]): {
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as ChatStreamBody;
 
+  const denied = await gateFortuneOrderStream(request, body.order_no);
+  if (denied) return denied;
+
   const cloudwaysUrl = normalizeCloudwaysBaseUrl(
     String(
       process.env.CLOUDWAYS_FORTUNE_URL ||
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
         "",
     ),
   );
-  const cloudwaysSecret = String(process.env.CLOUDWAYS_PROXY_SECRET || "");
+  const cloudwaysSecret = String(process.env.CLOUDWAYS_PROXY_SECRET || "").trim();
 
   if (!cloudwaysUrl) {
     return NextResponse.json(
@@ -71,6 +75,10 @@ export async function POST(request: Request) {
       },
       { status: 501 },
     );
+  }
+
+  if (!cloudwaysSecret) {
+    return NextResponse.json({ error: "CLOUDWAYS_PROXY_SECRET is not configured" }, { status: 503 });
   }
 
   const product_slug = String(body.product_slug ?? "").trim() || "demo";
@@ -126,7 +134,7 @@ export async function POST(request: Request) {
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
-      ...(cloudwaysSecret ? { Authorization: `Bearer ${cloudwaysSecret}` } : {}),
+      Authorization: `Bearer ${cloudwaysSecret}`,
     },
     cache: "no-store",
     body: JSON.stringify({

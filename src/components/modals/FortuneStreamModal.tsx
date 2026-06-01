@@ -23,6 +23,7 @@ import {
   mainTitleDuplicatedAsFirstSubtitleH3,
   splitHtmlAfterFirstSubtitleH3Close,
 } from "@/lib/fortune-section-html-split";
+import { sanitizeFortuneHtml } from "@/lib/sanitize-fortune-html";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
@@ -35,6 +36,7 @@ import {
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
+import { orderAccessHeaders } from "@/lib/order-access-client";
 import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
 import { appendFortuneDuplicateLocalEntry } from "@/lib/fortune-duplicate-local-index";
 import { readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
@@ -608,7 +610,7 @@ export function FortuneStreamModal() {
     }
 
     const resultIdPromise = (async (): Promise<string | null> => {
-      const headers = await jsonAuthHeaders();
+      const headers = { ...(await jsonAuthHeaders()), ...orderAccessHeaders(orderNo) };
       const storedSaju = readStoredSaju();
       const sajuFingerprint = storedSaju ? buildSajuFingerprint(storedSaju) : undefined;
       const res = await fetch("/api/fortune/save-modal-result", {
@@ -1155,7 +1157,7 @@ export function FortuneStreamModal() {
                             className="y-fs-html y-fs-html--claude-stream"
                             id="y-fs-h-0"
                             // eslint-disable-next-line react/no-danger
-                            dangerouslySetInnerHTML={{ __html: claudeStreamHtml }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(claudeStreamHtml) }}
                           />
                           {phase === "stream" ? <span className="y-fs-caret" aria-hidden="true" /> : null}
                         </>
@@ -1227,7 +1229,7 @@ export function FortuneStreamModal() {
                                     className="y-fs-html y-fs-result-sub-section-start"
                                     id={`y-fs-h-${i}`}
                                     // eslint-disable-next-line react/no-danger
-                                    dangerouslySetInnerHTML={{ __html: splitHeadHtml }}
+                                    dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(splitHeadHtml) }}
                                   />
                                   {showSubThumb ? (
                                     <div className="y-fs-body-thumb-wrap y-fs-body-thumb-wrap--result-sub">
@@ -1241,7 +1243,7 @@ export function FortuneStreamModal() {
                                     <div
                                       className="y-fs-html"
                                       // eslint-disable-next-line react/no-danger
-                                      dangerouslySetInnerHTML={{ __html: split.tail }}
+                                      dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(split.tail) }}
                                     />
                                   ) : null}
                                 </>
@@ -1250,7 +1252,7 @@ export function FortuneStreamModal() {
                                   className="y-fs-html"
                                   id={`y-fs-h-${i}`}
                                   // eslint-disable-next-line react/no-danger
-                                  dangerouslySetInnerHTML={{ __html: html }}
+                                  dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(html) }}
                                 />
                               )}
                               {active ? <span className="y-fs-caret" aria-hidden="true" /> : null}

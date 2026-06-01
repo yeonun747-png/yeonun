@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { buildRollingWindowAnthropicInput, type DialogTurnMsg } from "@/lib/dialog-window-claude";
 import { supabaseServer } from "@/lib/supabase/server";
+import { requireVoiceSessionRollSecret } from "@/lib/voice-roll-secret";
 import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
 
 export const dynamic = "force-dynamic";
@@ -149,8 +150,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const userText = String(body.text ?? "").trim();
   if (trigger !== "opening" && !userText) return NextResponse.json({ error: "text is required" }, { status: 400 });
 
-  // 1) 세션 조회 → 캐릭터 키 확인
   const supabase = supabaseServer();
+  const access = await requireVoiceSessionRollSecret(supabase, id, request, body);
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
   const { data: session, error: sessionError } = await supabase
     .from("voice_sessions")
     .select("id,character_key,status,memory_summary")

@@ -13,6 +13,7 @@ import {
 import { buildUserHistoryContextBlock, fetchVoiceUserInsightsForContext } from "@/lib/voice-user-insights";
 import { buildVoiceMemoryEntriesContextBlock, fetchVoiceMemoryEntriesForContext } from "@/lib/voice-memory-retrieval";
 import { supabaseServer } from "@/lib/supabase/server";
+import { readVoiceRollSecret, voiceRollSecretsMatch } from "@/lib/voice-roll-secret";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +68,7 @@ type Body = {
   character_key?: string;
   session_id?: string;
   manse_context?: string;
+  roll_secret?: string;
 };
 
 function compactPersona(persona: Awaited<ReturnType<typeof getCharacterPersona>>): string {
@@ -106,6 +108,10 @@ export async function POST(request: Request) {
 
   if (sessErr || !sess) {
     return NextResponse.json({ ok: false, error: "session_not_found" }, { status: 404 });
+  }
+  const providedSecret = readVoiceRollSecret(request, body);
+  if (!providedSecret || !voiceRollSecretsMatch((sess as { roll_secret?: string }).roll_secret, providedSecret)) {
+    return NextResponse.json({ ok: false, error: "invalid_roll_secret" }, { status: 401 });
   }
   if (String(sess.character_key ?? "").trim() !== character_key) {
     return NextResponse.json({ ok: false, error: "session_character_mismatch" }, { status: 403 });
@@ -250,6 +256,5 @@ export async function POST(request: Request) {
     value,
     voice: voiceId,
     model: OPENAI_REALTIME_MODEL,
-    roll_secret: String((sess as { roll_secret?: string }).roll_secret ?? "").trim() || undefined,
   });
 }

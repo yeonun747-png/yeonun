@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import {
@@ -21,7 +22,7 @@ import { appendKstToManseContext } from "@/lib/datetime/kst";
 import { formatUserManseFromYeonunSajuJson } from "@/lib/fortune-manse-context";
 import { CREDIT_CHAT_PER_USER_MESSAGE } from "@/lib/credit-policy";
 import { reportChatLlmErrorClient } from "@/lib/llm-error-log-client";
-import { trySpendChatMessageCreditsAuth } from "@/lib/credit-client";
+import { trySpendChatMessageCreditsAuth, fetchServerCredits } from "@/lib/credit-client";
 import { spendableTotalCredits, ensureConsultTrialCreditsIfEligible, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 
 const CHAR_NAME: Record<string, string> = {
@@ -68,6 +69,7 @@ function tryAnthropicTextDelta(line: string, onText: (t: string) => void): void 
 
 export function ChatConsultModal() {
   const { close } = useModalControls();
+  const { session } = useYeonunAuth();
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -78,6 +80,12 @@ export function ChatConsultModal() {
     const m: Record<string, string> = { yeon: "蓮", byeol: "星", yeo: "易", un: "運" };
     return m[characterKey] ?? "緣";
   }, [characterKey]);
+
+  const consultAuthHeaders = useMemo((): HeadersInit => {
+    const tok = session?.access_token?.trim();
+    if (!tok) return { "Content-Type": "application/json" };
+    return { "Content-Type": "application/json", Authorization: `Bearer ${tok}` };
+  }, [session?.access_token]);
 
   const [credits, setCredits] = useState(() => spendableTotalCredits());
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -292,10 +300,14 @@ export function ChatConsultModal() {
     const ac = new AbortController();
 
     const persistOpening = async (asstId: string, finalBody: string): Promise<boolean> => {
-      const spent = await trySpendChatMessageCreditsAuth(CREDIT_CHAT_PER_USER_MESSAGE);
-      if (!spent) {
-        setStreamError("크레딧이 부족해요.");
-        return false;
+      if (session?.access_token) {
+        await fetchServerCredits().catch(() => undefined);
+      } else {
+        const spent = await trySpendChatMessageCreditsAuth(CREDIT_CHAT_PER_USER_MESSAGE);
+        if (!spent) {
+          setStreamError("크레딧이 부족해요.");
+          return false;
+        }
       }
       const hid = uid();
       const now = new Date().toISOString();
@@ -357,7 +369,7 @@ export function ChatConsultModal() {
       try {
         const res = await fetch("/api/chat/consult-stream", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: consultAuthHeaders,
           body: JSON.stringify({
             character_key: characterKey,
             manse_context: manse || undefined,
@@ -490,7 +502,7 @@ export function ChatConsultModal() {
     try {
       const res = await fetch("/api/chat/consult-stream", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: consultAuthHeaders,
         body: JSON.stringify({
           character_key: characterKey,
           manse_context: manse || undefined,
@@ -562,7 +574,9 @@ export function ChatConsultModal() {
       return;
     }
 
-    const spent = await trySpendChatMessageCreditsAuth(CREDIT_CHAT_PER_USER_MESSAGE);
+    const spent = session?.access_token
+      ? (await fetchServerCredits().catch(() => null), true)
+      : await trySpendChatMessageCreditsAuth(CREDIT_CHAT_PER_USER_MESSAGE);
     if (!spent) {
       setStreamError("크레딧이 부족해요.");
       setMessages((prev) => prev.filter((m) => m.id !== asstId && m.id !== userMsg.id));

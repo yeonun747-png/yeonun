@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
+import { requireCloudwaysProxySecret } from "@/lib/internal-api-secret";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,18 +17,22 @@ export async function GET(request: Request) {
   if (!sessionId) return NextResponse.json({ error: "session_id is required" }, { status: 400 });
 
   const base = cloudwaysBaseUrl();
+  const proxySecret = requireCloudwaysProxySecret();
   if (!base) {
     return NextResponse.json(
       { error: "CLOUDWAYS_URL is not configured", hint: "Set CLOUDWAYS_URL or NEXT_PUBLIC_CLOUDWAYS_URL." },
       { status: 501 },
     );
   }
+  if (!proxySecret) {
+    return NextResponse.json({ error: "CLOUDWAYS_PROXY_SECRET is not configured" }, { status: 503 });
+  }
 
   const upstream = await fetch(`${base}/chat/voice/events?session_id=${encodeURIComponent(sessionId)}`, {
     method: "GET",
     headers: {
       Accept: "text/event-stream",
-      ...(process.env.CLOUDWAYS_PROXY_SECRET ? { Authorization: `Bearer ${process.env.CLOUDWAYS_PROXY_SECRET}` } : {}),
+      Authorization: `Bearer ${proxySecret}`,
     },
     cache: "no-store",
   });

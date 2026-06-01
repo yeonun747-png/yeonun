@@ -11,8 +11,10 @@ import { buildFortuneMainGroups } from "@/lib/fortune-main-groups";
 import { canNavigateToFortunePart, fortunePartSectionsReady } from "@/lib/fortune-part-readiness";
 import type { Product } from "@/lib/data/content";
 
+import { sanitizeFortuneHtml } from "@/lib/sanitize-fortune-html";
+
 function stripEmpty(html: string) {
-  return html.trim() || "<p>풀이 본문을 불러오고 있어요. 잠시 후 다시 확인해 주세요.</p>";
+  return sanitizeFortuneHtml(html.trim() || "<p>풀이 본문을 불러오고 있어요. 잠시 후 다시 확인해 주세요.</p>");
 }
 
 type FortuneResultPartNavProps = {

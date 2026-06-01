@@ -1,3 +1,6 @@
+import { redirect } from "next/navigation";
+
+import { isAdminRequest } from "@/lib/admin-auth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 import { createAdminTtsPreviewToken } from "@/lib/admin-tts-preview-token";
@@ -152,6 +155,10 @@ function EmptyPanel({ label, error }: { label: string; error?: string }) {
 }
 
 export default async function AdminHomePage() {
+  if (!(await isAdminRequest())) {
+    redirect("/admin/login");
+  }
+
   const [
     products,
     characters,
@@ -204,11 +211,11 @@ export default async function AdminHomePage() {
       id: text(r.id),
       label: text(r.label),
       external_id: text(r.external_id),
-      provider: text(r.provider, "cartesia"),
+      provider: text(r.provider, "openai_realtime"),
     }))
     .sort((a, b) => text(a.label).localeCompare(text(b.label), "ko"));
 
-  /** 음성 상담형(Realtime) 캐릭터 보이스 — 카테시아 TTS는 선택 풀에서 제외 */
+  /** 음성 상담형(Realtime) 캐릭터 보이스 — 레거시 Cartesia provider 행은 선택 풀에서 제외 */
   const ttsVoiceOptionsVoiceRealtime = ttsVoiceOptionsActive.filter(
     (v) => String(v.provider ?? "").trim().toLowerCase() !== "cartesia",
   );
@@ -829,7 +836,7 @@ function TtsVoiceEditor({ row, adminTtsPreviewToken }: { row: Row; adminTtsPrevi
         <span className="y-admin-tts-summary-actions">
           <TtsVoiceListPreview
             externalId={text(row.external_id, "")}
-            provider={text(row.provider, "cartesia")}
+            provider={text(row.provider, "openai_realtime")}
             adminTtsPreviewToken={adminTtsPreviewToken}
           />
           <form action="/admin/tts-voices/toggle-active" method="post">
@@ -848,7 +855,7 @@ function TtsVoiceEditor({ row, adminTtsPreviewToken }: { row: Row; adminTtsPrevi
         <input type="hidden" name="id" value={text(row.id, "")} />
         <input name="label" defaultValue={text(row.label, "")} />
         <input name="external_id" defaultValue={text(row.external_id, "")} readOnly={text(row.provider) === "openai_realtime"} aria-readonly={text(row.provider) === "openai_realtime"} />
-        <input type="hidden" name="provider" value={text(row.provider, "cartesia")} />
+        <input type="hidden" name="provider" value={text(row.provider, "openai_realtime")} />
         <select name="gender" defaultValue={text(row.gender, "other")}>
           <option value="female">여성</option>
           <option value="male">남성</option>

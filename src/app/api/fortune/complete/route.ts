@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 
+import { isInternalApiRequest } from "@/lib/internal-api-secret";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function POST(request: Request) {
+  if (!isInternalApiRequest(request)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     request_id?: string;
     html?: string;
@@ -43,4 +48,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ success: true, id: data?.id });
 }
-

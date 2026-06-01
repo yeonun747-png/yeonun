@@ -36,7 +36,7 @@ export function MyWithdrawAccountMenuItemClient() {
 async function onWithdraw() {
   if (
     !window.confirm(
-      "탈퇴하면 구매 내역과 사주 정보가 모두 삭제됩니다. 정말 탈퇴하시겠어요?",
+      "탈퇴를 신청하면 30일 후 계정과 사주·프로필이 삭제됩니다.\n전자상거래법에 따라 결제·환불 기록은 5년간 보관됩니다.\n탈퇴하시겠습니까?",
     )
   ) {
     return;

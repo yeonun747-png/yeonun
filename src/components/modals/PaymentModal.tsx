@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
+import { PayTermsBlock, usePayTermsState } from "@/components/legal/PayTermsBlock";
 import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { pullCreditsAfterPurchase, spendCreditsWithAuth } from "@/lib/credit-client";
@@ -14,6 +14,7 @@ import {
   YEONUN_CREDIT_UPDATE_EVENT,
 } from "@/lib/credit-balance-local";
 import { creditTopupLoginHref } from "@/lib/credit-topup-auth";
+import { storeOrderAccessToken } from "@/lib/order-access-client";
 import {
   launchFortune82PgPayment,
   registerPgPaymentHandlers,
@@ -46,6 +47,8 @@ export function PaymentModal() {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
   const [creditBal, setCreditBal] = useState(0);
+  const payTerms = usePayTermsState(false);
+  const { agreeAll, agreePayTerms, agreeCommerceTerms, allChecked, toggleAll, togglePay, toggleCommerce } = payTerms;
 
   const refreshBal = useCallback(() => setCreditBal(spendableTotalCredits()), []);
 
@@ -171,6 +174,11 @@ export function PaymentModal() {
 
   const checkout = async () => {
     if (status === "loading") return;
+    if (!allChecked) {
+      setStatus("error");
+      setMessage("결제 전 필수 약관에 동의해 주세요.");
+      return;
+    }
     if (method === "credit" && creditBal < price) return;
     const isPg = method === "card" || method === "phone";
     if (!isPg) {
@@ -214,8 +222,6 @@ export function PaymentModal() {
         return;
       }
 
-      const userRef = sessionNow?.user?.id ?? "guest";
-
       const checkoutHeaders: HeadersInit = { "Content-Type": "application/json" };
       if (sessionNow?.access_token) {
         checkoutHeaders.Authorization = `Bearer ${sessionNow.access_token}`;
@@ -230,7 +236,6 @@ export function PaymentModal() {
           price_krw: price,
           grant_base: isCreditTopup && grantBase > 0 ? grantBase : undefined,
           method,
-          user_ref: userRef,
           first_voice_credit_bonus: isCreditTopup ? firstVoiceCreditBonus : false,
           voice_package_minutes: isVoiceCreditLegacy ? voicePackageMinutes : null,
         }),
@@ -244,6 +249,7 @@ export function PaymentModal() {
 
       const orderNo = String(data.order?.order_no ?? "");
       if (!orderNo) throw new Error("주문번호를 받지 못했습니다.");
+      if (data.order_access_token) storeOrderAccessToken(orderNo, String(data.order_access_token));
 
       if (isPg) {
         await launchFortune82PgPayment({
@@ -251,6 +257,7 @@ export function PaymentModal() {
           orderNo,
           productSlug: product,
           title,
+          orderAccessToken: data.order_access_token,
         });
         return;
       }
@@ -386,46 +393,18 @@ export function PaymentModal() {
             </div>
           </div>
 
-          <div className="y-pay-terms">
-            <div className="y-pay-terms-row checked">
-              <div className="y-pay-terms-check">✓</div>
-              <div className="text">
-                <strong style={{ color: "var(--y-ink)" }}>전체 동의</strong>
-              </div>
-            </div>
-            <div className="y-pay-terms-row checked">
-              <div className="y-pay-terms-check">✓</div>
-              <div className="text">
-                [필수]{" "}
-                <Link
-                  href={legalTermsHref}
-                  scroll={false}
-                  onClick={() => {
-                    rememberSheetBackdropScrollY();
-                  }}
-                >
-                  이용약관
-                </Link>{" "}
-                동의
-              </div>
-            </div>
-            <div className="y-pay-terms-row checked">
-              <div className="y-pay-terms-check">✓</div>
-              <div className="text">
-                [필수]{" "}
-                <Link
-                  href={legalPrivacyHref}
-                  scroll={false}
-                  onClick={() => {
-                    rememberSheetBackdropScrollY();
-                  }}
-                >
-                  개인정보처리방침
-                </Link>{" "}
-                동의
-              </div>
-            </div>
-          </div>
+          <PayTermsBlock
+            agreeAll={agreeAll}
+            agreePayTerms={agreePayTerms}
+            agreeCommerceTerms={agreeCommerceTerms}
+            onToggleAll={toggleAll}
+            onTogglePay={togglePay}
+            onToggleCommerce={toggleCommerce}
+            legalMode="link"
+            legalTermsHref={legalTermsHref}
+            legalPrivacyHref={legalPrivacyHref}
+            onRememberSheetScroll={rememberSheetBackdropScrollY}
+          />
 
           <div className="y-pay-foot">
             {message ? (
@@ -437,7 +416,7 @@ export function PaymentModal() {
               className="y-pay-pay-btn"
               type="button"
               onClick={checkout}
-              disabled={status === "loading" || creditBlocked}
+              disabled={status === "loading" || creditBlocked || !allChecked}
             >
               {status === "loading" ? "결제 진행 중..." : payLabel}
             </button>

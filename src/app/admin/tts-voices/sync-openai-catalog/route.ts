@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { OPENAI_REALTIME_VOICE_CATALOG } from "@/lib/openai-realtime-voices";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
+  if (!(await isAdminRequest())) {
+    return NextResponse.redirect(new URL("/admin/login", request.url), 303);
+  }
   const supabase = supabaseServer();
   const rows = OPENAI_REALTIME_VOICE_CATALOG.map((v) => ({
     provider: "openai_realtime",

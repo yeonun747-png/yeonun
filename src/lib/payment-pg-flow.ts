@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { orderAccessHeaders, storeOrderAccessToken } from "@/lib/order-access-client";
 import {
   clearPaymentSuccessStorage,
   isTrustedPaymentOpenerMessage,
@@ -22,6 +23,7 @@ export type LaunchPgPaymentParams = {
   orderNo: string;
   productSlug: string;
   title: string;
+  orderAccessToken?: string | null;
 };
 
 export type PgPaymentHandlers = {
@@ -161,10 +163,12 @@ async function waitFortune82PgPaidAndCompleteInner(
   opts?: { maxAttempts?: number },
 ): Promise<boolean> {
   const maxAttempts = Math.max(1, opts?.maxAttempts ?? 15);
+  const accessHeaders = orderAccessHeaders(orderNo);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const statusRes = await fetch(`/api/payment/status?oid=${encodeURIComponent(orderNo)}`, {
       cache: "no-store",
+      headers: accessHeaders,
     });
     const statusData = (await statusRes.json().catch(() => ({}))) as {
       success?: boolean;
@@ -181,7 +185,7 @@ async function waitFortune82PgPaidAndCompleteInner(
     if (statusData.pg_paid || statusData.pg_check === "Y") {
       const completeRes = await fetch("/api/payment/complete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...accessHeaders },
         body: JSON.stringify({ order_no: orderNo }),
       });
       const completeData = (await completeRes.json().catch(() => ({}))) as { success?: boolean };
@@ -290,11 +294,13 @@ export function registerPgPaymentHandlers(handlers: PgPaymentHandlers): () => vo
 
 /** 포춘82 PG 팝업 결제 (카드·휴대폰) */
 export async function launchFortune82PgPayment(params: LaunchPgPaymentParams): Promise<void> {
-  const { paymentMethod, orderNo, productSlug, title } = params;
+  const { paymentMethod, orderNo, productSlug, title, orderAccessToken } = params;
+  if (orderAccessToken) storeOrderAccessToken(orderNo, orderAccessToken);
+  const accessHeaders = orderAccessHeaders(orderNo);
 
   const res = await fetch("/api/payment/request", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...accessHeaders },
     body: JSON.stringify({
       paymentMethod,
       order_no: orderNo,
@@ -373,7 +379,12 @@ export async function launchFortune82PgPayment(params: LaunchPgPaymentParams): P
 
   if (typeof window !== "undefined") {
     const returnHref = `${window.location.pathname}${window.location.search}`;
-    writePgPendingSession({ orderNo, productSlug, returnHref });
+    writePgPendingSession({
+      orderNo,
+      productSlug,
+      returnHref,
+      ...(orderAccessToken ? { orderAccessToken } : {}),
+    });
   }
 
   startPaymentWatchers(orderNo);

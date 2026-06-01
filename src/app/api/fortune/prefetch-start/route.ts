@@ -5,6 +5,7 @@ import {
   createFortuneServerPrefetchJob,
   runFortuneServerPrefetchJob,
 } from "@/lib/fortune-server-prefetch";
+import { gateFortunePrefetchStream } from "@/lib/llm-stream-gate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,9 @@ export const revalidate = 0;
 export const maxDuration = 800;
 
 export async function POST(request: Request) {
+  const denied = await gateFortunePrefetchStream(request);
+  if (denied) return denied;
+
   const body = (await request.json().catch(() => ({}))) as FortuneMenuStreamClientBody;
   const created = await createFortuneServerPrefetchJob(body);
   if (!created.ok) {
@@ -24,5 +28,9 @@ export async function POST(request: Request) {
     await runFortuneServerPrefetchJob(request_id);
   });
 
-  return NextResponse.json({ request_id, status: "streaming" });
+  return NextResponse.json({
+    request_id,
+    prefetch_access_token: created.prefetch_access_token,
+    status: "streaming",
+  });
 }

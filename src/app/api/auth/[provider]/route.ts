@@ -20,12 +20,13 @@ export async function GET(
   const provider = raw as SocialProvider;
 
   const returnTo = request.nextUrl.searchParams.get("returnTo") ?? "/";
+  const termsAccepted = request.nextUrl.searchParams.get("terms") === "1";
 
   if (!isOAuthConfigured(provider)) {
     return NextResponse.redirect(new URL(authErrorRedirectPath(returnTo, "oauth_not_configured"), request.url));
   }
 
-  const { state, cookieValue } = createOAuthState(provider, returnTo);
+  const { state, cookieValue } = createOAuthState(provider, returnTo, { termsAccepted });
   const url = buildAuthorizeUrl(request, provider, state);
   const res = NextResponse.redirect(url);
   setOAuthStateCookie(res, cookieValue);

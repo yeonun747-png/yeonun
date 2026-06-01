@@ -12,9 +12,25 @@ const cors = require("cors");
 
 const app = express();
 app.timeout = 0;
+function cloudwaysAllowedOrigins(): string[] {
+  const raw = String(process.env.CLOUDWAYS_CORS_ORIGINS ?? "").trim();
+  const fromEnv = raw
+    ? raw.split(",").map((s) => s.trim()).filter(Boolean)
+    : ["https://www.yeonun.com", "https://yeonun.com"];
+  if (process.env.NODE_ENV !== "production") {
+    fromEnv.push("http://localhost:3000", "http://127.0.0.1:3000");
+  }
+  return [...new Set(fromEnv)];
+}
+
+const allowedOrigins = cloudwaysAllowedOrigins();
+
 app.use(
   cors({
-    origin: "*",
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS not allowed"));
+    },
     methods: ["POST", "GET", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
@@ -22,7 +38,10 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 
 app.options("*", (req, res) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const origin = String(req.headers.origin ?? "");
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
   res.header("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.sendStatus(204);
@@ -77,7 +96,12 @@ function verifyFortuneStreamToken(token) {
 
 function requireProxySecret(req, res, next) {
   const secret = String(process.env.CLOUDWAYS_PROXY_SECRET || "").trim();
-  if (!secret) return next();
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(503).json({ error: "CLOUDWAYS_PROXY_SECRET is not configured" });
+    }
+    return next();
+  }
   const auth = String(req.headers.authorization || "");
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
   if (bearer === secret || verifyFortuneStreamToken(bearer)) {

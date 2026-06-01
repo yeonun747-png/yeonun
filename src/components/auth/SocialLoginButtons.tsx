@@ -7,6 +7,7 @@ import type { SocialProvider } from "@/lib/auth/types";
 
 type Props = {
   className?: string;
+  disabled?: boolean;
 };
 
 function buildReturnTo(pathname: string, searchParams: URLSearchParams): string {
@@ -21,30 +22,30 @@ function buildReturnTo(pathname: string, searchParams: URLSearchParams): string 
 }
 
 function startOAuth(provider: SocialProvider, returnTo: string) {
-  const url = `/api/auth/${provider}?returnTo=${encodeURIComponent(returnTo)}`;
+  const url = `/api/auth/${provider}?returnTo=${encodeURIComponent(returnTo)}&terms=1`;
   window.location.href = url;
 }
 
-export function SocialLoginButtons({ className }: Props) {
+export function SocialLoginButtons({ className, disabled = false }: Props) {
   const pathname = usePathname();
   const sp = useSearchParams();
   const returnTo = buildReturnTo(pathname, new URLSearchParams(sp.toString()));
 
   return (
     <div className={className ?? "y-auth-social"}>
-      <button className="y-social-btn google" type="button" onClick={() => startOAuth("google", returnTo)}>
+      <button className="y-social-btn google" type="button" disabled={disabled} onClick={() => startOAuth("google", returnTo)}>
         <span className="icon">
           <SocialProviderIcon provider="google" />
         </span>
         Google로 시작하기
       </button>
-      <button className="y-social-btn kakao" type="button" onClick={() => startOAuth("kakao", returnTo)}>
+      <button className="y-social-btn kakao" type="button" disabled={disabled} onClick={() => startOAuth("kakao", returnTo)}>
         <span className="icon">
           <SocialProviderIcon provider="kakao" />
         </span>
         카카오로 시작하기
       </button>
-      <button className="y-social-btn naver" type="button" onClick={() => startOAuth("naver", returnTo)}>
+      <button className="y-social-btn naver" type="button" disabled={disabled} onClick={() => startOAuth("naver", returnTo)}>
         <span className="icon">
           <SocialProviderIcon provider="naver" />
         </span>

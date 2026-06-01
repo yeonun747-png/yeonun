@@ -1,13 +1,8 @@
-import { Suspense } from "react";
-import CallPageClient from "./CallPageClient";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
+/** 레거시 /call → OpenAI Realtime 음성 상담(/call-dcc) */
 export default function CallPage() {
-  return (
-    <Suspense fallback={<div className="yeonunPage" style={{ background: "#1A1815", minHeight: "100vh" }} />}>
-      <CallPageClient />
-    </Suspense>
-  );
+  redirect("/call-dcc");
 }

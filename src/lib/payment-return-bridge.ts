@@ -12,6 +12,7 @@ export type PgPendingSession = {
   orderNo: string;
   productSlug: string;
   returnHref: string;
+  orderAccessToken?: string;
 };
 
 /** 결제 팝업이 다른 탭에 기록한 성공 신호 — 부모 창 storage 이벤트·폴링용 */

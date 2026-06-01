@@ -1,5 +1,6 @@
 "use client";
 
+import { orderAccessHeaders } from "@/lib/order-access-client";
 import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
 import { readFortunePrefetch, writeFortunePrefetch } from "@/lib/fortune-prefetch-storage";
 import { createFortunePrefetchPump } from "@/lib/fortune-prefetch-sse-engine";
@@ -23,7 +24,11 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
   const { productSlug, profile, orderNo, signal, onPatch } = args;
 
   const streamBody = buildFortunePrefetchStreamBody(args);
-  const streamHeaders = { "Content-Type": "application/json", Accept: "text/event-stream" as const };
+  const streamHeaders = {
+    "Content-Type": "application/json",
+    Accept: "text/event-stream" as const,
+    ...orderAccessHeaders(orderNo),
+  };
 
   const pump = createFortunePrefetchPump({
     profile,

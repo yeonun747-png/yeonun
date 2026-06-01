@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import { absoluteUrl } from "@/lib/site-url";
 import { fetchFortuneMenuStreamUpstream } from "@/lib/fortune-menu-stream-upstream";
 import {
@@ -22,6 +24,7 @@ export type FortuneRequestPrefetchPayload = {
   prefetch_snapshot?: FortunePrefetchV1;
   prefetch_error?: string;
   order_no?: string;
+  prefetch_access_token?: string;
 };
 
 const DB_FLUSH_MS = 600;
@@ -51,7 +54,10 @@ async function resolveOrderId(orderNo: string | undefined): Promise<string | nul
 
 export async function createFortuneServerPrefetchJob(
   clientBody: FortuneMenuStreamClientBody,
-): Promise<{ ok: true; request_id: string } | { ok: false; error: string; status: number }> {
+): Promise<
+  | { ok: true; request_id: string; prefetch_access_token: string }
+  | { ok: false; error: string; status: number }
+> {
   const built = await buildFortuneMenuCloudwaysBody(clientBody);
   if (!built.ok) {
     return { ok: false, error: built.error, status: built.status };
@@ -59,6 +65,7 @@ export async function createFortuneServerPrefetchJob(
 
   const { upstream, product_slug, profile } = built;
   const order_id = await resolveOrderId(clientBody.order_no);
+  const prefetch_access_token = randomBytes(24).toString("base64url");
 
   const supabase = supabaseServer();
   const { data, error } = await supabase
@@ -74,6 +81,7 @@ export async function createFortuneServerPrefetchJob(
         client_body: clientBody,
         product_slug,
         order_no: clientBody.order_no,
+        prefetch_access_token,
       } satisfies FortuneRequestPrefetchPayload,
     })
     .select("id")
@@ -87,7 +95,7 @@ export async function createFortuneServerPrefetchJob(
     };
   }
 
-  return { ok: true, request_id: String(data.id) };
+  return { ok: true, request_id: String(data.id), prefetch_access_token };
 }
 
 export async function readFortuneServerPrefetchSnapshot(requestId: string): Promise<{

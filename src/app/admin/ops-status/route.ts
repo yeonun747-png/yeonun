@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 const TABLES = new Set(["orders", "payments", "voice_sessions", "fortune_requests", "fortune_prompt_versions", "webhook_events"]);
 
 export async function POST(request: Request) {
+  if (!(await isAdminRequest())) {
+    return NextResponse.redirect(new URL("/admin/login", request.url), 303);
+  }
+
   const form = await request.formData();
   const table = String(form.get("table") ?? "").trim();
   const id = String(form.get("id") ?? "").trim();

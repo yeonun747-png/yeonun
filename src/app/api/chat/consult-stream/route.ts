@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
 import { buildRollingWindowAnthropicInput, type DialogTurnMsg } from "@/lib/dialog-window-claude";
 import { logLlmErrorEvent } from "@/lib/llm-error-log";
+import { CREDIT_CHAT_PER_USER_MESSAGE, gateConsultStream } from "@/lib/llm-stream-gate";
+import { spendCredits } from "@/lib/credit-server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -10,6 +12,24 @@ export const revalidate = 0;
 type Msg = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: Request) {
+  const gate = await gateConsultStream(request);
+  if (!gate.ok) return gate.response;
+
+  if (gate.userId) {
+    try {
+      await spendCredits(gate.userId, CREDIT_CHAT_PER_USER_MESSAGE, {
+        kind: "spend_chat",
+        memo: "채팅 메시지",
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "spend_failed";
+      if (msg === "insufficient_credits") {
+        return NextResponse.json({ error: msg }, { status: 402 });
+      }
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
   const apiKey = String(process.env.ANTHROPIC_API_KEY ?? "").trim();
   if (!apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY is not configured" }, { status: 501 });

@@ -7,12 +7,13 @@ import {
   VOICE_ARCHIVE_SUBTITLE_MAX_CHARS,
 } from "@/lib/voice-archive-subtitle-haiku";
 import { supabaseServer } from "@/lib/supabase/server";
+import { requireVoiceSessionRollSecret } from "@/lib/voice-roll-secret";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: sessionId } = await params;
   const sid = String(sessionId ?? "").trim();
   if (!sid) {
@@ -20,6 +21,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
 
   const supabase = supabaseServer();
+  const access = await requireVoiceSessionRollSecret(supabase, sid, request);
+  if (!access.ok) {
+    return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
+  }
+
   const { data: sess, error: sErr } = await supabase
     .from("voice_sessions")
     .select("id, status, archive_subtitle")

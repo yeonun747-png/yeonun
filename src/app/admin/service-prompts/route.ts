@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   const wantsJson = request.headers.get("accept")?.includes("application/json");
+  if (!(await isAdminRequest())) {
+    if (wantsJson) return NextResponse.json({ ok: false as const, error: "unauthorized" }, { status: 401 });
+    return NextResponse.redirect(new URL("/admin/login", request.url), 303);
+  }
   const form = await request.formData();
   const key = String(form.get("key") ?? "yeonun_common_system").trim();
   const title = String(form.get("title") ?? "").trim();

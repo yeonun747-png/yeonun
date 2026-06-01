@@ -6,6 +6,7 @@ import {
   type FortuneMenuStreamClientBody,
 } from "@/lib/fortune-menu-stream-payload";
 import { createFortuneStreamToken } from "@/lib/fortune-stream-direct-token";
+import { gateFortuneOrderStream } from "@/lib/llm-stream-gate";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -14,6 +15,9 @@ export const revalidate = 0;
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as FortuneMenuStreamClientBody;
+  const denied = await gateFortuneOrderStream(request, body.order_no);
+  if (denied) return denied;
+
   const built = await buildFortuneMenuCloudwaysBody(body);
   if (!built.ok) {
     return NextResponse.json({ error: built.error }, { status: built.status });

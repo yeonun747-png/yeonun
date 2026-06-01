@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
+import { SajuConsentRow } from "@/components/legal/SajuConsentRow";
 import { clearPartnerInfo, writePartnerInfo, type PartnerInfoPayload } from "@/lib/partner-info-storage";
 
 /** 12시진 — 저장용 key + 화면 표시는 시간대만 */
@@ -84,6 +85,7 @@ export function PartnerInfoModal() {
   const [unknownTime, setUnknownTime] = useState(false);
   const [gender, setGender] = useState<"male" | "female" | "">("female");
   const [err, setErr] = useState<string | null>(null);
+  const [partnerConsent, setPartnerConsent] = useState(false);
 
   const yearChoices = useMemo(() => {
     const maxY = new Date().getFullYear();
@@ -168,6 +170,10 @@ export function PartnerInfoModal() {
         setErr("성별을 선택해 주세요.");
         return;
       }
+      if (!partnerConsent) {
+        setErr("상대방 정보 수집·이용에 동의해 주세요.");
+        return;
+      }
       const payload: PartnerInfoPayload = {
         name: name.trim(),
         relation,
@@ -181,7 +187,7 @@ export function PartnerInfoModal() {
       writePartnerInfo(product, payload);
       goFortuneStream({ router, pathname, sp, product, title, price, character_key, order_no });
     },
-    [product, name, relation, y, m, d, branchKey, unknownTime, gender, router, pathname, sp, title, price, character_key, order_no],
+    [product, name, relation, y, m, d, branchKey, unknownTime, gender, partnerConsent, router, pathname, sp, title, price, character_key, order_no],
   );
 
   return (
@@ -312,10 +318,11 @@ export function PartnerInfoModal() {
               {err}
             </p>
           ) : null}
+          <SajuConsentRow variant="partner" checked={partnerConsent} onChange={setPartnerConsent} className="y-partner-consent" />
         </div>
 
         <div className="y-partner-foot">
-          <button type="button" className="y-partner-primary" onClick={() => submit(false)}>
+          <button type="button" className="y-partner-primary" disabled={!partnerConsent} onClick={() => submit(false)}>
             풀이 시작하기
           </button>
           <button type="button" className="y-partner-skip" onClick={() => submit(true)}>

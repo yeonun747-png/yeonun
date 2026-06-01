@@ -80,10 +80,34 @@ export function writeServerPrefetchRequestId(productSlug: string, requestId: str
   }
 }
 
+export const fortuneServerPrefetchAccessKey = (productSlug: string) =>
+  `yeonun_fortune_server_access_${productSlug.trim()}`;
+
+export function readServerPrefetchAccessToken(productSlug: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(fortuneServerPrefetchAccessKey(productSlug));
+    return raw?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeServerPrefetchCredentials(productSlug: string, requestId: string, accessToken: string) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(fortuneServerPrefetchRequestKey(productSlug), requestId.trim());
+    sessionStorage.setItem(fortuneServerPrefetchAccessKey(productSlug), accessToken.trim());
+  } catch {
+    // ignore
+  }
+}
+
 export function clearServerPrefetchRequestId(productSlug: string) {
   if (typeof window === "undefined") return;
   try {
     sessionStorage.removeItem(fortuneServerPrefetchRequestKey(productSlug));
+    sessionStorage.removeItem(fortuneServerPrefetchAccessKey(productSlug));
   } catch {
     // ignore
   }

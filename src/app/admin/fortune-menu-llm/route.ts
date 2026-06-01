@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import {
   FORTUNE_MENU_LLM_SERVICE_KEY,
   isAllowedFortuneMenuLlmModelId,
@@ -7,6 +8,9 @@ import {
 import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
+  if (!(await isAdminRequest())) {
+    return NextResponse.json({ ok: false as const, error: "unauthorized" }, { status: 401 });
+  }
   const body = (await request.json().catch(() => ({}))) as { model?: unknown };
   const model = String(body?.model ?? "").trim();
   if (!isAllowedFortuneMenuLlmModelId(model)) {

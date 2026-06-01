@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-const COOKIE_NAME = "yeonun_admin";
+import {
+  ADMIN_COOKIE_MAX_AGE_SEC,
+  ADMIN_COOKIE_NAME,
+  mintAdminSessionCookieValue,
+} from "@/lib/admin-cookie";
 
 function requestIsHttps(request: Request): boolean {
   const u = new URL(request.url);
@@ -28,12 +32,16 @@ export async function POST(request: Request) {
   const jar = await cookies();
   const secure = requestIsHttps(request);
   const domain = String(process.env.ADMIN_COOKIE_DOMAIN ?? "").trim() || undefined;
-  jar.set(COOKIE_NAME, "1", {
+  const signed = mintAdminSessionCookieValue();
+  if (!signed) {
+    return NextResponse.redirect(new URL("/admin", request.url), 303);
+  }
+  jar.set(ADMIN_COOKIE_NAME, signed, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
     secure,
-    maxAge: 60 * 60 * 24 * 30,
+    maxAge: ADMIN_COOKIE_MAX_AGE_SEC,
     ...(domain ? { domain } : {}),
   });
 

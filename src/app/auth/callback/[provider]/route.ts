@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { mapOAuthProviderError, mapThrownOAuthError, sanitizeAuthErrorHint } from "@/lib/auth/auth-error-hint";
 import { createExchangeToken } from "@/lib/auth/exchange-token";
+import { AUTH_EXCHANGE_COOKIE, AUTH_EXCHANGE_COOKIE_MAX_AGE_SEC } from "@/lib/auth/exchange-cookie";
 import { exchangeCodeAndFetchProfile } from "@/lib/auth/providers";
 import { callbackUrl, requestBaseUrl } from "@/lib/auth/request-base-url";
 import {
@@ -22,6 +23,7 @@ import type { SocialProvider } from "@/lib/auth/types";
 import { env } from "@/lib/env";
 import { parseReferralPendingCookie, REFERRAL_PENDING_COOKIE } from "@/lib/referral-pending";
 import { claimReferralSignup } from "@/lib/referral-server";
+import { recordProfileTermsAcceptedAt } from "@/lib/profile-terms-server";
 
 const PROVIDERS = new Set<SocialProvider>(["google", "kakao", "naver"]);
 
@@ -91,6 +93,10 @@ export async function GET(
 
     const result = await upsertSocialUser(profile);
 
+    if (stored.termsAccepted) {
+      await recordProfileTermsAcceptedAt(result.authUserId);
+    }
+
     if (result.isNewUser) {
       const refRaw = request.cookies.get(REFERRAL_PENDING_COOKIE)?.value;
       const pending = parseReferralPendingCookie(refRaw);
@@ -116,11 +122,17 @@ export async function GET(
     });
 
     const complete = new URL("/auth/complete", base);
-    complete.searchParams.set("token", exchange);
     complete.searchParams.set("returnTo", result.isNewUser ? returnTo : "/my");
     complete.searchParams.set("provider", provider);
     if (result.isNewUser) complete.searchParams.set("onboard", "1");
     const res = NextResponse.redirect(complete);
+    res.cookies.set(AUTH_EXCHANGE_COOKIE, exchange, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: AUTH_EXCHANGE_COOKIE_MAX_AGE_SEC,
+    });
     clearOAuthStateCookie(res);
     if (result.isNewUser) {
       res.cookies.set(REFERRAL_PENDING_COOKIE, "", { httpOnly: false, path: "/", maxAge: 0, sameSite: "lax" });

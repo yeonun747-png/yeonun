@@ -1,5 +1,6 @@
 "use client";
 
+import { SajuConsentRow } from "@/components/legal/SajuConsentRow";
 import type { FortuneFlowForm } from "@/components/fortune/fortuneFlowTypes";
 
 const CLOCK_HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
@@ -21,10 +22,16 @@ export function Step1Input({
   form,
   onChange,
   onSubmit,
+  showSajuConsent = false,
+  sajuConsentChecked = false,
+  onSajuConsentChange,
 }: {
   form: FortuneFlowForm;
   onChange: (patch: Partial<FortuneFlowForm>) => void;
   onSubmit: () => void;
+  showSajuConsent?: boolean;
+  sajuConsentChecked?: boolean;
+  onSajuConsentChange?: (checked: boolean) => void;
 }) {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1899 }, (_, i) => String(currentYear - i));
@@ -125,7 +132,15 @@ export function Step1Input({
             : null}
         </select>
       </div>
-      <button className="y-fortune-v2-primary" type="button" disabled={!form.year || !form.month || !form.day} onClick={onSubmit}>
+      {showSajuConsent ? (
+        <SajuConsentRow checked={sajuConsentChecked} onChange={(v) => onSajuConsentChange?.(v)} />
+      ) : null}
+      <button
+        className="y-fortune-v2-primary"
+        type="button"
+        disabled={!form.year || !form.month || !form.day || (showSajuConsent && !sajuConsentChecked)}
+        onClick={onSubmit}
+      >
         풀이 시작하기 →
       </button>
     </section>

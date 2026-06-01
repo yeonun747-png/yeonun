@@ -14,8 +14,7 @@ export type DailyWordSharePayload = {
 };
 
 function shareSecret(): string {
-  const s =
-    process.env.DAILY_WORD_SHARE_SECRET?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
+  const s = process.env.DAILY_WORD_SHARE_SECRET?.trim() || "";
   if (!s) throw new Error("missing_daily_word_share_secret");
   return s;
 }

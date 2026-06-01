@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { FORTUNE_PG_ERROR_EVENT } from "@/lib/fortune-pg-events";
 import { launchFortune82PgPayment } from "@/lib/payment-pg-flow";
+import { storeOrderAccessToken } from "@/lib/order-access-client";
 import { appendStubPayment } from "@/lib/payments-history-stub";
 import { spendCreditsWithAuth } from "@/lib/credit-client";
 import { spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
@@ -11,8 +12,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Product } from "@/lib/data/content";
 import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
 import { splitHtmlAfterFirstSubtitleH3Close } from "@/lib/fortune-section-html-split";
-import { LegalInlineSheet } from "@/components/legal/LegalInlineSheet";
-import { PrivacyDocContent, TermsDocContent } from "@/components/legal/LegalDocContent";
+import { PayTermsBlock, usePayTermsState } from "@/components/legal/PayTermsBlock";
 
 function stripHtml(s: string) {
   return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -50,10 +50,8 @@ export function Step6Preview({
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState("");
   const [creditBal, setCreditBal] = useState(0);
-  const [legalSheet, setLegalSheet] = useState<"terms" | "privacy" | null>(null);
-  const [agreeAll, setAgreeAll] = useState(true);
-  const [agreePayTerms, setAgreePayTerms] = useState(true);
-  const [agreeCommerceTerms, setAgreeCommerceTerms] = useState(true);
+  const payTerms = usePayTermsState(false);
+  const { agreeAll, agreePayTerms, agreeCommerceTerms, allChecked, toggleAll, togglePay, toggleCommerce } = payTerms;
   const [couponApply, setCouponApply] = useState<CouponApply | null>(null);
 
   const listPrice = product.price_krw;
@@ -136,6 +134,11 @@ export function Step6Preview({
 
   const checkout = async (payMethod: "card" | "phone" | "credit") => {
     if (status === "loading") return;
+    if (!allChecked) {
+      setStatus("error");
+      setMessage("결제 전 필수 약관에 동의해 주세요.");
+      return;
+    }
     setMethod(payMethod);
     const isPg = payMethod === "card" || payMethod === "phone";
     if (!isPg) {
@@ -183,7 +186,6 @@ export function Step6Preview({
       const authHeaders: HeadersInit = { "Content-Type": "application/json" };
       if (session?.access_token) authHeaders.Authorization = `Bearer ${session.access_token}`;
 
-      const userRef = session?.user?.id ?? "guest";
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: authHeaders,
@@ -192,7 +194,6 @@ export function Step6Preview({
           title: product.title,
           price_krw: listPrice,
           method: payMethod,
-          user_ref: userRef,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -200,11 +201,13 @@ export function Step6Preview({
         error?: string;
         order?: { order_no?: string };
         pg_flow?: boolean;
+        order_access_token?: string | null;
       };
       if (!res.ok || !data.success) throw new Error(data.error || "결제 요청 저장 실패");
 
       const orderNo = String(data.order?.order_no ?? "");
       if (!orderNo) throw new Error("주문번호를 받지 못했습니다.");
+      if (data.order_access_token) storeOrderAccessToken(orderNo, data.order_access_token);
 
       if (isPg) {
         await launchFortune82PgPayment({
@@ -212,6 +215,7 @@ export function Step6Preview({
           orderNo,
           productSlug: product.slug,
           title: product.title,
+          orderAccessToken: data.order_access_token,
         });
         return;
       }
@@ -234,7 +238,6 @@ export function Step6Preview({
 
   const usable = Math.min(creditBal, finalPrice);
   const extra = Math.max(0, finalPrice - usable);
-  const allChecked = agreePayTerms && agreeCommerceTerms;
 
   return (
     <>
@@ -339,126 +342,20 @@ export function Step6Preview({
             </div>
           </div>
 
-          <div className="y-pay-terms" aria-label="약관 동의">
-            <div
-              className={`y-pay-terms-row ${agreeAll && allChecked ? "checked" : ""}`}
-              role="checkbox"
-              aria-checked={Boolean(agreeAll && allChecked)}
-              tabIndex={0}
-              onClick={() => {
-                const next = !(agreeAll && allChecked);
-                setAgreeAll(next);
-                setAgreePayTerms(next);
-                setAgreeCommerceTerms(next);
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                const next = !(agreeAll && allChecked);
-                setAgreeAll(next);
-                setAgreePayTerms(next);
-                setAgreeCommerceTerms(next);
-              }}
-            >
-              <div className="y-pay-terms-check" aria-hidden="true">
-                ✓
-              </div>
-              <div className="text">전체 동의</div>
-            </div>
-            <div
-              className={`y-pay-terms-row ${agreePayTerms ? "checked" : ""}`}
-              role="checkbox"
-              aria-checked={Boolean(agreePayTerms)}
-              tabIndex={0}
-              onClick={() => {
-                const next = !agreePayTerms;
-                setAgreePayTerms(next);
-                const nextAll = next && agreeCommerceTerms;
-                setAgreeAll(nextAll);
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                const next = !agreePayTerms;
-                setAgreePayTerms(next);
-                const nextAll = next && agreeCommerceTerms;
-                setAgreeAll(nextAll);
-              }}
-            >
-              <div className="y-pay-terms-check" aria-hidden="true">
-                ✓
-              </div>
-              <div className="text">
-                [필수]{" "}
-                <button
-                  type="button"
-                  className="y-pay-terms-link"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLegalSheet("terms");
-                  }}
-                >
-                  이용약관
-                </button>{" "}
-                동의
-              </div>
-            </div>
-            <div
-              className={`y-pay-terms-row ${agreeCommerceTerms ? "checked" : ""}`}
-              role="checkbox"
-              aria-checked={Boolean(agreeCommerceTerms)}
-              tabIndex={0}
-              onClick={() => {
-                const next = !agreeCommerceTerms;
-                setAgreeCommerceTerms(next);
-                const nextAll = agreePayTerms && next;
-                setAgreeAll(nextAll);
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter" && e.key !== " ") return;
-                e.preventDefault();
-                const next = !agreeCommerceTerms;
-                setAgreeCommerceTerms(next);
-                const nextAll = agreePayTerms && next;
-                setAgreeAll(nextAll);
-              }}
-            >
-              <div className="y-pay-terms-check" aria-hidden="true">
-                ✓
-              </div>
-              <div className="text">
-                [필수]{" "}
-                <button
-                  type="button"
-                  className="y-pay-terms-link"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLegalSheet("privacy");
-                  }}
-                >
-                  개인정보처리방침
-                </button>{" "}
-                동의
-              </div>
-            </div>
-          </div>
+          <PayTermsBlock
+            agreeAll={agreeAll}
+            agreePayTerms={agreePayTerms}
+            agreeCommerceTerms={agreeCommerceTerms}
+            onToggleAll={toggleAll}
+            onTogglePay={togglePay}
+            onToggleCommerce={toggleCommerce}
+          />
           {message ? <p className="y-fortune-v2-pay-error">{message}</p> : null}
-          <button className="y-fortune-v2-primary" type="button" disabled={status === "loading"} onClick={() => checkout(method)}>
+          <button className="y-fortune-v2-primary" type="button" disabled={status === "loading" || !allChecked} onClick={() => checkout(method)}>
             {status === "loading" ? "결제 처리 중..." : `전체 풀이 보기 · ${finalPrice.toLocaleString("ko-KR")}원`}
           </button>
         </div>
       </section>
-
-      {legalSheet === "terms" ? (
-        <LegalInlineSheet title="이용약관" ariaLabel="이용약관" onClose={() => setLegalSheet(null)}>
-          <TermsDocContent />
-        </LegalInlineSheet>
-      ) : null}
-      {legalSheet === "privacy" ? (
-        <LegalInlineSheet title="개인정보처리방침" ariaLabel="개인정보처리방침" onClose={() => setLegalSheet(null)}>
-          <PrivacyDocContent />
-        </LegalInlineSheet>
-      ) : null}
     </>
   );
 }

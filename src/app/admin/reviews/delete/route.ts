@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { revalidateReviewPages } from "@/lib/reviews-revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -14,6 +15,11 @@ export async function POST(request: Request) {
   const form = await request.formData();
   const id = String(form.get("id") ?? "").trim();
   const json = wantsJson(form, request);
+
+  if (!(await isAdminRequest())) {
+    if (json) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.redirect(new URL("/admin/login", request.url), 303);
+  }
 
   if (!id) {
     if (json) return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });

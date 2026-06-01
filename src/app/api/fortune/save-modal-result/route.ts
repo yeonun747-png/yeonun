@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { optionalMyUserId } from "@/lib/my-route-auth";
+import { assertPaidFortuneStreamAccess } from "@/lib/order-access";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "product_slug and html are required" }, { status: 400 });
   }
 
+  const order_no = body.order_no != null ? String(body.order_no).trim() : "";
+  if (!order_no) {
+    return NextResponse.json({ error: "order_no_required" }, { status: 401 });
+  }
+
+  const paid = await assertPaidFortuneStreamAccess(request, order_no);
+  if (!paid.ok) return paid.response;
+  if (String(paid.order.status ?? "") !== "paid") {
+    return NextResponse.json({ error: "order_not_paid" }, { status: 402 });
+  }
+
   let supabase;
   try {
     supabase = supabaseServer();
@@ -38,12 +50,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "server_storage_unconfigured", saved: false }, { status: 503 });
   }
 
-  const order_no = body.order_no != null ? String(body.order_no).trim() : "";
-  let order_id: string | null = null;
-  if (order_no) {
-    const { data: ord } = await supabase.from("orders").select("id").eq("order_no", order_no).maybeSingle();
-    order_id = ord?.id ?? null;
-  }
+  const order_id: string | null = paid.order.id ?? null;
 
   const payload = {
     title: String(body.title ?? "").trim() || null,
@@ -61,7 +68,7 @@ export async function POST(request: Request) {
   };
 
   const authUserId = await optionalMyUserId(request);
-  const user_ref = authUserId ?? "guest";
+  const user_ref = authUserId ?? paid.order.user_ref ?? "guest";
 
   const { data: reqRow, error: reqErr } = await supabase
     .from("fortune_requests")

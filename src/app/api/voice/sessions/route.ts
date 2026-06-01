@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/supabase/server";
-import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
+import { getCharacterModePrompt } from "@/lib/data/characters";
 
 function normalizeVoiceUserRef(raw: string | undefined): string {
   const t = String(raw ?? "").trim();
@@ -26,11 +26,7 @@ export async function POST(request: Request) {
   const user_ref = normalizeVoiceUserRef(body.user_ref);
   const roll_secret = newVoiceRollSecret();
 
-  const [commonPrompt, characterPrompt, persona] = await Promise.all([
-    getServicePrompt("yeonun_common_system"),
-    getCharacterModePrompt(character_key, "voice"),
-    getCharacterPersona(character_key),
-  ]);
+  const characterPrompt = await getCharacterModePrompt(character_key, "voice");
   const supabase = supabaseServer();
   const { data, error } = await supabase
     .from("voice_sessions")
@@ -49,21 +45,12 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     session: data,
-    prompt_context: {
-      common_system_prompt: commonPrompt?.prompt ?? null,
-      character_system_prompt: characterPrompt?.prompt ?? null,
-      persona_snapshot: persona ?? null,
-      tts_voice: tv
-        ? {
-            external_id: tv.external_id,
-            label: tv.label,
-            provider: tv.provider ?? "cartesia",
-          }
-        : null,
-      /** @deprecated Realtime 전환 후 `tts_voice` 사용 */
-      cartesia_voice: tv
-        ? { external_id: tv.external_id, label: tv.label, provider: tv.provider ?? "cartesia" }
-        : null,
-    },
+    tts_voice: tv
+      ? {
+          external_id: tv.external_id,
+          label: tv.label,
+          provider: tv.provider ?? "openai_realtime",
+        }
+      : null,
   });
 }

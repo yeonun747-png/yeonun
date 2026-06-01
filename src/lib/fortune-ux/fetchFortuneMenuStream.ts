@@ -1,5 +1,7 @@
 "use client";
 
+import { orderAccessHeaders } from "@/lib/order-access-client";
+
 export type FortuneMenuStreamBody = {
   product_slug: string;
   profile: string;
@@ -20,10 +22,12 @@ type StreamSessionJson = {
   upstream_body?: Record<string, unknown>;
 };
 
-const streamHeaders = {
-  "Content-Type": "application/json",
-  Accept: "text/event-stream",
-} as const;
+const streamHeaders = (orderNo?: string) =>
+  ({
+    "Content-Type": "application/json",
+    Accept: "text/event-stream",
+    ...orderAccessHeaders(orderNo),
+  }) as const;
 
 function isEventStream(res: Response): boolean {
   return res.ok && !!res.body && (res.headers.get("content-type") ?? "").toLowerCase().includes("text/event-stream");
@@ -37,11 +41,12 @@ export async function fetchFortuneMenuStream(
   streamBody: FortuneMenuStreamBody,
   signal: AbortSignal,
 ): Promise<Response> {
+  const hdrs = streamHeaders(streamBody.order_no);
   let session: StreamSessionJson | null = null;
   try {
     const sessionRes = await fetch("/api/fortune/stream-session", {
       method: "POST",
-      headers: streamHeaders,
+      headers: hdrs,
       body: JSON.stringify(streamBody),
       signal,
     });
@@ -56,7 +61,7 @@ export async function fetchFortuneMenuStream(
     const directRes = await fetch(`${String(session.stream_url).replace(/\/+$/, "")}/chat`, {
       method: "POST",
       headers: {
-        ...streamHeaders,
+        ...hdrs,
         Authorization: `Bearer ${session.stream_token}`,
       },
       body: JSON.stringify(session.upstream_body),
@@ -68,7 +73,7 @@ export async function fetchFortuneMenuStream(
   if (session?.mode === "proxy" && session.upstream_body) {
     const proxyRes = await fetch("/api/fortune/stream-proxy", {
       method: "POST",
-      headers: streamHeaders,
+      headers: hdrs,
       body: JSON.stringify({
         request_id: session.request_id ?? undefined,
         upstream_body: session.upstream_body,
@@ -80,7 +85,7 @@ export async function fetchFortuneMenuStream(
 
   return fetch("/api/fortune/chat-stream-menus", {
     method: "POST",
-    headers: streamHeaders,
+    headers: hdrs,
     body: JSON.stringify(streamBody),
     signal,
   });

@@ -7,6 +7,7 @@ import {
   grantMissionCreditsIfNew,
   missionGrantKey,
 } from "@/lib/mission-coupon-server";
+import { assertMissionEligibleOnServer } from "@/lib/mission-server-verify";
 import { env } from "@/lib/env";
 import { requireMyUserId } from "@/lib/my-route-auth";
 
@@ -14,19 +15,24 @@ export const dynamic = "force-dynamic";
 
 const COUPON_MISSIONS = new Set<MissionId>(["M01", "M05", "M09"]);
 
+/** M08 친구 초대 — referral-server에서만 크레딧 지급 */
+const SERVER_ONLY_CREDIT_MISSIONS = new Set<MissionId>(["M08"]);
+
 export async function POST(request: Request) {
   const auth = await requireMyUserId(request);
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as {
     mission_id?: MissionId;
-    grant_key?: string;
-    cadence?: "once" | "daily" | "hours24" | "unlimited";
   };
 
   const missionId = body.mission_id;
   if (!missionId || !MISSIONS[missionId]) {
     return NextResponse.json({ ok: false, error: "invalid_mission" }, { status: 400 });
+  }
+
+  if (SERVER_ONLY_CREDIT_MISSIONS.has(missionId)) {
+    return NextResponse.json({ ok: false, error: "mission_reward_not_available" }, { status: 403 });
   }
 
   const serviceKey = env.supabaseServiceRoleKey;
@@ -39,8 +45,13 @@ export async function POST(request: Request) {
   });
 
   const def = MISSIONS[missionId];
-  const grantKey = body.grant_key?.trim() || missionGrantKey(missionId, body.cadence ?? def.cadence);
+  const grantKey = missionGrantKey(missionId, def.cadence);
   const now = new Date();
+
+  const eligible = await assertMissionEligibleOnServer(supabase, auth.userId, missionId);
+  if (!eligible.ok) {
+    return NextResponse.json({ ok: false, error: eligible.error }, { status: 403 });
+  }
 
   try {
     let creditsGranted = 0;

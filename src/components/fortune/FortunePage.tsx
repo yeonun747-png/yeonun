@@ -17,6 +17,7 @@ import type {
 } from "@/components/fortune/fortuneFlowTypes";
 import { Step0Welcome } from "@/components/fortune/pages/Step0Welcome";
 import { Step1Input } from "@/components/fortune/pages/Step1Input";
+import { hasSessionSajuConsent, setSessionSajuConsent } from "@/lib/client-consent-storage";
 import { Step2CharIntro } from "@/components/fortune/pages/Step2CharIntro";
 import { Step3Myungsik } from "@/components/fortune/pages/Step3Myungsik";
 import { Step4Ohaeng } from "@/components/fortune/pages/Step4Ohaeng";
@@ -31,6 +32,7 @@ import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { fortunePrefetchStorageKey, readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
 import { abortFortunePrefetch, isFortunePrefetchActive, runFortunePrefetchDetached } from "@/lib/fortune-prefetch-runner";
 import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
+import { orderAccessHeaders } from "@/lib/order-access-client";
 import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
@@ -194,6 +196,8 @@ export function FortunePage({
   const [answerReactClip, setAnswerReactClip] = useState<string | null>(null);
   /** 저장 없이 스텝1: 우상(tr). 스텝0「새로 입력할게요」도 onNew에서 tr. 스텝1→이후로 갔다가 돌아올 때는 이탈 시 tl 리셋 후 tl. */
   const [step1MascotCorner, setStep1MascotCorner] = useState<"tl" | "tr">("tl");
+  const [needSajuConsent] = useState(() => typeof window !== "undefined" && !hasSessionSajuConsent());
+  const [sajuConsentChecked, setSajuConsentChecked] = useState(false);
   const onAnswerReactDone = useCallback(() => setAnswerReactClip(null), []);
   const resultStream = useFortuneResultStream({
     enabled: resultStreamEnabled,
@@ -351,7 +355,7 @@ export function FortunePage({
     if (!html.trim()) return;
     savedResultRef.current = true;
     const resultIdPromise = (async (): Promise<string | null> => {
-      const headers = await jsonAuthHeaders();
+      const headers = { ...(await jsonAuthHeaders()), ...orderAccessHeaders(result.orderNo) };
       const storedSaju = readStoredSaju();
       const sajuFingerprint = storedSaju ? buildSajuFingerprint(storedSaju) : undefined;
       const res = await fetch("/api/fortune/save-modal-result", {
@@ -500,6 +504,8 @@ export function FortunePage({
   };
 
   const onInputSubmit = () => {
+    if (needSajuConsent && !sajuConsentChecked) return;
+    if (needSajuConsent) setSessionSajuConsent();
     if (computeAndStart(form)) go(2);
   };
 
@@ -708,7 +714,16 @@ export function FortunePage({
             }}
           />
         ) : null}
-        {step === 1 ? <Step1Input form={form} onChange={(patch) => setForm((f) => ({ ...f, ...patch }))} onSubmit={onInputSubmit} /> : null}
+        {step === 1 ? (
+          <Step1Input
+            form={form}
+            onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+            onSubmit={onInputSubmit}
+            showSajuConsent={needSajuConsent}
+            sajuConsentChecked={sajuConsentChecked}
+            onSajuConsentChange={setSajuConsentChecked}
+          />
+        ) : null}
         {layout.hasProductExtras && step === 2 ? (
           <StepProductExtraInputs productSlug={product.slug} onBack={() => go(1, "back")} onContinue={onExtraContinue} />
         ) : null}

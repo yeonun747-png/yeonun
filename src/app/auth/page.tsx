@@ -3,6 +3,9 @@
 import { Suspense, useMemo, useState } from "react";
 
 import { SocialLoginSection } from "@/components/auth/SocialLoginSection";
+import { AuthLegalConsentRow } from "@/components/legal/AuthLegalConsentRow";
+import { PrivacyDocContent, TermsDocContent } from "@/components/legal/LegalDocContent";
+import { LegalInlineSheet } from "@/components/legal/LegalInlineSheet";
 
 type Step = "login" | "birth" | "time" | "gender";
 
@@ -28,6 +31,8 @@ export default function AuthPage() {
   const [timeIdx, setTimeIdx] = useState(3);
   const [unknownTime, setUnknownTime] = useState(false);
   const [gender, setGender] = useState<"male" | "female">("female");
+  const [legalConsentChecked, setLegalConsentChecked] = useState(false);
+  const [legalSheet, setLegalSheet] = useState<"terms" | "privacy" | null>(null);
 
   const progress = useMemo(() => {
     if (step === "login") return { bars: [false, false, false], label: "" };
@@ -35,6 +40,18 @@ export default function AuthPage() {
     if (step === "time") return { bars: ["done", "current", false], label: "STEP 2 / 3 · 출생시간" } as const;
     return { bars: ["done", "done", "current"], label: "STEP 3 / 3 · 성별" } as const;
   }, [step]);
+
+  if (legalSheet) {
+    return (
+      <LegalInlineSheet
+        title={legalSheet === "terms" ? "이용약관" : "개인정보처리방침"}
+        ariaLabel={legalSheet === "terms" ? "이용약관" : "개인정보처리방침"}
+        onClose={() => setLegalSheet(null)}
+      >
+        {legalSheet === "terms" ? <TermsDocContent /> : <PrivacyDocContent />}
+      </LegalInlineSheet>
+    );
+  }
 
   return (
     <div className="yeonunPage">
@@ -66,17 +83,18 @@ export default function AuthPage() {
               <div className="y-auth-sub">3초 만에 시작하기</div>
             </div>
 
+            <AuthLegalConsentRow
+              checked={legalConsentChecked}
+              onChange={setLegalConsentChecked}
+              onOpenTerms={() => setLegalSheet("terms")}
+              onOpenPrivacy={() => setLegalSheet("privacy")}
+            />
+
             <Suspense fallback={null}>
-              <SocialLoginSection />
+              <SocialLoginSection oauthDisabled={!legalConsentChecked} />
             </Suspense>
 
             <div className="y-auth-email-spacer" aria-hidden="true" />
-
-            <div className="y-auth-terms">
-              가입하시면 연운의 <a href="/legal/terms">이용약관</a>과
-              <br />
-              <a href="/legal/privacy">개인정보처리방침</a>에 동의하는 것으로 간주됩니다.
-            </div>
           </>
         ) : (
           <>

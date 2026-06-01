@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
+import { requireCloudwaysProxySecret } from "@/lib/internal-api-secret";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,11 +13,15 @@ function cloudwaysBaseUrl(): string {
 
 export async function POST(request: Request) {
   const base = cloudwaysBaseUrl();
+  const proxySecret = requireCloudwaysProxySecret();
   if (!base) {
     return NextResponse.json(
       { error: "CLOUDWAYS_URL is not configured", hint: "Set CLOUDWAYS_URL or NEXT_PUBLIC_CLOUDWAYS_URL." },
       { status: 501 },
     );
+  }
+  if (!proxySecret) {
+    return NextResponse.json({ error: "CLOUDWAYS_PROXY_SECRET is not configured" }, { status: 503 });
   }
 
   const body = await request.text().catch(() => "{}");
@@ -24,7 +29,7 @@ export async function POST(request: Request) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(process.env.CLOUDWAYS_PROXY_SECRET ? { Authorization: `Bearer ${process.env.CLOUDWAYS_PROXY_SECRET}` } : {}),
+      Authorization: `Bearer ${proxySecret}`,
     },
     cache: "no-store",
     body,

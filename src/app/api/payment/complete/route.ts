@@ -6,6 +6,7 @@ import { fulfillCreditTopupForPaidOrder, isLoggedInUserId } from "@/lib/credit-s
 import { consumeCheckoutCoupons } from "@/lib/mission-coupon-server";
 import { env } from "@/lib/env";
 import { checkFortune82PaymentStatus, isFortune82PaymentPaid } from "@/lib/payment-fortune82-pcheck";
+import { assertOrderCallerAccess } from "@/lib/order-access";
 import { ensureOrderPaidPaymentRecord } from "@/lib/payment-complete-db";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -61,6 +62,9 @@ export async function POST(request: NextRequest) {
     if (!orderNo) {
       return NextResponse.json({ success: false, error: "주문번호가 없습니다." }, { status: 400 });
     }
+
+    const access = await assertOrderCallerAccess(request, orderNo);
+    if (!access.ok) return access.response;
 
     const supabase = supabaseServer();
     const { data: order, error: orderErr } = await supabase

@@ -14,6 +14,7 @@ import {
 } from "@/lib/daily-missions";
 import { formatKstDateKey } from "@/lib/datetime/kst";
 import { getNoteByKstDate } from "@/lib/daily-notes-catalog";
+import { syncMissionEventToServer } from "@/lib/mission-event-client";
 import { loadMissionRuntimeState, missionM04AllCardsRead, readMissionFact, dispatchMissionsReconcile } from "@/lib/mission-complete";
 import { applyMissionReward } from "@/lib/mission-rewards";
 
@@ -201,6 +202,7 @@ export function markMissionFactM03ViewedNow(): void {
   } catch {
     /* ignore */
   }
+  syncMissionEventToServer("m03-iljin", kst);
   dispatchMissionsReconcile();
 }
 
@@ -222,6 +224,7 @@ export function markMissionFactM10ManseViewedNow(): void {
   } catch {
     /* ignore */
   }
+  syncMissionEventToServer("m10-manse", kst);
   dispatchMissionsReconcile();
 }
 

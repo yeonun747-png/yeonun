@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
+import { ageGateToNextResponse, assertUserAge14Plus } from "@/lib/age-policy";
 import { isLoggedInUserId } from "@/lib/credit-server";
+import { resolveCreditGrantBase } from "@/lib/credit-grant-resolve";
+import { mintOrderAccessToken } from "@/lib/order-access";
 import {
   consumeCheckoutCoupons,
   getActiveDiscountCoupon,
@@ -71,7 +73,7 @@ async function ensureCreditTopupProductExists(
   );
 }
 
-async function resolveCheckoutUserRef(request: Request, bodyUserRef: unknown): Promise<string> {
+async function resolveCheckoutUserRef(request: Request): Promise<string> {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
   if (token) {
@@ -81,8 +83,7 @@ async function resolveCheckoutUserRef(request: Request, bodyUserRef: unknown): P
       return data.user.id;
     }
   }
-  const ref = String(bodyUserRef ?? "").trim();
-  return isLoggedInUserId(ref) ? ref : "guest";
+  return "guest";
 }
 
 export async function POST(request: Request) {
@@ -91,7 +92,6 @@ export async function POST(request: Request) {
     title?: string;
     price_krw?: number;
     method?: string;
-    user_ref?: string;
     first_voice_credit_bonus?: boolean;
     voice_package_minutes?: number | null;
     grant_base?: number;
@@ -101,6 +101,10 @@ export async function POST(request: Request) {
   const clientAmount = Number(body.price_krw ?? 0);
   const method = String(body.method ?? "card").trim() || "card";
   const usePg = method === "card" || method === "phone";
+
+  if (!usePg) {
+    return NextResponse.json({ error: "unsupported_payment_method" }, { status: 400 });
+  }
 
   if (!product_slug) {
     return NextResponse.json({ error: "Invalid checkout request" }, { status: 400 });
@@ -112,7 +116,12 @@ export async function POST(request: Request) {
     await ensureCreditTopupProductExists(supabase, product_slug, body.title, clientAmount);
   }
 
-  const user_ref = await resolveCheckoutUserRef(request, body.user_ref);
+  const user_ref = await resolveCheckoutUserRef(request);
+  if (isLoggedInUserId(user_ref)) {
+    const gate = await assertUserAge14Plus(user_ref);
+    const denied = ageGateToNextResponse(gate);
+    if (denied) return denied;
+  }
   if (isCreditTopup && !isLoggedInUserId(user_ref)) {
     return NextResponse.json({ error: "login_required", message: "크레딧 충전은 로그인 후 이용할 수 있습니다." }, { status: 401 });
   }
@@ -162,20 +171,6 @@ export async function POST(request: Request) {
       amount_krw = couponApply.final_price_krw;
     }
   }
-  const character_key = typeof body.product_slug === "string" && ["zimi-chart", "newyear-2026", "tojeong-2026", "zimi-2026-flow"].includes(body.product_slug)
-    ? "byeol"
-    : typeof body.product_slug === "string" && ["lifetime-master", "saju-classic", "wealth-graph", "career-timing"].includes(body.product_slug)
-      ? "yeo"
-      : typeof body.product_slug === "string" && ["naming-baby", "taekil-goodday", "dream-lastnight"].includes(body.product_slug)
-        ? "un"
-        : "yeon";
-  const [commonPrompt, characterPrompt, persona] = isCreditTopup
-    ? [null, null, null]
-    : await Promise.all([
-        getServicePrompt("yeonun_fortune_text_system"),
-        getCharacterModePrompt(character_key, "fortune_text"),
-        getCharacterPersona(character_key),
-      ]);
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
@@ -194,11 +189,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: orderError?.message || "Order creation failed" }, { status: 500 });
   }
 
+  const serverGrantBase = isCreditTopup ? resolveCreditGrantBase(product_slug, amount_krw) : null;
+
   const { data: payment, error: paymentError } = await supabase
     .from("payments")
     .insert({
       order_id: order.id,
-      provider: usePg ? "fortune82-pg" : "manual-dev",
+      provider: "fortune82-pg",
       method,
       status: "pending",
       raw_payload: {
@@ -206,13 +203,11 @@ export async function POST(request: Request) {
         payment_code: codeStr,
         title: body.title ?? productRow.title ?? null,
         source: "yeonun-payment-modal",
-        first_voice_credit_bonus: Boolean(body.first_voice_credit_bonus),
         voice_package_minutes:
           typeof body.voice_package_minutes === "number" && Number.isFinite(body.voice_package_minutes)
             ? body.voice_package_minutes
             : null,
-        grant_base:
-          typeof body.grant_base === "number" && Number.isFinite(body.grant_base) ? Math.floor(body.grant_base) : null,
+        grant_base: serverGrantBase,
         list_price_krw: amount_krw_list,
         coupon_discount_krw: couponApply?.discount_krw ?? 0,
         coupon_label: couponApply?.label ?? null,
@@ -227,75 +222,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: paymentError?.message || "Payment creation failed" }, { status: 500 });
   }
 
-  if (usePg) {
-    return NextResponse.json({
-      success: true,
-      pg_flow: true,
-      order,
-      payment,
-      payment_code: codeStr,
-      amount_krw,
-    });
-  }
-
-  const paidAt = new Date().toISOString();
-  await supabase.from("payments").update({ status: "paid", paid_at: paidAt }).eq("id", payment.id);
-  await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
-
-  if (isLoggedInUserId(user_ref) && couponApply && couponApply.discount_krw > 0) {
-    const serviceKey = env.supabaseServiceRoleKey;
-    if (serviceKey) {
-      const svc = createClient(env.supabaseUrl, serviceKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      await consumeCheckoutCoupons(svc, user_ref, couponApply);
-    }
-  }
-
-  const { data: fortuneRequest } = isCreditTopup
-    ? { data: null }
-    : await supabase
-        .from("fortune_requests")
-        .insert({
-          user_ref,
-          product_slug,
-          order_id: order.id,
-          status: "queued",
-          model: "claude-4.6-sonnet",
-          prompt_version_id: null,
-          payload: {
-            product_slug,
-            title: body.title ?? null,
-            order_no,
-            payment_method: method,
-            character_key,
-            common_system_prompt: commonPrompt?.prompt ?? null,
-            character_system_prompt: characterPrompt?.prompt ?? null,
-            persona_snapshot: persona ?? null,
-          },
-        })
-        .select("id,status")
-        .maybeSingle();
-
-  await supabase.from("webhook_events").insert({
-    provider: "manual-dev",
-    event_type: "checkout.created",
-    event_id: order_no,
-    payload: { order, payment, fortune_request: fortuneRequest },
-    status: "processed",
-    processed_at: new Date().toISOString(),
-  });
-
   return NextResponse.json({
     success: true,
+    pg_flow: true,
     order,
     payment,
     payment_code: codeStr,
     amount_krw,
-    list_price_krw: amount_krw_list,
-    coupon_discount_krw: couponApply?.discount_krw ?? 0,
-    coupon_label: couponApply?.label ?? null,
-    fortune_request: fortuneRequest,
+    order_access_token: mintOrderAccessToken(order.order_no),
   });
 }
 

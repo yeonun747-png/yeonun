@@ -368,7 +368,7 @@ export function missionGrantKey(missionId: MissionId, cadence: "once" | "daily" 
   if (cadence === "once") return `once:${missionId}`;
   if (cadence === "daily") return `daily:${missionId}:${formatKstDateKey(now)}`;
   if (cadence === "hours24") return `hours24:${missionId}:${formatKstDateKey(now)}`;
-  return `unlimited:${missionId}:${Date.now()}`;
+  return `unlimited:${missionId}`;
 }
 
 export async function grantMissionCreditsIfNew(

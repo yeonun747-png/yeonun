@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const COOKIE_NAME = "yeonun_admin";
+import { verifyAdminSessionCookieValue, ADMIN_COOKIE_NAME } from "@/lib/admin-cookie";
+
+const COOKIE_NAME = ADMIN_COOKIE_NAME;
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -19,7 +21,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isAuthed = request.cookies.get(COOKIE_NAME)?.value === "1";
+  const isAuthed = verifyAdminSessionCookieValue(request.cookies.get(COOKIE_NAME)?.value);
   if (isAuthed) return NextResponse.next();
 
   const url = request.nextUrl.clone();

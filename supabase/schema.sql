@@ -42,10 +42,10 @@ create table if not exists public.service_prompts (
   updated_at timestamptz not null default now()
 );
 
--- Cartesia 등 TTS 보이스 마스터 (external_id = Cartesia voice UUID)
+-- OpenAI Realtime 등 TTS 보이스 마스터 (external_id = OpenAI voice id)
 create table if not exists public.tts_voices (
   id uuid primary key default gen_random_uuid(),
-  provider text not null default 'cartesia',
+  provider text not null default 'openai_realtime',
   external_id text not null,
   label text not null,
   gender text not null default 'other' check (gender in ('female','male','other')),
@@ -212,12 +212,14 @@ create policy "public read character personas" on public.character_personas
 for select using (is_active = true);
 
 drop policy if exists "public read active service prompts" on public.service_prompts;
-create policy "public read active service prompts" on public.service_prompts
-for select using (is_active = true);
+drop policy if exists "deny client service prompts" on public.service_prompts;
+create policy "deny client service prompts" on public.service_prompts
+for all using (false) with check (false);
 
 drop policy if exists "public read active character mode prompts" on public.character_mode_prompts;
-create policy "public read active character mode prompts" on public.character_mode_prompts
-for select using (is_active = true);
+drop policy if exists "deny client character mode prompts" on public.character_mode_prompts;
+create policy "deny client character mode prompts" on public.character_mode_prompts
+for all using (false) with check (false);
 
 drop policy if exists "public read active tts voices" on public.tts_voices;
 create policy "public read active tts voices" on public.tts_voices
@@ -232,8 +234,8 @@ create policy "public read products" on public.products
 for select using (true);
 
 drop policy if exists "public read reviews" on public.reviews;
-create policy "public read reviews" on public.reviews
-for select using (true);
+create policy "public read published reviews" on public.reviews
+for select using (is_published = true);
 
 -- ============ 운영 확장 스키마 ============
 

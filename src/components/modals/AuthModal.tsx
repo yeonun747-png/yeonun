@@ -4,6 +4,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import { SocialLoginSection } from "@/components/auth/SocialLoginSection";
+import { AuthLegalConsentRow } from "@/components/legal/AuthLegalConsentRow";
+import { PrivacyDocContent, TermsDocContent } from "@/components/legal/LegalDocContent";
+import { LegalInlineSheet } from "@/components/legal/LegalInlineSheet";
+import { SajuConsentRow } from "@/components/legal/SajuConsentRow";
 import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { useModalControls } from "@/components/modals/useModalControls";
 import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
@@ -57,6 +61,9 @@ export function AuthModal() {
   const [unknownTime, setUnknownTime] = useState(false);
   const [gender, setGender] = useState<"male" | "female">("female");
   const [submitBusy, setSubmitBusy] = useState(false);
+  const [legalConsentChecked, setLegalConsentChecked] = useState(false);
+  const [sajuConsentChecked, setSajuConsentChecked] = useState(false);
+  const [legalSheet, setLegalSheet] = useState<"terms" | "privacy" | null>(null);
 
   /** OAuth 직후 1회만 birth로 진입. isOnboard가 true인 동안 매번 setStep("birth")하면 스텝3에서 뒤로/완료가 먹통처럼 보임 */
   useEffect(() => {
@@ -148,6 +155,10 @@ export function AuthModal() {
   const submitOnboarding = useCallback(async () => {
     if (submitInFlightRef.current) return;
     if (!validateBirth()) return;
+    if (!sajuConsentChecked) {
+      window.alert("사주 정보 수집·이용에 동의해 주세요.");
+      return;
+    }
 
     submitInFlightRef.current = true;
     setSubmitBusy(true);
@@ -182,6 +193,8 @@ export function AuthModal() {
           birth_time_unknown: unknownTime,
           gender,
           complete_onboarding: true,
+          saju_consent: true,
+          terms_accepted: true,
         }),
       });
       if (!res.ok) {
@@ -219,7 +232,14 @@ export function AuthModal() {
       finishAfterAuthRedirect();
     } catch (e) {
       console.error(e);
-      window.alert("프로필 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "underage_not_allowed") {
+        window.alert("만 14세 미만은 서비스를 이용할 수 없습니다.");
+      } else if (msg === "age_verification_required") {
+        window.alert("생년월일을 입력해 만 14세 이상 여부를 확인해 주세요.");
+      } else {
+        window.alert("프로필 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      }
     } finally {
       submitInFlightRef.current = false;
       setSubmitBusy(false);
@@ -233,6 +253,7 @@ export function AuthModal() {
     displayName,
     finishAfterAuthRedirect,
     gender,
+    sajuConsentChecked,
     session?.access_token,
     timeIdx,
     unknownTime,
@@ -281,11 +302,23 @@ export function AuthModal() {
       </div>
     ) : step === "gender" ? (
       <div className="y-onboard-foot">
-        <button className="y-onboard-next" type="button" disabled={submitBusy} onClick={() => void submitOnboarding()}>
+        <button className="y-onboard-next" type="button" disabled={submitBusy || !sajuConsentChecked} onClick={() => void submitOnboarding()}>
           {submitBusy ? "저장 중…" : "완료 · 연운 시작하기"}
         </button>
       </div>
     ) : null;
+
+  if (legalSheet) {
+    return (
+      <LegalInlineSheet
+        title={legalSheet === "terms" ? "이용약관" : "개인정보처리방침"}
+        ariaLabel={legalSheet === "terms" ? "이용약관" : "개인정보처리방침"}
+        onClose={() => setLegalSheet(null)}
+      >
+        {legalSheet === "terms" ? <TermsDocContent /> : <PrivacyDocContent />}
+      </LegalInlineSheet>
+    );
+  }
 
   return (
     <YeonunSheetPortal>
@@ -321,15 +354,16 @@ export function AuthModal() {
                   <div className="y-auth-sub">3초 만에 시작하기</div>
                 </div>
 
-                <SocialLoginSection />
+                <AuthLegalConsentRow
+                  checked={legalConsentChecked}
+                  onChange={setLegalConsentChecked}
+                  onOpenTerms={() => setLegalSheet("terms")}
+                  onOpenPrivacy={() => setLegalSheet("privacy")}
+                />
+
+                <SocialLoginSection oauthDisabled={!legalConsentChecked} />
 
                 <div className="y-auth-email-spacer" aria-hidden="true" />
-
-                <div className="y-auth-terms">
-                  가입하시면 연운의 <a href="/legal/terms">이용약관</a>과
-                  <br />
-                  <a href="/legal/privacy">개인정보처리방침</a>에 동의하는 것으로 간주됩니다.
-                </div>
               </>
             ) : null}
 
@@ -471,6 +505,7 @@ export function AuthModal() {
                       <div className="label">여자</div>
                     </button>
                   </div>
+                  <SajuConsentRow checked={sajuConsentChecked} onChange={setSajuConsentChecked} />
                 </div>
               </>
             ) : null}

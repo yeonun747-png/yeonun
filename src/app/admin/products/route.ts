@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { isCreditPackageProductSlug } from "@/lib/credit-package-products";
 import { supabaseServer } from "@/lib/supabase/server";
 import { emptyFortuneMenu, parseFortuneMenuJson } from "@/lib/product-fortune-menu";
@@ -15,6 +16,11 @@ function wantsJson(request: Request) {
 export async function POST(request: Request) {
   const form = await request.formData();
   const json = wantsJson(request);
+
+  if (!(await isAdminRequest())) {
+    if (json) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.redirect(new URL("/admin/login", request.url), 303);
+  }
 
   const slug = String(form.get("slug") ?? "").trim();
   const title = String(form.get("title") ?? "").trim();

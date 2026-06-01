@@ -1,6 +1,5 @@
 /**
- * 오늘의 한 마디 등: Cartesia character-line API로 받은 WAV를 Web Audio로 재생.
- * 동일 문장은 세션 동안 디코딩 버퍼를 재사용하고, 유휴 시 미리 받아 두면 첫 재생이 거의 즉시입니다.
+ * 오늘의 한 마디 등: character-line API로 받은 WAV를 Web Audio로 재생.
  */
 
 let sharedCtx: AudioContext | null = null;
@@ -13,7 +12,7 @@ function lineCacheKey(characterKey: string, transcript: string): string {
   return `${characterKey}\0${transcript}`;
 }
 
-export function stopCartesiaWebPlayback(): void {
+export function stopCharacterLinePlayback(): void {
   try {
     currentSrc?.stop();
   } catch {
@@ -30,8 +29,7 @@ function getCtx(): AudioContext | null {
   return sharedCtx;
 }
 
-/** 오늘 탭 등에서 미리 컨텍스트만 만들어 두면 첫 재생 시 초기화 지연을 줄일 수 있음 */
-export function warmCartesiaAudioContext(): void {
+export function warmCharacterLineAudioContext(): void {
   const ctx = getCtx();
   if (!ctx) return;
   void ctx.resume().catch(() => {
@@ -39,11 +37,7 @@ export function warmCartesiaAudioContext(): void {
   });
 }
 
-/**
- * 캐시에 없을 때만 네트워크·디코딩 시작.
- * 버튼에 pointerenter로 걸어 두면 클릭 전에 받기 시작합니다.
- */
-export function touchCartesiaCharacterLineCache(characterKey: string, transcript: string): void {
+export function touchCharacterLineCache(characterKey: string, transcript: string): void {
   const ctx = getCtx();
   if (!ctx) return;
   const k = lineCacheKey(characterKey, transcript);
@@ -51,16 +45,12 @@ export function touchCartesiaCharacterLineCache(characterKey: string, transcript
   void loadDecodedBuffer(ctx, characterKey, transcript);
 }
 
-/**
- * 오늘의 한 마디 4줄 등 — 브라우저가 한가할 때 미리 받아 둡니다.
- * (Cartesia 호출이 늘어나므로 이 컴포넌트에서만 호출하는 것을 권장)
- */
-export function prefetchCartesiaCharacterLines(entries: { characterKey: string; transcript: string }[]): void {
+export function prefetchCharacterLines(entries: { characterKey: string; transcript: string }[]): void {
   if (typeof window === "undefined" || entries.length === 0) return;
   const run = () => {
-    warmCartesiaAudioContext();
+    warmCharacterLineAudioContext();
     for (const e of entries) {
-      touchCartesiaCharacterLineCache(e.characterKey, e.transcript);
+      touchCharacterLineCache(e.characterKey, e.transcript);
     }
   };
   const ric = window.requestIdleCallback;
@@ -81,7 +71,7 @@ async function loadDecodedBuffer(ctx: AudioContext, characterKey: string, transc
 
   const p = (async () => {
     try {
-      const fetchLine = fetch("/api/tts/cartesia/character-line", {
+      const fetchLine = fetch("/api/tts/character-line", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ character_key: characterKey, transcript }),
@@ -103,12 +93,11 @@ async function loadDecodedBuffer(ctx: AudioContext, characterKey: string, transc
   return p;
 }
 
-/** character_key: yeon | byeol | yeo | un */
-export async function playCartesiaCharacterLine(characterKey: string, transcript: string): Promise<boolean> {
+export async function playCharacterLine(characterKey: string, transcript: string): Promise<boolean> {
   const ctx = getCtx();
   if (!ctx) return false;
 
-  stopCartesiaWebPlayback();
+  stopCharacterLinePlayback();
 
   const audioBuf = await loadDecodedBuffer(ctx, characterKey, transcript);
   if (!audioBuf) return false;

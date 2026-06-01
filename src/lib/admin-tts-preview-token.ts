@@ -1,9 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { ADMIN_TTS_PREVIEW_HEADER } from "@/lib/admin-tts-preview-constants";
+import { ADMIN_COOKIE_NAME, verifyAdminSessionCookieValue } from "@/lib/admin-cookie";
 import { cookies } from "next/headers";
 
-const ADMIN_COOKIE = "yeonun_admin";
+const ADMIN_COOKIE = ADMIN_COOKIE_NAME;
 
 function adminPasswordConfigured(): boolean {
   return Boolean(String(process.env.ADMIN_PASSWORD ?? "").trim());
@@ -58,10 +59,10 @@ function verifyAdminTtsPreviewToken(token: string): boolean {
  * - yeonun_admin 쿠키 또는 유효한 단기 HMAC 토큰 헤더
  */
 export async function isAdminTtsPreviewAuthorized(request: Request): Promise<boolean> {
-  if (!adminPasswordConfigured()) return true;
+  if (!adminPasswordConfigured()) return process.env.NODE_ENV !== "production";
 
   const jar = await cookies();
-  if (jar.get(ADMIN_COOKIE)?.value === "1") return true;
+  if (verifyAdminSessionCookieValue(jar.get(ADMIN_COOKIE)?.value)) return true;
 
   const tok = request.headers.get(ADMIN_TTS_PREVIEW_HEADER)?.trim();
   if (tok && verifyAdminTtsPreviewToken(tok)) return true;
@@ -77,7 +78,7 @@ export async function createAdminTtsPreviewToken(): Promise<string | null> {
   if (!adminPasswordConfigured()) return null;
 
   const jar = await cookies();
-  if (jar.get(ADMIN_COOKIE)?.value !== "1") return null;
+  if (!verifyAdminSessionCookieValue(jar.get(ADMIN_COOKIE)?.value)) return null;
 
   const secret = signingSecret();
   if (!secret) return null;

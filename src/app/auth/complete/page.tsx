@@ -26,15 +26,10 @@ function AuthCompleteInner() {
   const [errorDetail, setErrorDetail] = useState("로그인에 실패했습니다. 다시 시도해 주세요.");
 
   useEffect(() => {
-    const token = sp.get("token");
     const returnTo = sp.get("returnTo") || "/";
     const onboard = sp.get("onboard") === "1";
     const provider = sp.get("provider");
-
-    if (!token) {
-      setPhase("no_token");
-      return;
-    }
+    const legacyToken = sp.get("token");
 
     let cancelled = false;
 
@@ -42,8 +37,9 @@ function AuthCompleteInner() {
       try {
         const res = await fetch("/api/auth/session", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify(legacyToken ? { token: legacyToken } : {}),
         });
         const data = (await res.json()) as {
           ok?: boolean;

@@ -3,6 +3,7 @@
 import { FortuneStreamSectionMedia } from "@/components/modals/FortuneStreamSectionMedia";
 import type { Product } from "@/lib/data/content";
 import type { FortuneTocItem } from "@/lib/fortune-stream-client";
+import { sanitizeFortuneHtml } from "@/lib/sanitize-fortune-html";
 import { flattenFortuneMenuForStream } from "@/lib/product-fortune-menu";
 import { mainTitleDuplicatedAsFirstSubtitleH3, splitHtmlAfterFirstSubtitleH3Close } from "@/lib/fortune-section-html-split";
 import {
@@ -46,7 +47,7 @@ export function FortuneResultSectionChunks({
       {sectionIndices.map((i) => {
         const item = toc[i];
         if (!item) return null;
-        const html = sectionHtml[i] ?? "";
+        const html = sanitizeFortuneHtml(sectionHtml[i] ?? "");
         const htmlTrim = html.trim();
         if (!htmlTrim) return null;
 

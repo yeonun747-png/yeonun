@@ -1,6 +1,7 @@
 import { syntheticEmail } from "@/lib/auth/social-user-service";
 import type { SocialProvider } from "@/lib/auth/types";
 import { CREDIT_FREE_TRIAL_GRANT, CREDIT_FREE_TRIAL_VALID_DAYS } from "@/lib/credit-policy";
+import { resolveCreditGrantBase } from "@/lib/credit-grant-resolve";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export type CreditLedgerKind =
@@ -248,13 +249,18 @@ export async function grantPurchaseCredits(
 
 export async function fulfillCreditTopupForPaidOrder(
   userId: string,
-  order: { id: string; amount_krw: number | null },
+  order: { id: string; amount_krw: number | null; product_slug?: string | null },
   paymentRaw: Record<string, unknown> | null | undefined,
 ): Promise<GrantPurchaseCreditsResult> {
-  const grantBase = Number(paymentRaw?.grant_base);
-  const credits =
-    Number.isFinite(grantBase) && grantBase > 0 ? Math.floor(grantBase) : Math.floor(order.amount_krw ?? 0);
-  const firstBonus = Boolean(paymentRaw?.first_voice_credit_bonus);
+  const productSlug = String(paymentRaw?.product_slug ?? order.product_slug ?? "").trim();
+  const credits = resolveCreditGrantBase(productSlug, order.amount_krw ?? 0);
+  if (credits <= 0) {
+    throw new Error("invalid_credit_grant");
+  }
+
+  const wallet = await getWallet(userId);
+  const firstBonus = wallet ? !wallet.first_purchase_done : false;
+
   return grantPurchaseCredits(userId, credits, {
     orderId: String(order.id),
     firstBonus,

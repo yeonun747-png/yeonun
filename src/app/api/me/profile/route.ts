@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { CalendarType } from "@/lib/manse-ryeok";
+import { ageGateToNextResponse, validateAge14PlusFromBirth } from "@/lib/age-policy";
 import { TIME_TAB_BRANCH_KEYS, type BirthBranchKey } from "@/lib/profile-branch-from-time-tab";
 import { bearerFromRequest, supabaseRouteUserClient } from "@/lib/supabase/route-user-client";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -39,6 +40,8 @@ type ProfileBody = {
   birth_time_unknown?: boolean;
   gender?: "male" | "female";
   complete_onboarding?: boolean;
+  terms_accepted?: boolean;
+  saju_consent?: boolean;
 };
 
 export async function GET(request: Request) {
@@ -91,6 +94,31 @@ export async function POST(request: Request) {
     if (Number.isFinite(mi) && mi >= 0 && mi <= 59) birth_minute = Math.floor(mi);
   }
 
+  // 메인 이용자(계정) 만 14세 이상만 허용.
+  // - 자녀/작명 정보는 fortune extra 필드로 별도 입력(여기서는 차단하지 않음)
+  // - 프로필 패치에서 생년월일을 만지거나 온보딩 완료를 요청할 때만 강제 검사
+  const wantsAgeGate =
+    body.complete_onboarding === true ||
+    body.birth_year != null ||
+    body.birth_month != null ||
+    body.birth_day != null;
+  if (wantsAgeGate) {
+    const { data: prev } = await sb
+      .from("profiles")
+      .select("birth_year,birth_month,birth_day")
+      .eq("id", uid)
+      .maybeSingle();
+    const prevRow = (prev ?? {}) as { birth_year?: number | null; birth_month?: number | null; birth_day?: number | null };
+    const ageGate = validateAge14PlusFromBirth(
+      body.birth_year ?? prevRow.birth_year ?? null,
+      body.birth_month ?? prevRow.birth_month ?? null,
+      body.birth_day ?? prevRow.birth_day ?? null,
+    );
+    const ageDenied = ageGateToNextResponse(ageGate);
+    if (ageDenied) return ageDenied;
+  }
+
+  const nowIso = new Date().toISOString();
   const patch = {
     id: uid,
     display_name,
@@ -102,7 +130,9 @@ export async function POST(request: Request) {
     birth_minute,
     birth_time_unknown,
     gender,
-    ...(body.complete_onboarding ? { onboarding_completed_at: new Date().toISOString() } : {}),
+    ...(body.complete_onboarding ? { onboarding_completed_at: nowIso } : {}),
+    ...(body.terms_accepted ? { terms_accepted_at: nowIso } : {}),
+    ...(body.saju_consent ? { saju_consent_at: nowIso } : {}),
   };
 
   const { data: row, error } = await sb.from("profiles").upsert(patch, { onConflict: "id" }).select("*").single();

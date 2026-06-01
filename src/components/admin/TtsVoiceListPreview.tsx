@@ -6,7 +6,7 @@ import { ADMIN_TTS_PREVIEW_HEADER } from "@/lib/admin-tts-preview-constants";
 
 export function TtsVoiceListPreview({
   externalId,
-  provider = "cartesia",
+  provider = "openai_realtime",
   adminTtsPreviewToken,
 }: {
   externalId: string;
@@ -41,19 +41,14 @@ export function TtsVoiceListPreview({
       setAudioUrl(null);
     }
     try {
-      const isOpenAi = provider === "openai_realtime";
-      const res = await fetch(isOpenAi ? "/api/tts/openai/speech" : "/api/tts/cartesia/preview", {
+      const res = await fetch("/api/tts/openai/speech", {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(adminTtsPreviewToken ? { [ADMIN_TTS_PREVIEW_HEADER]: adminTtsPreviewToken } : {}),
         },
-        body: JSON.stringify(
-          isOpenAi
-            ? { voice: externalId, input: "안녕하세요. 연운 음성 미리듣기입니다." }
-            : { voice_external_id: externalId, transcript: "안녕하세요. 연운 음성 미리듣기입니다." },
-        ),
+        body: JSON.stringify({ voice: externalId, input: "안녕하세요. 연운 음성 미리듣기입니다." }),
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };

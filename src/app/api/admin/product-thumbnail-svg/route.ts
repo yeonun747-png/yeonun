@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { buildCharacterThumbnailBgGradient } from "@/lib/character-thumbnail-bg-gradient";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -48,6 +49,10 @@ function collectHexesFromSvg(s: string): Set<string> {
 }
 
 export async function POST(request: Request) {
+  if (!(await isAdminRequest())) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   let body: Body;
   try {
     body = (await request.json()) as Body;

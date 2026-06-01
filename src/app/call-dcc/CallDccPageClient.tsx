@@ -68,13 +68,15 @@ function waveMeterLevelFromPeakRms(peak: number, rms: number): number {
 }
 
 /** 종료·이탈 후 보관함 부제목(Haiku) — 페이지 이탈해도 요청 유지 */
-function queueVoiceArchiveSubtitle(sessionId: string) {
+function queueVoiceArchiveSubtitle(sessionId: string, rollSecret?: string) {
   const sid = String(sessionId ?? "").trim();
+  const rs = String(rollSecret ?? "").trim();
   if (!sid || typeof window === "undefined") return;
   try {
     void fetch(`/api/voice/sessions/${encodeURIComponent(sid)}/archive-subtitle`, {
       method: "POST",
       keepalive: true,
+      headers: rs ? { "X-Voice-Roll-Secret": rs } : undefined,
     })
       .then((r) => r.json().catch(() => ({})))
       .then((j: { ok?: boolean; subtitle?: string | null }) => {
@@ -450,13 +452,16 @@ export default function CallDccPageClient() {
       }
       await fetch(`/api/voice/sessions/${id}/end`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(rollSecretRef.current ? { "X-Voice-Roll-Secret": rollSecretRef.current } : {}),
+        },
         body: JSON.stringify({ duration_sec: wallDurationSec, cost_krw: 0 }),
       });
     } catch {
       // ignore
     } finally {
-      queueVoiceArchiveSubtitle(id);
+      queueVoiceArchiveSubtitle(id, rollSecretRef.current);
       /** 비회원 3분 무료 통화는 크레딧 미차감 · 회원만 차감 */
       if (typeof window !== "undefined" && owedCredits > 0 && !guestFreeCallRef.current) {
         await spendCreditsWithAuth(owedCredits, {
@@ -622,7 +627,10 @@ export default function CallDccPageClient() {
     try {
       await fetch(`/api/voice/sessions/${sid}/append-turn`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(rollSecretRef.current ? { "X-Voice-Roll-Secret": rollSecretRef.current } : {}),
+        },
         body: JSON.stringify({ role, text: t.slice(0, 12000) }),
       });
     } catch {
@@ -695,7 +703,7 @@ export default function CallDccPageClient() {
           const rs = (data.session as { roll_secret?: string }).roll_secret;
           if (typeof rs === "string" && rs.trim()) rollSecretRef.current = rs.trim();
         }
-        const tv = data?.prompt_context?.tts_voice ?? data?.prompt_context?.cartesia_voice;
+        const tv = data?.tts_voice ?? data?.prompt_context?.tts_voice;
         const ext = typeof tv?.external_id === "string" ? tv.external_id.trim() : "";
         if (ext) {
           setFetchedVoiceExternalId(ext);
@@ -805,6 +813,7 @@ export default function CallDccPageClient() {
           character_key: characterKey,
           session_id: sessionId,
           manse_context: buildManseContext(),
+          ...(rollSecretRef.current ? { roll_secret: rollSecretRef.current } : {}),
         };
         const secretResultPromise = fetch("/api/voice/openai-realtime/client-secret", {
           method: "POST",
@@ -857,8 +866,6 @@ export default function CallDccPageClient() {
         if (!secretOk || !secretJson.ok || !secretJson.value) {
           throw new Error(secretJson.details || secretJson.error || "Realtime 토큰 발급 실패");
         }
-        const rs = (secretJson as { roll_secret?: string }).roll_secret;
-        if (typeof rs === "string" && rs.trim()) rollSecretRef.current = rs.trim();
         const EPHEMERAL_KEY = String(secretJson.value);
 
         const pc = new RTCPeerConnection();
@@ -947,7 +954,10 @@ export default function CallDccPageClient() {
             }
             const res = await fetch(`/api/voice/sessions/${sid}/save-insight`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(rollSecretRef.current ? { "X-Voice-Roll-Secret": rollSecretRef.current } : {}),
+              },
               body: JSON.stringify({
                 category: payload.category,
                 detail: payload.detail,

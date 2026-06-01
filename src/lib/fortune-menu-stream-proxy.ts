@@ -1,5 +1,6 @@
 import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
 import type { FortuneMenuCloudwaysBody } from "@/lib/fortune-menu-stream-payload";
+import { requireCloudwaysProxySecret } from "@/lib/internal-api-secret";
 
 export function getCloudwaysFortuneBaseUrl(): string {
   return normalizeCloudwaysBaseUrl(
@@ -13,7 +14,7 @@ export function getCloudwaysFortuneBaseUrl(): string {
 }
 
 export function getCloudwaysProxySecret(): string {
-  return String(process.env.CLOUDWAYS_PROXY_SECRET || "");
+  return requireCloudwaysProxySecret() ?? "";
 }
 
 const SSE_HEADERS = {
@@ -38,12 +39,16 @@ export async function proxyFortuneMenuSseToResponse(
     return Response.json({ error: "CLOUDWAYS_URL is not configured" }, { status: 501 });
   }
 
+  if (!cloudwaysSecret) {
+    return Response.json({ error: "CLOUDWAYS_PROXY_SECRET is not configured" }, { status: 503 });
+  }
+
   const upstream = await fetch(`${cloudwaysUrl}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
-      ...(cloudwaysSecret ? { Authorization: `Bearer ${cloudwaysSecret}` } : {}),
+      Authorization: `Bearer ${cloudwaysSecret}`,
     },
     cache: "no-store",
     body: JSON.stringify(upstreamBody),

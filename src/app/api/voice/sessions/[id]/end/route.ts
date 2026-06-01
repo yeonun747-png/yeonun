@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/supabase/server";
+import { requireVoiceSessionRollSecret } from "@/lib/voice-roll-secret";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -11,6 +12,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   };
 
   const supabase = supabaseServer();
+  const access = await requireVoiceSessionRollSecret(supabase, id, request, body);
+  if (!access.ok) {
+    return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
+  }
+
   const patch: Record<string, unknown> = {
     status: "ended",
     ended_at: new Date().toISOString(),

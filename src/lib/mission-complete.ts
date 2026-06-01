@@ -13,6 +13,7 @@ import {
   type MissionRuntimeState,
 } from "@/lib/daily-missions";
 import { formatKstDateKey } from "@/lib/datetime/kst";
+import { syncMissionEventToServer } from "@/lib/mission-event-client";
 import { applyMissionReward } from "@/lib/mission-rewards";
 import { readM08AssignedKst } from "@/lib/referral-pending";
 
@@ -95,11 +96,13 @@ export function missionFactKey(prefix: string, kst?: string): string {
 
 export function markMissionFact(prefix: string, kst?: string): void {
   if (typeof window === "undefined") return;
+  const day = kst ?? formatKstDateKey(new Date());
   try {
-    window.localStorage.setItem(missionFactKey(prefix, kst), "1");
+    window.localStorage.setItem(missionFactKey(prefix, day), "1");
   } catch {
     /* ignore */
   }
+  syncMissionEventToServer(prefix, day);
   dispatchMissionsReconcile();
 }
 

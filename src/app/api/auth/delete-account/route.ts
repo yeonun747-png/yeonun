@@ -73,5 +73,24 @@ export async function POST(request: Request) {
 
   if (softErr) return NextResponse.json({ error: softErr.message }, { status: 500 });
 
+  const purgedRef = `purged_${uid.slice(0, 8)}_${Date.now().toString(36)}`;
+  await sb
+    .from("profiles")
+    .update({
+      display_name: "탈퇴회원",
+      birth_year: null,
+      birth_month: null,
+      birth_day: null,
+      birth_branch_key: null,
+      birth_minute: null,
+      birth_time_unknown: true,
+      gender: null,
+    })
+    .eq("id", uid);
+
+  await sb.from("fortune_requests").update({ user_ref: purgedRef }).eq("user_ref", uid);
+  await sb.from("voice_sessions").update({ user_ref: purgedRef }).eq("user_ref", uid);
+  await sb.from("text_chat_sessions").update({ user_ref: purgedRef }).eq("user_ref", uid);
+
   return NextResponse.json({ ok: true });
 }

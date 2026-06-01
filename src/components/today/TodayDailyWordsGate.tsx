@@ -10,12 +10,12 @@ import { formatKstDateKey, getKstParts } from "@/lib/datetime/kst";
 import { markMissionFact, markMissionM04CardViewed } from "@/lib/mission-complete";
 import { buildDailyWordSharePayload } from "@/lib/today-daily-words-share";
 import {
-  playCartesiaCharacterLine,
-  prefetchCartesiaCharacterLines,
-  stopCartesiaWebPlayback,
-  touchCartesiaCharacterLineCache,
-  warmCartesiaAudioContext,
-} from "@/lib/tts/cartesiaWebPlayer";
+  playCharacterLine,
+  prefetchCharacterLines,
+  stopCharacterLinePlayback,
+  touchCharacterLineCache,
+  warmCharacterLineAudioContext,
+} from "@/lib/tts/characterLineWebPlayer";
 import { YEONUN_SAJU_UPDATED_EVENT } from "@/lib/saju-events";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
@@ -170,7 +170,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
 
   useEffect(() => {
     if (!unlocked) return;
-    warmCartesiaAudioContext();
+    warmCharacterLineAudioContext();
   }, [unlocked]);
 
   const dailyLinesReady =
@@ -178,7 +178,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
 
   useEffect(() => {
     if (!unlocked || !dailyLinesReady) return;
-    prefetchCartesiaCharacterLines(
+    prefetchCharacterLines(
       (["yeon", "byeol", "yeo", "un"] as const).map((k) => ({
         characterKey: k,
         transcript: lineByKey[k]!,
@@ -404,9 +404,9 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
     ttsLastStartRef.current = { key, at: now };
 
     const id = ++playSeqRef.current;
-    stopCartesiaWebPlayback();
+    stopCharacterLinePlayback();
     setTtsPlayingKey(key);
-    await playCartesiaCharacterLine(key, text);
+    await playCharacterLine(key, text);
     if (playSeqRef.current === id) {
       setTtsPlayingKey(null);
     }
@@ -471,7 +471,7 @@ export function TodayDailyWordsGate({ kstMd }: { kstMd: string }) {
                   aria-busy={ttsPlayingKey === w.key}
                   onPointerEnter={() => {
                     if (!canWarmTts) return;
-                    touchCartesiaCharacterLineCache(w.key, text);
+                    touchCharacterLineCache(w.key, text);
                   }}
                   onPointerDown={(e) => {
                     if (e.button !== 0) return;

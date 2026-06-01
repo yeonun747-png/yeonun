@@ -130,5 +130,5 @@ exception
 end;
 $$;
 
-revoke all on function public.grant_purchase_credits_if_new(uuid, text, integer, boolean) from public;
+revoke all on function public.grant_purchase_credits_if_new(uuid, text, integer, boolean) from public, anon, authenticated;
 grant execute on function public.grant_purchase_credits_if_new(uuid, text, integer, boolean) to service_role;

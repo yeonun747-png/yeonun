@@ -14,7 +14,7 @@ function sign(body: string): string {
 export function createOAuthState(
   provider: SocialProvider,
   returnTo: string,
-  opts?: { mode?: "link"; linkToAuthUserId?: string },
+  opts?: { mode?: "link"; linkToAuthUserId?: string; termsAccepted?: boolean },
 ): { state: string; cookieValue: string } {
   const state = randomBytes(24).toString("base64url");
   const payload: OAuthStatePayload = {
@@ -22,6 +22,7 @@ export function createOAuthState(
     returnTo: sanitizeReturnTo(returnTo),
     provider,
     exp: Date.now() + MAX_AGE_SEC * 1000,
+    ...(opts?.termsAccepted ? { termsAccepted: true } : {}),
     ...(opts?.mode === "link" && opts.linkToAuthUserId
       ? { mode: "link" as const, linkToAuthUserId: opts.linkToAuthUserId }
       : {}),

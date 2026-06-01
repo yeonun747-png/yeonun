@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isAdminRequest } from "@/lib/admin-auth";
 import { revalidateReviewPages } from "@/lib/reviews-revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -29,6 +30,11 @@ export async function POST(request: Request) {
   const is_showcase = String(form.get("is_showcase") ?? "false") === "true";
   const is_published = String(form.get("is_published") ?? "false") === "true";
   const json = wantsJson(form, request);
+
+  if (!(await isAdminRequest())) {
+    if (json) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    return NextResponse.redirect(new URL("/admin/login", request.url), 303);
+  }
 
   if (!product_slug || !user_mask || !body || !Number.isFinite(stars)) {
     if (json) return NextResponse.json({ ok: false, error: "invalid_params" }, { status: 400 });

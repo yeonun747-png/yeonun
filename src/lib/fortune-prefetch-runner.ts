@@ -4,9 +4,10 @@ import {
   inferFortunePrefetchComplete,
   normalizeFortunePrefetchSnapshot,
   readFortunePrefetch,
+  readServerPrefetchAccessToken,
   readServerPrefetchRequestId,
   writeFortunePrefetch,
-  writeServerPrefetchRequestId,
+  writeServerPrefetchCredentials,
   type FortunePrefetchV1,
 } from "@/lib/fortune-prefetch-storage";
 import { buildFortunePrefetchStreamBody } from "@/lib/fortune-prefetch-stream-body";
@@ -76,6 +77,7 @@ async function runFortuneServerPrefetchDetached(
   }
 
   let requestId = readServerPrefetchRequestId(slug);
+  let prefetchAccess = readServerPrefetchAccessToken(slug);
 
   if (!requestId) {
     const startRes = await fetch("/api/fortune/prefetch-start", {
@@ -87,15 +89,23 @@ async function runFortuneServerPrefetchDetached(
     if (!startRes.ok) {
       throw new Error(`prefetch-start failed: ${startRes.status}`);
     }
-    const started = (await startRes.json()) as { request_id?: string };
+    const started = (await startRes.json()) as { request_id?: string; prefetch_access_token?: string };
     requestId = String(started.request_id ?? "").trim();
-    if (!requestId) throw new Error("prefetch-start missing request_id");
-    writeServerPrefetchRequestId(slug, requestId);
+    prefetchAccess = String(started.prefetch_access_token ?? "").trim();
+    if (!requestId || !prefetchAccess) throw new Error("prefetch-start missing credentials");
+    writeServerPrefetchCredentials(slug, requestId, prefetchAccess);
+  }
+
+  if (!prefetchAccess) {
+    prefetchAccess = readServerPrefetchAccessToken(slug);
+  }
+  if (!prefetchAccess) {
+    throw new Error("prefetch access token missing — prefetch-start again");
   }
 
   const pollOnce = async (): Promise<"done" | "failed" | "continue"> => {
     if (ac.signal.aborted) return "done";
-    const url = `/api/fortune/prefetch-snapshot?request_id=${encodeURIComponent(requestId!)}`;
+    const url = `/api/fortune/prefetch-snapshot?request_id=${encodeURIComponent(requestId!)}&access_token=${encodeURIComponent(prefetchAccess!)}`;
     const res = await fetch(url, { cache: "no-store", signal: ac.signal });
     if (!res.ok) return "continue";
     const data = (await res.json()) as {

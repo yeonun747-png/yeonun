@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { assertOrderCallerAccess } from "@/lib/order-access";
 import { formatPaymentCode, resolvePaymentOrigin, truncateStringByBytes } from "@/lib/payment-utils";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -26,6 +27,9 @@ export async function POST(request: NextRequest) {
     if (!orderNo || !productSlug || (paymentMethod !== "card" && paymentMethod !== "phone")) {
       return NextResponse.json({ success: false, error: "필수 파라미터가 누락되었습니다." }, { status: 400 });
     }
+
+    const access = await assertOrderCallerAccess(request, orderNo);
+    if (!access.ok) return access.response;
 
     const supabase = supabaseServer();
     const { data: order, error: orderErr } = await supabase

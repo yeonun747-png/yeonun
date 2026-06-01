@@ -8,6 +8,7 @@ import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
 import { ArchiveReviewProvider } from "@/components/reviews/ArchiveReviewProvider";
 import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetProvider";
 import { AppProviders } from "@/app/providers";
+import { StorageNoticeBanner } from "@/components/legal/StorageNoticeBanner";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -115,6 +116,9 @@ export default function RootLayout({
               {children}
               {modal}
               <YeonunToastHost />
+              <Suspense fallback={null}>
+                <StorageNoticeBanner />
+              </Suspense>
             </WriteReviewSheetProvider>
           </ArchiveReviewProvider>
           <Suspense fallback={null}>

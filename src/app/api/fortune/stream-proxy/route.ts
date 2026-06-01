@@ -1,5 +1,7 @@
 import { proxyFortuneMenuSseToResponse } from "@/lib/fortune-menu-stream-proxy";
 import type { FortuneMenuCloudwaysBody } from "@/lib/fortune-menu-stream-payload";
+import { assertFortunePrefetchAccess } from "@/lib/consult-session-access";
+import { gateFortunePrefetchStream } from "@/lib/llm-stream-gate";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -10,14 +12,25 @@ export const maxDuration = 800;
 
 type Body = {
   request_id?: string;
+  prefetch_access_token?: string;
   upstream_body?: FortuneMenuCloudwaysBody;
 };
 
 export async function POST(request: Request) {
+  const limited = await gateFortunePrefetchStream(request);
+  if (limited) return limited;
+
   const body = (await request.json().catch(() => ({}))) as Body;
   let upstream = body.upstream_body;
 
   const requestId = String(body.request_id ?? "").trim();
+  const prefetchAccess = String(body.prefetch_access_token ?? "").trim();
+
+  if (!upstream && requestId) {
+    const gate = await assertFortunePrefetchAccess(request, requestId, prefetchAccess);
+    if (!gate.ok) return gate.response;
+  }
+
   if (!upstream && requestId) {
     try {
       const supabase = supabaseServer();
