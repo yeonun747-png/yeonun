@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { FORTUNE_PG_ERROR_EVENT } from "@/lib/fortune-pg-events";
 import { launchFortune82PgPayment } from "@/lib/payment-pg-flow";
-import { storeOrderAccessToken } from "@/lib/order-access-client";
+import { formatOrderAccessError, storeOrderAccessToken } from "@/lib/order-access-client";
 import { appendStubPayment } from "@/lib/payments-history-stub";
-import { spendCreditsWithAuth } from "@/lib/credit-client";
 import { spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Product } from "@/lib/data/content";
@@ -150,36 +149,40 @@ export function Step6Preview({
       const session = sb ? (await sb.auth.getSession()).data.session : null;
 
       if (payMethod === "credit") {
-        if (finalPrice > 0) {
-          const spend = await spendCreditsWithAuth(finalPrice, {
-            kind: "spend_fortune",
-            ref_type: "product",
-            ref_id: product.slug,
-            memo: product.title,
-          });
-          if (!spend.ok) throw new Error("크레딧이 부족합니다.");
+        if (!session?.access_token) {
+          throw new Error("크레딧 결제는 로그인 후 이용할 수 있습니다.");
         }
-        if (session?.access_token && discountKrw > 0) {
-          await fetch("/api/my/coupons", {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ product_slug: product.slug, price_krw: listPrice }),
-          });
-          window.dispatchEvent(new CustomEvent("yeonun:coupons-updated"));
+        const creditRes = await fetch("/api/checkout/fortune-credit", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ product_slug: product.slug, title: product.title }),
+        });
+        const creditData = (await creditRes.json().catch(() => ({}))) as {
+          success?: boolean;
+          error?: string;
+          order?: { order_no?: string };
+          order_access_token?: string | null;
+        };
+        if (!creditRes.ok || !creditData.success) {
+          if (creditData.error === "insufficient_credits") throw new Error("크레딧이 부족합니다.");
+          throw new Error(creditData.error || "크레딧 결제에 실패했습니다.");
         }
-        if (session?.access_token) {
-          appendStubPayment({
-            productSlug: product.slug,
-            title: product.title,
-            amountKrw: finalPrice,
-            method: "credit",
-          });
-        }
+        const creditOrderNo = String(creditData.order?.order_no ?? "");
+        if (!creditOrderNo) throw new Error("주문번호를 받지 못했습니다.");
+        if (creditData.order_access_token) storeOrderAccessToken(creditOrderNo, creditData.order_access_token);
+        window.dispatchEvent(new CustomEvent("yeonun:coupons-updated"));
+        window.dispatchEvent(new CustomEvent(YEONUN_CREDIT_UPDATE_EVENT));
+        appendStubPayment({
+          productSlug: product.slug,
+          title: product.title,
+          amountKrw: finalPrice,
+          method: "credit",
+        });
         setStatus("idle");
-        onPaid(null);
+        onPaid(creditOrderNo);
         return;
       }
 
@@ -203,7 +206,7 @@ export function Step6Preview({
         pg_flow?: boolean;
         order_access_token?: string | null;
       };
-      if (!res.ok || !data.success) throw new Error(data.error || "결제 요청 저장 실패");
+      if (!res.ok || !data.success) throw new Error(formatOrderAccessError(data.error ?? "checkout_failed"));
 
       const orderNo = String(data.order?.order_no ?? "");
       if (!orderNo) throw new Error("주문번호를 받지 못했습니다.");
@@ -232,7 +235,8 @@ export function Step6Preview({
       onPaid(orderNo);
     } catch (e) {
       setStatus("error");
-      setMessage(e instanceof Error ? e.message : "결제 요청 중 오류가 발생했습니다.");
+      const raw = e instanceof Error ? e.message : "";
+      setMessage(raw ? formatOrderAccessError(raw) : "결제 요청 중 오류가 발생했습니다.");
     }
   };
 

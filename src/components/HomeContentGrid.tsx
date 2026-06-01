@@ -7,8 +7,14 @@ import { FortuneDuplicateConfirmSheet } from "@/components/fortune/FortuneDuplic
 import { clearSheetBackdropSnapshot } from "@/components/my/MySheetBackdropFrame";
 import { SheetLink } from "@/components/SheetLink";
 import type { Product } from "@/lib/data/content";
-import { findFortuneDuplicateForProduct, fortuneLibraryHref, type FortuneDuplicateHit } from "@/lib/fortune-duplicate-client";
-import { preloadFortuneProduct } from "@/lib/fortune-product-cache";
+import {
+  fortuneLibraryHref,
+  peekFortuneDuplicateLocal,
+  resolveFortuneDuplicateForProduct,
+  type FortuneDuplicateHit,
+} from "@/lib/fortune-duplicate-client";
+import { warmFortuneMenuCard } from "@/lib/fortune-card-warm";
+import { readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
 
 function weeklyMeta(slug: string): {
@@ -429,9 +435,21 @@ export function HomeContentGrid({
   const openFortuneProduct = useCallback(
     async (href: string, slug: string) => {
       if (checkingSlug) return;
+
+      const instantDup = peekFortuneDuplicateLocal(slug);
+      if (instantDup) {
+        setDuplicateGate({ href, hit: instantDup });
+        return;
+      }
+
+      if (!readStoredSaju()) {
+        navigate(href);
+        return;
+      }
+
       setCheckingSlug(slug);
       try {
-        const hit = await findFortuneDuplicateForProduct(slug);
+        const hit = await resolveFortuneDuplicateForProduct(slug);
         if (hit) {
           setDuplicateGate({ href, hit });
           return;
@@ -471,18 +489,9 @@ export function HomeContentGrid({
             prefetch={false}
             className={`y-content-card ${variant}`}
             data-fortune-card={p.slug}
-            onPointerEnter={() => {
-              void preloadFortuneProduct(p.slug);
-              void import("@/components/fortune/FortunePage");
-            }}
-            onFocus={() => {
-              void preloadFortuneProduct(p.slug);
-              void import("@/components/fortune/FortunePage");
-            }}
-            onTouchStart={() => {
-              void preloadFortuneProduct(p.slug);
-              void import("@/components/fortune/FortunePage");
-            }}
+            onPointerEnter={() => warmFortuneMenuCard(p.slug, fortuneHref)}
+            onFocus={() => warmFortuneMenuCard(p.slug, fortuneHref)}
+            onTouchStart={() => warmFortuneMenuCard(p.slug, fortuneHref)}
             onClick={(e) => onFortuneCardClick(e, fortuneHref, p.slug)}
             aria-busy={checkingSlug === p.slug || undefined}
           >

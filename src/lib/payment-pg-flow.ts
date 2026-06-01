@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { orderAccessHeaders, storeOrderAccessToken } from "@/lib/order-access-client";
+import { orderAccessAuthHeaders, storeOrderAccessToken } from "@/lib/order-access-client";
 import {
   clearPaymentSuccessStorage,
   isTrustedPaymentOpenerMessage,
@@ -163,7 +163,7 @@ async function waitFortune82PgPaidAndCompleteInner(
   opts?: { maxAttempts?: number },
 ): Promise<boolean> {
   const maxAttempts = Math.max(1, opts?.maxAttempts ?? 15);
-  const accessHeaders = orderAccessHeaders(orderNo);
+  const accessHeaders = await orderAccessAuthHeaders(orderNo);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const statusRes = await fetch(`/api/payment/status?oid=${encodeURIComponent(orderNo)}`, {
@@ -296,7 +296,7 @@ export function registerPgPaymentHandlers(handlers: PgPaymentHandlers): () => vo
 export async function launchFortune82PgPayment(params: LaunchPgPaymentParams): Promise<void> {
   const { paymentMethod, orderNo, productSlug, title, orderAccessToken } = params;
   if (orderAccessToken) storeOrderAccessToken(orderNo, orderAccessToken);
-  const accessHeaders = orderAccessHeaders(orderNo);
+  const accessHeaders = await orderAccessAuthHeaders(orderNo);
 
   const res = await fetch("/api/payment/request", {
     method: "POST",

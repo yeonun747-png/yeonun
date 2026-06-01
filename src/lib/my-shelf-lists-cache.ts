@@ -81,6 +81,19 @@ export function patchVoiceListCacheSubtitle(userId: string, sessionId: string, s
   writeVoiceListCache(userId, next);
 }
 
+export function invalidateFortuneListCache(userId: string) {
+  const uid = String(userId ?? "").trim();
+  if (!uid) return;
+  memFortune = null;
+  if (typeof window !== "undefined") {
+    try {
+      sessionStorage.removeItem(fortuneKey(uid));
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export function clearMyShelfListsCache() {
   memFortune = null;
   memVoice = null;

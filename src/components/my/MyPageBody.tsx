@@ -26,6 +26,7 @@ import { MyWithdrawAccountMenuItemClient } from "@/components/my/MyWithdrawAccou
 import { MyPwaInstallGuideSection, MyPwaInstallMenuItem } from "@/components/pwa/MyPwaInstallMenuItem";
 import { creditTopupLoginHref } from "@/lib/credit-topup-auth";
 import { preloadMyPayments } from "@/lib/my-payments-cache";
+import { requestMyShelfFortuneListRefresh } from "@/lib/my-shelf-lists-preload-bus";
 
 const MY_PREFETCH_ROUTES = [
   "/my",
@@ -68,6 +69,10 @@ export function MyPageBody() {
   useEffect(() => {
     if (session?.access_token) void preloadMyPayments();
   }, [session?.access_token]);
+
+  useEffect(() => {
+    if (shelfFortune && member) requestMyShelfFortuneListRefresh();
+  }, [shelfFortune, member]);
 
   return (
     <div className="yeonunPage">

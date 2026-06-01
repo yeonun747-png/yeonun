@@ -13,6 +13,8 @@ export { ORDER_ACCESS_TOKEN_HEADER };
 function hmacSecret(): string {
   const dedicated = process.env.ORDER_ACCESS_HMAC_SECRET?.trim();
   if (dedicated) return dedicated;
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (service) return service;
   if (process.env.NODE_ENV === "production") return "";
   return (
     process.env.CLOUDWAYS_PROXY_SECRET?.trim() ||

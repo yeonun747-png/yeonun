@@ -92,9 +92,13 @@ export function FortuneProductClient({
   /** SSR 메타용 제목 — 로딩 셸에만 표시 */
   loadingTitle?: string;
 }) {
-  const [bundle, setBundle] = useState<FortuneProductBundle | null>(null);
+  const [bundle, setBundle] = useState<FortuneProductBundle | null>(() => readFortuneProductCache(slug));
   const [loadError, setLoadError] = useState(false);
   const [flowKey, setFlowKey] = useState(0);
+
+  useEffect(() => {
+    void import("@/components/fortune/FortunePage");
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +107,7 @@ export function FortuneProductClient({
     const cached = readFortuneProductCache(slug);
     if (cached) setBundle(cached);
 
-    void preloadFortuneProduct(slug, { force: true }).then((next) => {
+    void preloadFortuneProduct(slug, { force: !cached }).then((next) => {
       if (cancelled) return;
       if (!next) {
         setLoadError(true);

@@ -35,11 +35,12 @@ import {
 } from "@/lib/taekil-goodday";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
-import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
-import { orderAccessHeaders } from "@/lib/order-access-client";
+import { notifyFortuneLibrarySaved } from "@/lib/fortune-library-list-refresh";
+import { orderAccessAuthHeaders } from "@/lib/order-access-client";
 import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
 import { appendFortuneDuplicateLocalEntry } from "@/lib/fortune-duplicate-local-index";
 import { readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
+import { supabaseBrowser } from "@/lib/supabase/client";
 import { ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import { hasVoiceConsultCredits } from "@/lib/voice-consult-credit-gate";
 import {
@@ -610,7 +611,7 @@ export function FortuneStreamModal() {
     }
 
     const resultIdPromise = (async (): Promise<string | null> => {
-      const headers = { ...(await jsonAuthHeaders()), ...orderAccessHeaders(orderNo) };
+      const headers = await orderAccessAuthHeaders(orderNo);
       const storedSaju = readStoredSaju();
       const sajuFingerprint = storedSaju ? buildSajuFingerprint(storedSaju) : undefined;
       const res = await fetch("/api/fortune/save-modal-result", {
@@ -641,6 +642,9 @@ export function FortuneStreamModal() {
         request_id?: string;
       };
       if (!res.ok || !j.saved) throw new Error(j.error || "저장에 실패했습니다.");
+      const sb = supabaseBrowser();
+      const uid = (await sb?.auth.getSession())?.data.session?.user?.id;
+      if (uid) notifyFortuneLibrarySaved(uid);
       const requestId = typeof j.request_id === "string" ? j.request_id.trim() : "";
       if (requestId && sajuFingerprint) {
         appendFortuneDuplicateLocalEntry({

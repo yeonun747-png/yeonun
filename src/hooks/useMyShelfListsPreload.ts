@@ -10,7 +10,7 @@ import {
   writeVoiceListCache,
   type VoiceHistoryGroupedBlock,
 } from "@/lib/my-shelf-lists-cache";
-import { registerMyShelfListsWarm } from "@/lib/my-shelf-lists-preload-bus";
+import { consumeForceFortuneListRefresh, registerMyShelfListsWarm } from "@/lib/my-shelf-lists-preload-bus";
 
 export type { VoiceHistoryGroupedBlock };
 
@@ -91,7 +91,8 @@ export function useMyShelfListsPreload(member: boolean, userId: string | null, a
     const v = voiceRef.current;
     if (f.status === "loading" || v.status === "loading") return;
 
-    const needFortune = f.status !== "ready";
+    const forceFortune = consumeForceFortuneListRefresh();
+    const needFortune = f.status !== "ready" || forceFortune;
     const needVoice = v.status !== "ready";
     if (!needFortune && !needVoice) return;
 

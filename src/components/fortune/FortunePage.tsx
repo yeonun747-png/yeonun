@@ -40,8 +40,8 @@ import type { Product } from "@/lib/data/content";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { fortunePrefetchStorageKey, readFortunePrefetch, type FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
 import { abortFortunePrefetch, isFortunePrefetchActive, runFortunePrefetchDetached } from "@/lib/fortune-prefetch-runner";
-import { jsonAuthHeaders } from "@/lib/fetch-with-auth";
-import { orderAccessHeaders } from "@/lib/order-access-client";
+import { notifyFortuneLibrarySaved } from "@/lib/fortune-library-list-refresh";
+import { orderAccessAuthHeaders } from "@/lib/order-access-client";
 import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
@@ -364,7 +364,7 @@ export function FortunePage({
     if (!html.trim()) return;
     savedResultRef.current = true;
     const resultIdPromise = (async (): Promise<string | null> => {
-      const headers = { ...(await jsonAuthHeaders()), ...orderAccessHeaders(result.orderNo) };
+      const headers = await orderAccessAuthHeaders(result.orderNo);
       const storedSaju = readStoredSaju();
       const sajuFingerprint = storedSaju ? buildSajuFingerprint(storedSaju) : undefined;
       const res = await fetch("/api/fortune/save-modal-result", {
@@ -395,6 +395,9 @@ export function FortunePage({
         request_id?: string;
       };
       if (!res.ok || !j.saved) throw new Error(j.error || "저장에 실패했습니다.");
+      const sb = supabaseBrowser();
+      const uid = (await sb?.auth.getSession())?.data.session?.user?.id;
+      if (uid) notifyFortuneLibrarySaved(uid);
       const requestId = typeof j.request_id === "string" ? j.request_id.trim() : "";
       if (requestId && sajuFingerprint) {
         appendFortuneDuplicateLocalEntry({
