@@ -38,7 +38,6 @@ async function purgeDeletedAccounts(): Promise<NextResponse> {
   for (const uid of ids) {
     const { error: delErr } = await sb.auth.admin.deleteUser(uid);
     if (!delErr) purged += 1;
-    else console.warn("[purge-deleted-accounts] deleteUser", uid, delErr.message);
   }
 
   return NextResponse.json({ ok: true, candidates: ids.length, purged });

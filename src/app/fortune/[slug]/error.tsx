@@ -1,19 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
 
 export default function FortuneProductError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    console.error("[fortune]", error);
-  }, [error]);
-
   return (
     <div className="y-fortune-v2-root" data-fortune-route-error="1">
       <header className="y-fortune-v2-header">

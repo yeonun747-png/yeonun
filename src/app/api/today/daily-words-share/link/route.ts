@@ -74,7 +74,6 @@ export async function POST(request: Request) {
     const shareUrl = absoluteUrl(`/today/share/${shareToken}`);
     return NextResponse.json({ ok: true, shareUrl, shareToken });
   } catch (e) {
-    console.warn("[daily-words-share/link]", e);
     return NextResponse.json({ ok: false, error: "token_failed" }, { status: 500 });
   }
 }

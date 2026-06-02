@@ -81,7 +81,6 @@ export async function POST(request: NextRequest) {
     const failUrl = `${origin}/payment/error?code=T001&msg=close`;
 
     if (process.env.NODE_ENV === "development") {
-      console.log("[payment/request] PG redirect URLs", { successUrl, failUrl, code: codeStr });
     }
 
     const displayName = String(body.title ?? product.title ?? "연운 상품").trim() || "연운 상품";

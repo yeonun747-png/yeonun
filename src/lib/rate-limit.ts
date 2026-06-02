@@ -30,7 +30,6 @@ async function supabaseRateLimit(key: string, limit: number, windowMs: number): 
       p_limit: limit,
     });
     if (error) {
-      console.warn("[rate-limit] supabase", error.message);
       return null;
     }
     return Boolean(data);

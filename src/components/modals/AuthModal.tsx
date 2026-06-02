@@ -231,7 +231,6 @@ export function AuthModal() {
 
       finishAfterAuthRedirect();
     } catch (e) {
-      console.error(e);
       const msg = e instanceof Error ? e.message : "";
       if (msg === "underage_not_allowed") {
         window.alert("만 14세 미만은 서비스를 이용할 수 없습니다.");

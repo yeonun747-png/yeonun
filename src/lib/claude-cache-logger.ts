@@ -11,16 +11,9 @@ export function isClaudeCacheLogEnabled(): boolean {
   return String(process.env.CLAUDE_CACHE_LOG ?? "").trim() === "1";
 }
 
-/** SSE `message_stop` 등 usage 객체 → HIT / WRITE / MISS 한 줄 로그 */
-export function logClaudeCacheUsage(service: ClaudeCacheService, usage: AnthropicUsageLike | null | undefined): void {
+/** SSE `message_stop` 등 usage 객체 (캐시 로그 비활성) */
+export function logClaudeCacheUsage(_service: ClaudeCacheService, _usage: AnthropicUsageLike | null | undefined): void {
   if (!isClaudeCacheLogEnabled()) return;
-  const read = typeof usage?.cache_read_input_tokens === "number" ? usage.cache_read_input_tokens : 0;
-  const creation = typeof usage?.cache_creation_input_tokens === "number" ? usage.cache_creation_input_tokens : 0;
-  let status: "HIT" | "WRITE" | "MISS";
-  if (read > 0) status = "HIT";
-  else if (creation > 0) status = "WRITE";
-  else status = "MISS";
-  console.log(`[claude-cache][${service}] ${status} read=${read} creation=${creation}`);
 }
 
 export function extractUsageFromAnthropicStreamEvent(evt: unknown): AnthropicUsageLike | null {

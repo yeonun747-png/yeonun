@@ -45,7 +45,6 @@ export async function GET(request: Request) {
     .not("ended_at", "is", null);
 
   if (vErr) {
-    console.warn("[my/summary] voice_sessions", vErr.message);
     return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
@@ -59,7 +58,6 @@ export async function GET(request: Request) {
     .contains("payload", { source: "fortune_stream_modal" });
 
   if (fErr) {
-    console.warn("[my/summary] fortune_requests", fErr.message);
     return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
@@ -73,7 +71,6 @@ export async function GET(request: Request) {
       .in("request_id", reqIds);
 
     if (resErr) {
-      console.warn("[my/summary] fortune_results", resErr.message);
       return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
     }
 
@@ -86,7 +83,6 @@ export async function GET(request: Request) {
   const { data: orders, error: oErr } = await supabase.from("orders").select("id, amount_krw, product_slug").eq("user_ref", uid);
 
   if (oErr) {
-    console.warn("[my/summary] orders", oErr.message);
     return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
@@ -100,9 +96,7 @@ export async function GET(request: Request) {
       .in("order_id", orderIds)
       .not("paid_at", "is", null);
 
-    if (pErr) {
-      console.warn("[my/summary] payments", pErr.message);
-    } else {
+    if (!pErr) {
       const paidOrderIds = new Set((pays ?? []).map((p) => p.order_id).filter(Boolean));
       const creditAmounts = new Set([3900, 9900, 17900]);
       hasCreditPurchaseHistory = (orders ?? []).some((o) => {

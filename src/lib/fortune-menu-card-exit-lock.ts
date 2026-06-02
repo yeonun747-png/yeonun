@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -13,7 +13,13 @@ function isEditableTarget(target: EventTarget | null): boolean {
  * 메뉴 카드 → 스텝7 실시간 점사 중 이탈 차단(뒤로가기·새로고침 단축키·히스토리 pop 등).
  * 브라우저 새로고침/탭 닫기는 beforeunload 경고만 가능(완전 차단 불가).
  */
-export function useFortuneMenuCardExitLock(active: boolean): void {
+export function useFortuneMenuCardExitLock(
+  active: boolean,
+  opts?: { onExitAttempt?: () => void },
+): void {
+  const onExitAttemptRef = useRef(opts?.onExitAttempt);
+  onExitAttemptRef.current = opts?.onExitAttempt;
+
   useEffect(() => {
     if (!active || typeof window === "undefined") return;
 
@@ -31,21 +37,31 @@ export function useFortuneMenuCardExitLock(active: boolean): void {
     };
 
     const onPopState = () => {
+      onExitAttemptRef.current?.();
       pushTrap();
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
-      if (key === "f5" || ((e.ctrlKey || e.metaKey) && key === "r")) {
+      const mod = e.ctrlKey || e.metaKey;
+      if (key === "f5" || (mod && key === "r")) {
         e.preventDefault();
+        onExitAttemptRef.current?.();
+        return;
+      }
+      if (mod && e.shiftKey && key === "r") {
+        e.preventDefault();
+        onExitAttemptRef.current?.();
         return;
       }
       if (e.altKey && key === "arrowleft") {
         e.preventDefault();
+        onExitAttemptRef.current?.();
         return;
       }
       if (key === "backspace" && !isEditableTarget(e.target)) {
         e.preventDefault();
+        onExitAttemptRef.current?.();
       }
     };
 

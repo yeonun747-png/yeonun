@@ -6,6 +6,7 @@ import { readFortunePrefetch, writeFortunePrefetch } from "@/lib/fortune-prefetc
 import { createFortunePrefetchPump } from "@/lib/fortune-prefetch-sse-engine";
 import { buildFortunePrefetchStreamBody } from "@/lib/fortune-prefetch-stream-body";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
+import { logClaudeHtmlStreamMode, logFortuneStreamFallback } from "@/lib/fortune-hybrid-stream-debug";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 
 export type RunFortunePrefetchArgs = {
@@ -52,6 +53,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
     return;
   }
 
+  logFortuneStreamFallback("chat-stream");
   res = await fetch("/api/fortune/chat-stream", {
     method: "POST",
     headers: streamHeaders,
@@ -78,6 +80,7 @@ export async function runFortunePrefetch(args: RunFortunePrefetchArgs): Promise<
   }
 
   if (!res.ok || !res.body) return;
+  logClaudeHtmlStreamMode("runFortunePrefetch → chat-stream");
   await pump.pumpSseBody(res.body.getReader(), "claude_html_stream");
   pump.finalizeClaudeHtmlStream(signal.aborted);
 }

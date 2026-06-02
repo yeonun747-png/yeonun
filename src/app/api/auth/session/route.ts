@@ -51,7 +51,6 @@ export async function POST(request: Request) {
     return res;
   } catch (e) {
     const hint = sanitizeAuthErrorHint(e instanceof Error ? e.message : String(e));
-    console.error("[api/auth/session]", { hint, error: e });
     return NextResponse.json(
       { ok: false, error: mapSessionApiError("session_failed"), hint: hint || "session_failed" },
       { status: 500 },

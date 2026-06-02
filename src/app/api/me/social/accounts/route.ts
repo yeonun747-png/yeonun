@@ -13,7 +13,6 @@ export async function GET(request: Request) {
     const accounts = await listLinkedSocialAccounts(auth.userId);
     return NextResponse.json({ ok: true, accounts });
   } catch (e) {
-    console.error("[me/social/accounts]", e);
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }

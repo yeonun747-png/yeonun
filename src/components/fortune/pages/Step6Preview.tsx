@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { FORTUNE_PG_ERROR_EVENT } from "@/lib/fortune-pg-events";
 import { launchFortune82PgPayment } from "@/lib/payment-pg-flow";
+import { formatMyApiAuthError, getBearerAccessTokenForApi } from "@/lib/fetch-with-auth";
 import { formatOrderAccessError, storeOrderAccessToken } from "@/lib/order-access-client";
 import { appendStubPayment } from "@/lib/payments-history-stub";
 import { spendableTotalCredits, YEONUN_CREDIT_UPDATE_EVENT } from "@/lib/credit-balance-local";
-import { supabaseBrowser } from "@/lib/supabase/client";
 import type { Product } from "@/lib/data/content";
 import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
 import { splitHtmlAfterFirstSubtitleH3Close } from "@/lib/fortune-section-html-split";
@@ -56,13 +57,19 @@ export function Step6Preview({
   const listPrice = product.price_krw;
   const finalPrice = couponApply?.final_price_krw ?? listPrice;
   const discountKrw = couponApply?.discount_krw ?? 0;
+  const { session: authSession, user: authUser, loading: authLoading } = useYeonunAuth();
+
+  const resolveCheckoutAccessToken = async (): Promise<string | null> => {
+    const fromApi = await getBearerAccessTokenForApi();
+    if (fromApi) return fromApi;
+    return authSession?.access_token?.trim() || null;
+  };
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const sb = supabaseBrowser();
-      const session = sb ? (await sb.auth.getSession()).data.session : null;
-      if (!session?.access_token) {
+      const accessToken = await resolveCheckoutAccessToken();
+      if (!accessToken) {
         if (!cancelled) setCouponApply(null);
         return;
       }
@@ -70,7 +77,7 @@ export function Step6Preview({
         const res = await fetch("/api/my/coupons", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ product_slug: product.slug, price_krw: listPrice }),
@@ -85,13 +92,12 @@ export function Step6Preview({
     })();
     const onCoupons = () => {
       void (async () => {
-        const sb = supabaseBrowser();
-        const session = sb ? (await sb.auth.getSession()).data.session : null;
-        if (!session?.access_token) return;
+        const accessToken = await resolveCheckoutAccessToken();
+        if (!accessToken) return;
         const res = await fetch("/api/my/coupons", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ product_slug: product.slug, price_krw: listPrice }),
@@ -145,30 +151,40 @@ export function Step6Preview({
       setMessage("");
     }
     try {
-      const sb = supabaseBrowser();
-      const session = sb ? (await sb.auth.getSession()).data.session : null;
+      const accessToken = await resolveCheckoutAccessToken();
 
       if (payMethod === "credit") {
-        if (!session?.access_token) {
+        if (!accessToken) {
+          if (authLoading) {
+            throw new Error("로그인 정보를 확인하는 중입니다. 잠시 후 다시 시도해 주세요.");
+          }
+          if (authUser) {
+            throw new Error(
+              formatMyApiAuthError("invalid_token") ||
+                "로그인이 만료되었습니다. 로그아웃 후 다시 로그인해 주세요.",
+            );
+          }
           throw new Error("크레딧 결제는 로그인 후 이용할 수 있습니다.");
         }
         const creditRes = await fetch("/api/checkout/fortune-credit", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ product_slug: product.slug, title: product.title }),
         });
         const creditData = (await creditRes.json().catch(() => ({}))) as {
           success?: boolean;
+          ok?: boolean;
           error?: string;
           order?: { order_no?: string };
           order_access_token?: string | null;
         };
         if (!creditRes.ok || !creditData.success) {
           if (creditData.error === "insufficient_credits") throw new Error("크레딧이 부족합니다.");
-          throw new Error(creditData.error || "크레딧 결제에 실패했습니다.");
+          const authMsg = formatMyApiAuthError(creditData.error ?? "");
+          throw new Error(authMsg || creditData.error || "크레딧 결제에 실패했습니다.");
         }
         const creditOrderNo = String(creditData.order?.order_no ?? "");
         if (!creditOrderNo) throw new Error("주문번호를 받지 못했습니다.");
@@ -187,7 +203,7 @@ export function Step6Preview({
       }
 
       const authHeaders: HeadersInit = { "Content-Type": "application/json" };
-      if (session?.access_token) authHeaders.Authorization = `Bearer ${session.access_token}`;
+      if (accessToken) authHeaders.Authorization = `Bearer ${accessToken}`;
 
       const res = await fetch("/api/checkout", {
         method: "POST",
@@ -223,7 +239,7 @@ export function Step6Preview({
         return;
       }
 
-      if (session?.access_token) {
+      if (accessToken) {
         appendStubPayment({
           productSlug: product.slug,
           title: product.title,

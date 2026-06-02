@@ -6,12 +6,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
+import { formatKstDateKey, formatKstDateTimeKo } from "@/lib/datetime/kst";
 import { formatCreditUsageAmount, type MyCreditUsageRow } from "@/lib/my-credit-usage";
 
 function monthKeyFromIso(iso: string | null): string {
   if (!iso) return "0";
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${d.getMonth()}`;
+  return formatKstDateKey(new Date(iso)).slice(0, 7);
 }
 
 function monthLabelFromKey(key: string): string {
@@ -31,9 +31,8 @@ function usageIcon(row: MyCreditUsageRow): string {
 }
 
 function usageDateLine(iso: string, kindLabel: string): string {
-  const d = new Date(iso);
-  const md = `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
-  return `${md} · ${kindLabel}`;
+  const when = formatKstDateTimeKo(iso);
+  return when ? `${when} · ${kindLabel}` : kindLabel;
 }
 
 async function fetchCreditUsage(accessToken: string): Promise<{ rows: MyCreditUsageRow[]; ok: boolean }> {

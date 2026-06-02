@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  logFortuneStreamFallback,
+  logFortuneStreamPathChosen,
+  logFortuneStreamSessionUpstream,
+  resetFortuneHybridStreamDebug,
+} from "@/lib/fortune-hybrid-stream-debug";
 import { orderAccessHeaders } from "@/lib/order-access-client";
 
 export type FortuneMenuStreamBody = {
@@ -41,6 +47,7 @@ export async function fetchFortuneMenuStream(
   streamBody: FortuneMenuStreamBody,
   signal: AbortSignal,
 ): Promise<Response> {
+  resetFortuneHybridStreamDebug("fetchFortuneMenuStream");
   const hdrs = streamHeaders(streamBody.order_no);
   let session: StreamSessionJson | null = null;
   try {
@@ -52,6 +59,7 @@ export async function fetchFortuneMenuStream(
     });
     if (sessionRes.ok) {
       session = (await sessionRes.json()) as StreamSessionJson;
+      logFortuneStreamSessionUpstream(session.upstream_body, { streamPath: "stream-session" });
     }
   } catch {
     session = null;
@@ -68,13 +76,17 @@ export async function fetchFortuneMenuStream(
         body: JSON.stringify(session.upstream_body),
         signal,
       });
-      if (isEventStream(directRes)) return directRes;
+      if (isEventStream(directRes)) {
+        logFortuneStreamPathChosen("Cloudways direct /chat (SSE)");
+        return directRes;
+      }
     } catch {
       /* 브라우저 → Cloudways 직접 연결 실패(CORS·네트워크) — 아래 stream-proxy로 폴백 */
     }
   }
 
   if (session?.upstream_body) {
+    logFortuneStreamPathChosen("/api/fortune/stream-proxy (SSE)");
     const proxyRes = await fetch("/api/fortune/stream-proxy", {
       method: "POST",
       headers: hdrs,
@@ -87,6 +99,7 @@ export async function fetchFortuneMenuStream(
     if (isEventStream(proxyRes)) return proxyRes;
   }
 
+  logFortuneStreamFallback("chat-stream-menus");
   return fetch("/api/fortune/chat-stream-menus", {
     method: "POST",
     headers: hdrs,

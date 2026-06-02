@@ -61,7 +61,6 @@ export async function POST(request: Request) {
   });
 
   if (insErr) {
-    console.warn("[daily-words-share]", insErr.message);
     return NextResponse.json({ ok: false, error: "insert_failed" }, { status: 500 });
   }
 

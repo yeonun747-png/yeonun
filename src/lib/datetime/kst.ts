@@ -106,6 +106,24 @@ export function formatKstMonthDayDot(date: Date = new Date()): string {
   return `${pad2(month)}.${pad2(day)}`;
 }
 
+/** 원장·이용 내역 등 — "2026년 6월 2일 오후 3시 45분 30초" (KST) */
+export function formatKstDateTimeKo(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const { year, month, day } = getKstParts(d);
+    const time = new Intl.DateTimeFormat("ko-KR", {
+      timeZone: KST_IANA,
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hour12: true,
+    }).format(d);
+    return `${year}년 ${month}월 ${day}일 ${time}`;
+  } catch {
+    return "";
+  }
+}
+
 /** 저장·상담 시각 (예: 오후 3:45) — 보관함 상세 헤더 `timeStyle: short` 와 동일 */
 export function formatKstTimeAmPm(iso: string): string {
   try {

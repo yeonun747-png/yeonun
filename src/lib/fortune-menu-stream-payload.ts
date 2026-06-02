@@ -1,10 +1,6 @@
 import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
 import { getProductBySlug } from "@/lib/data/content";
-import {
-  approxInputTokensKoreanHeavy,
-  cachedSystemBlocks,
-  padCacheableSystemTextToMinTokens,
-} from "@/lib/claude-cache-system";
+import { cachedSystemBlocks, padCacheableSystemTextToMinTokens } from "@/lib/claude-cache-system";
 import {
   buildFortuneMenuCachedSystemPlainText,
   buildFortuneMenuSectionUserMessage,
@@ -151,12 +147,6 @@ export async function buildFortuneMenuCloudwaysBody(
   const cachedPlain = buildFortuneMenuCachedSystemPlainText({ role_prompt, restrictions });
   const paddedCacheText = padCacheableSystemTextToMinTokens(cachedPlain);
   const fortune_menu_cached_system = cachedSystemBlocks(paddedCacheText);
-
-  if (String(process.env.FORTUNE_CLAUDE_CACHE_LOG ?? "").trim() === "1") {
-    console.log(
-      `[fortune-claude-cache] sections=${flat.length} approx_tokens_plain=${approxInputTokensKoreanHeavy(cachedPlain)} approx_tokens_padded=${approxInputTokensKoreanHeavy(paddedCacheText)}`,
-    );
-  }
 
   const fortune_menu_sections = flat.map((sec) => ({
     user: buildFortuneMenuSectionUserMessage({

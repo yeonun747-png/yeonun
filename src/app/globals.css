@@ -15598,14 +15598,16 @@ a.y-fortune-v2-back {
   pointer-events: none;
 }
 
-/** 점사 결과: 당김 새로고침·상위 스크롤 전파 완화(iOS/Android Chrome 등 — 브라우저마다 차이 있음) */
+/** 점사 결과·prefetch 중: 당김 새로고침·상위 스크롤 전파 완화(iOS/Android Chrome 등 — 브라우저마다 차이 있음) */
 .y-fortune-v2-root[data-step="7"],
-.y-fortune-v2-root[data-step="8"] {
+.y-fortune-v2-root[data-step="8"],
+.y-fortune-v2-root[data-fortune-menu-card-stream-guard="1"] {
   overscroll-behavior-y: none;
 }
 
 html:has(.y-fortune-v2-root[data-step="7"]),
-html:has(.y-fortune-v2-root[data-step="8"]) {
+html:has(.y-fortune-v2-root[data-step="8"]),
+html:has(.y-fortune-v2-root[data-fortune-menu-card-stream-guard="1"]) {
   overscroll-behavior-y: none;
 }
 

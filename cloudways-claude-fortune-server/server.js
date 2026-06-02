@@ -188,10 +188,9 @@ function logClaudeCacheUsage(service, usage) {
   const u = usage && typeof usage === "object" ? usage : {};
   const read = typeof u.cache_read_input_tokens === "number" ? u.cache_read_input_tokens : 0;
   const creation = typeof u.cache_creation_input_tokens === "number" ? u.cache_creation_input_tokens : 0;
-  let status = "MISS";
-  if (read > 0) status = "HIT";
-  else if (creation > 0) status = "WRITE";
-  console.log(`[claude-cache][${service}] ${status} read=${read} creation=${creation}`);
+  void service;
+  void read;
+  void creation;
 }
 
 /** @param {Record<string, unknown>} evt */
@@ -252,16 +251,8 @@ async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, tt
     messages: [{ role: "user", content: user }],
   };
 
-  const { ttftDebug, reqId, ms } = ttftCtx || {};
-  if (ttftDebug && reqId) {
-    console.log(
-      `[fortune-ttft ${reqId}] [0] request_start ms=${ms()} model=${model} max_tokens=${maxTokens} temp=${temperature} system_chars=${systemCharsForLog(system)} user_chars=${user.length}`,
-    );
-  }
-
   let claudeRes;
   try {
-    const tFetchStart = Date.now();
     claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -272,11 +263,6 @@ async function anthropicMessagesStreamResponse(apiKey, reqBody, system, user, tt
       },
       body: JSON.stringify(claudeBody),
     });
-    if (ttftDebug && reqId) {
-      console.log(
-        `[fortune-ttft ${reqId}] [1] upstream_headers ms=${ms()} fetch_ms=${Date.now() - tFetchStart} status=${claudeRes.status}`,
-      );
-    }
   } catch (e) {
     throw new Error(e instanceof Error ? e.message : String(e));
   }
@@ -311,7 +297,6 @@ async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx, cacheLogOnceR
         if (!line.startsWith("data: ")) continue;
         if (ttftDebug && writeSse && reqId && !firstUpstreamDataLineLogged) {
           firstUpstreamDataLineLogged = true;
-          console.log(`[fortune-ttft ${reqId}] [2] first_upstream_data_line ms=${ms()}`);
           writeSse({ type: "debug_timing", id: reqId, phase: "first_upstream_data_line", ms: ms() });
         }
         const data = line.slice(6).trim();
@@ -332,7 +317,6 @@ async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx, cacheLogOnceR
           if (typeof onTextDelta === "function") onTextDelta(t);
           if (ttftDebug && writeSse && reqId && !firstProxyChunkLogged && t.length > 0) {
             firstProxyChunkLogged = true;
-            console.log(`[fortune-ttft ${reqId}] [3] first_proxy_chunk ms=${ms()} chunk_len=${t.length}`);
             writeSse({ type: "debug_timing", id: reqId, phase: "first_proxy_chunk", ms: ms(), chunk_len: t.length });
           }
         }
@@ -454,11 +438,7 @@ async function geminiCreateMenuCache(apiKey, menuModel, systemPlainText) {
   const name = geminiNormalizeCacheResourceName(json?.name);
   const tok = json?.usageMetadata?.totalTokenCount;
   if (name) {
-    console.log(
-      `[gemini-menu-cache] created_ok name=${name}` +
-        (typeof tok === "number" ? ` cached_total_token_count=${tok}` : "") +
-        ` system_chars=${text.length}`,
-    );
+    void tok;
     return { name, error: null };
   }
   const rawName = typeof json?.name === "string" ? json.name.slice(0, 200) : "";
@@ -843,7 +823,6 @@ async function retryMenuSectionsIndividually({
       (typeof system === "string" && system.trim().length > 0) ||
       (Array.isArray(system) && system.length > 0);
     if (!systemOk || !user) continue;
-    console.warn(`[fortune-menu-section-retry] index=${i} title=${subtitleTitle.slice(0, 40)}`);
     writeSse({ type: "section_start", index: i });
     try {
       let html = "";
@@ -896,9 +875,6 @@ async function geminiRunMenuSinglePassStreamBatched(opts) {
   let totalChars = 0;
   let streamError = null;
   const allMissing = [];
-  console.log(
-    `[gemini-menu-single-batch] sections=${menuSections.length} batch_size=${batchSize} offset=${sectionIndexOffset}`,
-  );
   for (let b = 0; b < menuSections.length; b += batchSize) {
     if (signal?.aborted) break;
     const slice = menuSections.slice(b, b + batchSize);
@@ -932,9 +908,6 @@ async function claudeRunMenuSinglePassStreamBatched(opts) {
   let totalChars = 0;
   let streamError = null;
   const allMissing = [];
-  console.log(
-    `[claude-menu-single-batch] sections=${menuSections.length} batch_size=${batchSize} offset=${sectionIndexOffset}`,
-  );
   for (let b = 0; b < menuSections.length; b += batchSize) {
     const slice = menuSections.slice(b, b + batchSize);
     const off = sectionIndexOffset + b;
@@ -1203,7 +1176,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
 
         if (geminiSingle) {
           if (allUsersOk && systemTextSingle.length > 0 && geminiKey) {
-            console.log(`[gemini-menu-single] one-shot sections=${menuSections.length}`);
             const singleRes = await geminiRunMenuSinglePassStreamBatched({
               apiKey: geminiKey,
               model: menuModel,
@@ -1239,10 +1211,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
               const cr = await geminiCreateMenuCache(geminiKey, menuModel, systemForCache);
               if (cr.name) {
                 geminiMenuCacheName = cr.name;
-              } else {
-                console.warn(
-                  `[gemini-menu-cache] disabled system_chars=${systemForCache.length}: ${cr.error || "unknown"}`,
-                );
               }
             }
           }
@@ -1310,19 +1278,14 @@ app.post("/chat", requireProxySecret, async (req, res) => {
               const errHeavy = Boolean(streamError) && html.trim().length < 120;
               if (thin || errHeavy) {
                 if (usesCachedArray && plainFallback.length > 0 && Array.isArray(system)) {
-                  console.warn(
-                    `[fortune-menu-retry] section_index=${i} thin=${thin ? "1" : "0"} stream_err=${streamError ? String(streamError).slice(0, 200) : ""}`,
-                  );
                   try {
                     const second = await streamOneMenuSection(plainFallback, { bypassGeminiCache: true });
                     if (second.html.trim().length >= html.trim().length) {
                       html = second.html;
                       streamError = second.streamError;
                     }
-                  } catch (retryErr) {
-                    console.warn(
-                      `[fortune-menu-retry-fail] section_index=${i} ${retryErr instanceof Error ? retryErr.message : String(retryErr)}`,
-                    );
+                  } catch {
+                    /* ignore */
                   }
                 }
               }
@@ -1339,7 +1302,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
               const msg = e instanceof Error ? e.message : String(e);
               if (usesCachedArray && plainFallback.length > 0) {
                 try {
-                  console.warn(`[fortune-menu-fallback-plain] section_index=${i} err=${msg.slice(0, 240)}`);
                   const { html: h2, streamError: se2 } = await streamOneMenuSection(plainFallback, {
                     bypassGeminiCache: true,
                   });
@@ -1390,7 +1352,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
             missingIndices: [],
           }));
           if (headRes.streamError && geminiKey) {
-            console.warn(`[fortune-menu] claude_only fallback_gemini err=${String(headRes.streamError).slice(0, 400)}`);
             const gr = await geminiRunMenuSinglePassStreamBatched({
               apiKey: geminiKey,
               model: modelGeminiMenu,
@@ -1500,7 +1461,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
             gemAc.abort();
             await gemP.catch(() => {});
             if (geminiKey) {
-              console.warn(`[hybrid] claude_head_fail_full_gemini err=${String(headRes.streamError).slice(0, 400)}`);
               const fullG = await geminiRunMenuSinglePassStreamBatched({
                 apiKey: geminiKey,
                 model: modelGeminiMenu,
@@ -1557,7 +1517,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
               };
             }
             if (gOut.streamError) {
-              console.warn(`[hybrid] gemini_tail_fail_claude_tail err=${String(gOut.streamError).slice(0, 400)}`);
               const tail = await claudeRunMenuSinglePassStreamBatched({
                 anthropicKey,
                 menuCachedSystem,
@@ -1694,9 +1653,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
   }
   writeSse(donePayload);
   if (ttftDebug) {
-    console.log(
-      `[fortune-ttft ${reqId}] [4] done ms=${ms()} out_chars=${String(cleanHtml ?? "").length} accumulated_chars=${accLen} stream_error=${streamError ? "1" : "0"}`,
-    );
     writeSse({
       type: "debug_timing",
       id: reqId,

@@ -32,7 +32,6 @@ export async function POST(request: Request) {
     await mergeAuthAccountsForAdmin(primary, secondary, memo);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("[admin/accounts/merge]", e);
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "merge_failed" },
       { status: 500 },

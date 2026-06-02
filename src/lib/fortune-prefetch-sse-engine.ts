@@ -6,6 +6,10 @@ import {
 import type { FortunePrefetchV1 } from "@/lib/fortune-prefetch-storage";
 import { readFortunePrefetchContextKey } from "@/lib/fortune-prefetch-storage";
 import {
+  inspectFortuneSseRaw,
+  logFortuneStreamEvent,
+} from "@/lib/fortune-hybrid-stream-debug";
+import {
   normalizeFortuneSsePayload,
   parseFortuneSseBlock,
   type FortuneStreamEvt,
@@ -128,7 +132,9 @@ export function createFortunePrefetchPump(opts: FortunePrefetchPumpOptions): For
 
   const flushSectionsBlock = (block: string) => {
     for (const raw of parseFortuneSseBlock(block)) {
+      inspectFortuneSseRaw(raw);
       for (const ev of normalizeFortuneSsePayload(raw)) {
+        logFortuneStreamEvent(ev);
         applyEv(ev);
       }
     }

@@ -133,13 +133,6 @@ function GuideModel({
   /** Walking ↔ Idle 전환 시에만 사용 (제미나이 예시의 fadeOut/fadeIn — actions 전체 순회는 하지 않음) */
   const CLIP_CROSSFADE_SEC = 0.2;
 
-  /** 개발 모드: GLB의 `animations[].name` 순서 확인용 (에디터 테이블·mascotAssets 시퀀스와 대조) */
-  useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
-    const lines = animations.map((c, i) => `  [${i}] ${c.name}`).join("\n");
-    console.info(`[MascotGuide GLB] ${kind} ← ${glbUrl}\n${lines}`);
-  }, [animations, kind, glbUrl]);
-
   useLayoutEffect(() => {
     configureMascotPbrMaterials(model);
     onReady();
@@ -226,10 +219,6 @@ function GuideModel({
       nextAction.time = 0;
       nextAction.play();
       currentActionRef.current = nextAction;
-      if (process.env.NODE_ENV === "development") {
-        const i = animations.indexOf(clipObj);
-        console.info("[MascotGuide idle playing]", clipObj.name, "animations[" + i + "]");
-      }
       onReady();
       invalidate();
       return;

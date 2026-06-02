@@ -18,7 +18,16 @@ export type FortuneTocItem = {
 };
 
 export type FortuneStreamEvt =
-  | { type: "meta"; product_slug: string; profile: string; manse_context_included?: boolean; manse_context_chars?: number }
+  | {
+      type: "meta";
+      product_slug: string;
+      profile: string;
+      manse_context_included?: boolean;
+      manse_context_chars?: number;
+      /** 임시 hybrid 디버그 — Cloudways `fortune_menu_meta` */
+      fortune_stream_strategy?: string;
+      hybrid_claude_section_count?: number;
+    }
   | { type: "toc"; sections: FortuneTocItem[]; toc_groups?: FortuneTocMainGroup[] }
   | { type: "section_start"; index: number }
   | { type: "chunk"; index: number; html: string }
@@ -128,6 +137,8 @@ export function normalizeFortuneSsePayload(raw: unknown): FortuneStreamEvt[] {
   }
 
   if (type === "meta") {
+    const strategyRaw = o.fortune_stream_strategy;
+    const hybridRaw = o.hybrid_claude_section_count;
     return [
       {
         type: "meta",
@@ -135,6 +146,12 @@ export function normalizeFortuneSsePayload(raw: unknown): FortuneStreamEvt[] {
         profile: String(o.profile ?? "single"),
         ...(typeof o.manse_context_included === "boolean" ? { manse_context_included: o.manse_context_included } : {}),
         ...(typeof o.manse_context_chars === "number" ? { manse_context_chars: o.manse_context_chars } : {}),
+        ...(typeof strategyRaw === "string" && strategyRaw.trim()
+          ? { fortune_stream_strategy: strategyRaw.trim() }
+          : {}),
+        ...(typeof hybridRaw === "number" && Number.isFinite(hybridRaw)
+          ? { hybrid_claude_section_count: Math.floor(hybridRaw) }
+          : {}),
       },
     ];
   }

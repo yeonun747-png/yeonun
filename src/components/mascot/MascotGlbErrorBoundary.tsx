@@ -5,7 +5,6 @@ import { Component, type ReactNode } from "react";
 type Props = {
   children: ReactNode;
   fallback?: ReactNode;
-  /** console.warn 라벨 */
   label?: string;
 };
 
@@ -22,9 +21,7 @@ export class MascotGlbErrorBoundary extends Component<Props, State> {
     return { failed: true };
   }
 
-  componentDidCatch(error: Error) {
-    console.warn("[mascot-glb]", this.props.label ?? "load", error.message);
-  }
+  componentDidCatch(_error: Error) {}
 
   render() {
     if (this.state.failed) return this.props.fallback ?? null;

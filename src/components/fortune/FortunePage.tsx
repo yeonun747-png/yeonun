@@ -32,6 +32,7 @@ import { Step3Myungsik } from "@/components/fortune/pages/Step3Myungsik";
 import { Step4Ohaeng } from "@/components/fortune/pages/Step4Ohaeng";
 import { Step5Questions } from "@/components/fortune/pages/Step5Questions";
 import { Step6Preview } from "@/components/fortune/pages/Step6Preview";
+import { FortuneStreamWaitAlert } from "@/components/fortune/FortuneStreamWaitAlert";
 import { Step7Result } from "@/components/fortune/pages/Step7Result";
 import { StepProductExtraInputs } from "@/components/fortune/pages/StepProductExtraInputs";
 import { fortuneResultFromPrefetch, useFortuneResultStream } from "@/components/fortune/useFortuneResultStream";
@@ -48,6 +49,7 @@ import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
 import { appendFortuneDuplicateLocalEntry } from "@/lib/fortune-duplicate-local-index";
+import { getBearerAccessTokenForApi } from "@/lib/fetch-with-auth";
 import { pushLocalSajuToServerProfile } from "@/lib/profile-push-to-server";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { computeManseFromFormInput, type ManseRyeokData } from "@/lib/manse-ryeok";
@@ -191,6 +193,8 @@ export function FortunePage({
   const [result, setResult] = useState<FortuneResultState | null>(null);
   const [pendingOrderNo, setPendingOrderNo] = useState<string | null>(null);
   const [resultStreamEnabled, setResultStreamEnabled] = useState(false);
+  const [streamWaitAlertOpen, setStreamWaitAlertOpen] = useState(false);
+  const [prefetchRunnerActive, setPrefetchRunnerActive] = useState(false);
   const [episode, setEpisode] = useState(0);
   const [guideTextOverride, setGuideTextOverride] = useState<string | null>(null);
   /** 명식 연·월·일·시 재탭 시 동일 문구여도 말풍선·페이드 타이머 재시작 */
@@ -343,16 +347,17 @@ export function FortunePage({
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [step]);
 
-  /** 점사 결과: 새로고침·탭 닫기 시 경고(모바일은 브라우저별 제한). 당김 새로고침 완화는 CSS overscroll-behavior */
+  /** Tank/브라우저 prefetch 실행 여부 — exit lock·뒤로가기 가드용 */
   useEffect(() => {
-    if (step !== layout.stepResult) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [layout.stepResult, step]);
+    if (!menuCardEntry) {
+      setPrefetchRunnerActive(false);
+      return undefined;
+    }
+    const sync = () => setPrefetchRunnerActive(isFortunePrefetchActive(product.slug));
+    sync();
+    const t = window.setInterval(sync, 400);
+    return () => window.clearInterval(t);
+  }, [menuCardEntry, product.slug, prefetch?.updatedAt, step]);
 
   /** 결과 스텝에는 마스코트가 없어 onMascotArrive가 오지 않음 — is-walking에 머물면 모바일에서 터치·스크롤 레이어가 꼬일 수 있음 */
   useEffect(() => {
@@ -478,8 +483,7 @@ export function FortunePage({
       abortFortunePrefetch(product.slug);
       persistYeonunSajuV1(payload);
       void (async () => {
-        const sb = supabaseBrowser();
-        const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+        const token = await getBearerAccessTokenForApi();
         if (token) await pushLocalSajuToServerProfile(token, { force: true });
       })();
       clearFortunePrefetchProduct(product.slug);
@@ -626,8 +630,24 @@ export function FortunePage({
     return `/?fc=${encodeURIComponent(product.slug)}`;
   }, [backRaw, menuCardEntry, product.slug, themeKey]);
 
+  const showStreamWaitAlert = useCallback(() => {
+    setStreamWaitAlertOpen(true);
+  }, []);
+
+  const menuCardResultLocked =
+    menuCardEntry && step === layout.stepResult && (!result || !result.complete);
+
+  const menuCardPrefetchStreaming =
+    menuCardEntry &&
+    step > 0 &&
+    step < layout.stepResult &&
+    (prefetchRunnerActive || Boolean(prefetch && !prefetch.complete));
+
+  const menuCardStreamGuardActive = menuCardResultLocked || menuCardPrefetchStreaming;
+
   const onBack = useCallback(() => {
-    if (menuCardEntry && step === layout.stepResult && (!result || !result.complete)) {
+    if (menuCardStreamGuardActive) {
+      showStreamWaitAlert();
       return;
     }
     if (step === 0) {
@@ -646,7 +666,7 @@ export function FortunePage({
     }
     const prev = Math.max(0, step - 1) as FortuneStep;
     go(prev, "back");
-  }, [go, headerBackHref, layout.stepResult, menuCardEntry, result, router, step, stored]);
+  }, [go, headerBackHref, menuCardEntry, menuCardStreamGuardActive, router, showStreamWaitAlert, step, stored]);
 
   const onPillarTalk = useCallback((text: string) => {
     setGuideTextOverride(text);
@@ -673,11 +693,17 @@ export function FortunePage({
   /** 점사 결과 스텝에서는 마스코트 미표시 */
   const showFortuneMascot = menuCardEntry && step < layout.stepResult;
 
-  /** 메뉴 카드 스텝7 실시간 점사: 스트림 완료 전까지 모든 이탈 경로 차단 */
-  const menuCardResultLocked =
-    menuCardEntry && step === layout.stepResult && (!result || !result.complete);
+  useFortuneMenuCardExitLock(menuCardStreamGuardActive, { onExitAttempt: showStreamWaitAlert });
 
-  useFortuneMenuCardExitLock(menuCardResultLocked);
+  useEffect(() => {
+    if (!menuCardStreamGuardActive) return undefined;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [menuCardStreamGuardActive]);
 
   /** 결과: 스트림 완료 후에만 헤더 나가기(메뉴 카드 잠금 해제 후) */
   const showFortuneResultHeaderExit =
@@ -691,10 +717,12 @@ export function FortunePage({
       data-fortune-preview={step === layout.stepPreview ? "1" : undefined}
       data-fortune-menu-card={menuCardEntry ? "1" : undefined}
       data-fortune-menu-card-result-lock={menuCardResultLocked ? "1" : undefined}
+      data-fortune-menu-card-stream-guard={menuCardStreamGuardActive ? "1" : undefined}
       data-extra-inputs={layout.hasProductExtras && step === 2 ? "1" : undefined}
       data-extra-slug={layout.hasProductExtras && step === 2 ? product.slug : undefined}
       style={guideTop == null ? undefined : ({ "--fortune-v2-guide-top": `${guideTop}px` } as CSSProperties)}
     >
+      <FortuneStreamWaitAlert open={streamWaitAlertOpen} onConfirm={() => setStreamWaitAlertOpen(false)} />
       {menuCardEntry ? (
         <MascotGlbErrorBoundary label="MascotPreloadClient">
           <MascotPreloadClient />
@@ -709,7 +737,16 @@ export function FortunePage({
               </svg>
             </Link>
           ) : (
-            <div className="y-fortune-v2-header-lead-spacer" aria-hidden="true" />
+            <button
+              className="y-fortune-v2-back"
+              type="button"
+              onClick={showStreamWaitAlert}
+              aria-label="뒤로"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 18 L9 12 L15 6" />
+              </svg>
+            </button>
           )
         ) : (
           <button className="y-fortune-v2-back" type="button" onClick={onBack} aria-label="뒤로">

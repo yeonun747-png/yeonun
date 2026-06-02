@@ -109,8 +109,8 @@ export async function GET(
           await claimReferralSignup(svc, result.authUserId, pending.code, pending.assigned_kst_date, {
             requireNewSignup: true,
           });
-        } catch (e) {
-          console.warn("[auth/callback] referral claim", e);
+        } catch {
+          /* ignore */
         }
       }
     }
@@ -146,12 +146,6 @@ export async function GET(
       return isLinkMode ? failLink("withdrawal_pending") : failLogin("withdrawal_pending", { provider });
     }
     const mapped = mapThrownOAuthError(e);
-    console.error("[auth/callback]", provider, {
-      redirectUri: callbackUrl(request, provider),
-      authCode: mapped.code,
-      hint: mapped.hint,
-      error: e,
-    });
     return isLinkMode ? failLink("link_failed") : failLogin(mapped.code, { provider, hint: mapped.hint });
   }
 }

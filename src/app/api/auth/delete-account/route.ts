@@ -9,7 +9,6 @@ export const dynamic = "force-dynamic";
 async function kakaoUnlinkUser(providerId: string): Promise<void> {
   const adminKey = String(process.env.KAKAO_ADMIN_KEY ?? "").trim();
   if (!adminKey) {
-    console.warn("[delete-account] KAKAO_ADMIN_KEY missing — skip Kakao unlink");
     return;
   }
   const body = new URLSearchParams({
@@ -24,10 +23,7 @@ async function kakaoUnlinkUser(providerId: string): Promise<void> {
     },
     body: body.toString(),
   });
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    console.warn("[delete-account] kakao unlink failed", res.status, t.slice(0, 500));
-  }
+  if (!res.ok) await res.text().catch(() => "");
 }
 
 export async function POST(request: Request) {

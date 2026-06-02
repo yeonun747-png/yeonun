@@ -77,7 +77,6 @@ export async function GET(request: Request) {
     .eq("user_ref", uid);
 
   if (oErr) {
-    console.warn("[my/payments] orders", oErr.message);
     return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
@@ -100,7 +99,6 @@ export async function GET(request: Request) {
     .order("paid_at", { ascending: false });
 
   if (pErr) {
-    console.warn("[my/payments] payments", pErr.message);
     return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
@@ -123,7 +121,6 @@ export async function GET(request: Request) {
       .in("payment_id", paymentIds);
 
     if (rErr) {
-      console.warn("[my/payments] refunds", rErr.message);
     } else {
       refundRows = rData ?? [];
     }

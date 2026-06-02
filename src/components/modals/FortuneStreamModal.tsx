@@ -35,6 +35,12 @@ import {
   TAEKIL_GOODDAY_SLUG,
 } from "@/lib/taekil-goodday";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
+import {
+  inspectFortuneSseRaw,
+  logClaudeHtmlStreamMode,
+  logFortuneStreamEvent,
+  logFortuneStreamFallback,
+} from "@/lib/fortune-hybrid-stream-debug";
 import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream";
 import { notifyFortuneLibrarySaved } from "@/lib/fortune-library-list-refresh";
 import { orderAccessAuthHeaders } from "@/lib/order-access-client";
@@ -222,6 +228,7 @@ export function FortuneStreamModal() {
           }
           if (typ === "start") {
             if (claudeStreamStartedRef.current) continue;
+            logClaudeHtmlStreamMode("FortuneStreamModal SSE start");
             claudeStreamStartedRef.current = true;
             setClaudeStreamMode(true);
             setToc(demoTocSections(profile));
@@ -339,7 +346,9 @@ export function FortuneStreamModal() {
 
       const flushSectionsBlock = (block: string) => {
         for (const raw of parseFortuneSseBlock(block)) {
+          inspectFortuneSseRaw(raw);
           for (const ev of normalizeFortuneSsePayload(raw)) {
+            logFortuneStreamEvent(ev);
             applyEv(ev);
           }
         }
@@ -502,6 +511,7 @@ export function FortuneStreamModal() {
           const errText = await res.text().catch(() => "");
           throw new Error(errText.slice(0, 400) || "스트림 연결 실패");
         }
+        logFortuneStreamFallback("chat-stream");
         res = await fetch("/api/fortune/chat-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
@@ -525,6 +535,7 @@ export function FortuneStreamModal() {
       }
 
       if (res.status === 501) {
+        logFortuneStreamFallback("two-stage-demo");
         res = await fetch("/api/fortune/two-stage-demo", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
@@ -557,6 +568,7 @@ export function FortuneStreamModal() {
         throw new Error(errText.slice(0, 400) || "스트림 연결 실패");
       }
 
+      logClaudeHtmlStreamMode("FortuneStreamModal → chat-stream pump");
       const prClaude = await pumpSse(res.body.getReader(), ac, "claude_html_stream");
       if (!prClaude.claudeDoneEvent) {
         if (!ac.signal.aborted) {

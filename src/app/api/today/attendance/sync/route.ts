@@ -238,7 +238,6 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (exErr) {
-    console.warn("[attendance/sync]", exErr.message);
     return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
@@ -247,8 +246,8 @@ export async function POST(request: Request) {
     try {
       const r = await tryGrantPendingCoupon(supabase, userId, now);
       pendingGranted = r.granted;
-    } catch (e) {
-      console.warn("[attendance/sync] pending coupon", e);
+    } catch {
+      /* ignore */
     }
 
     const state = await fetchState(supabase, userId);
@@ -314,7 +313,6 @@ export async function POST(request: Request) {
   }
 
   if (insErr) {
-    console.warn("[attendance/sync] insert", insErr.message);
     return NextResponse.json({ ok: false, error: "insert_failed" }, { status: 500 });
   }
 
@@ -333,8 +331,8 @@ export async function POST(request: Request) {
       voiceSeconds = attendanceVoiceRewardCredits();
       try {
         await grantAttendanceCreditsIfNew(userId, cycle, todayKst, voiceSeconds);
-      } catch (e) {
-        console.warn("[attendance/sync] credit grant", e);
+      } catch {
+        /* ignore */
       }
     } else if (rewardKind === "coupon_5pct") {
       const g = await grantCouponOrPending(supabase, userId, now);
@@ -362,7 +360,6 @@ export async function POST(request: Request) {
   );
 
   if (upErr) {
-    console.warn("[attendance/sync] upsert state", upErr.message);
     return NextResponse.json({ ok: false, error: "state_failed" }, { status: 500 });
   }
 
@@ -370,8 +367,8 @@ export async function POST(request: Request) {
   try {
     const r = await tryGrantPendingCoupon(supabase, userId, now);
     pendingGranted = r.granted;
-  } catch (e) {
-    console.warn("[attendance/sync] pending after checkin", e);
+  } catch {
+    /* ignore */
   }
 
   const finalState = await fetchState(supabase, userId);

@@ -50,7 +50,6 @@ export async function GET(request: Request) {
     .limit(200);
 
   if (error) {
-    console.warn("[my/credit-usage]", error.message);
     return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
