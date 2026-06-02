@@ -428,7 +428,7 @@ export async function loadAdminPaymentUsers(
   };
 
   for (const row of rows) {
-    if (row.status === "refund") continue;
+    if (row.status !== "ok") continue;
     if (row.method === "card") {
       summary.card.krw += row.amountKrw;
       summary.card.count += 1;
@@ -444,7 +444,7 @@ export async function loadAdminPaymentUsers(
   summary.total.krw = summary.card.krw + summary.phone.krw;
   summary.total.count = summary.card.count + summary.phone.count;
 
-  const count = rows.filter((r) => r.status !== "refund").length;
+  const count = rows.filter((r) => r.status === "ok").length;
   const totalKrw = summary.total.krw;
 
   return { period, count, totalKrw, summary, rows };
