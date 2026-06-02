@@ -12,7 +12,7 @@ const cors = require("cors");
 
 const app = express();
 app.timeout = 0;
-function cloudwaysAllowedOrigins(): string[] {
+function cloudwaysAllowedOrigins() {
   const raw = String(process.env.CLOUDWAYS_CORS_ORIGINS ?? "").trim();
   const fromEnv = raw
     ? raw.split(",").map((s) => s.trim()).filter(Boolean)

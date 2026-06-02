@@ -174,10 +174,12 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
   }
 
   let lastDbFlush = 0;
-  let pendingSnapshot: FortunePrefetchV1 | null = snapshotFromPayload(payload);
+  // 업스트림이 첫 이벤트를 보내기 전에 실패하면 snapshot이 null인 채로 영원히 "streaming"에 남을 수 있다.
+  // 최소 스냅샷을 미리 잡아두고, 실패 시에도 DB에 기록해 상태가 전이되도록 한다.
+  let pendingSnapshot: FortunePrefetchV1 | null = snapshotFromPayload(payload) ?? emptySnapshot();
 
   const flushDb = async (failed?: string) => {
-    if (!pendingSnapshot) return;
+    if (!pendingSnapshot) pendingSnapshot = emptySnapshot();
     await persistPrefetchSnapshot(id, pendingSnapshot, failed);
   };
 
