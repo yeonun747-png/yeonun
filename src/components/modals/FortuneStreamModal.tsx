@@ -24,6 +24,7 @@ import {
   splitHtmlAfterFirstSubtitleH3Close,
 } from "@/lib/fortune-section-html-split";
 import { sanitizeFortuneHtml } from "@/lib/sanitize-fortune-html";
+import { asHtmlString } from "@/lib/as-html-string";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { demoTocSections, type DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { formatFortuneExtraForPrompt } from "@/lib/format-fortune-extra-for-prompt";
@@ -1161,7 +1162,7 @@ export function FortuneStreamModal() {
                             className="y-fs-html y-fs-html--claude-stream"
                             id="y-fs-h-0"
                             // eslint-disable-next-line react/no-danger
-                            dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(claudeStreamHtml) }}
+                            dangerouslySetInnerHTML={{ __html: asHtmlString(sanitizeFortuneHtml(claudeStreamHtml)) }}
                           />
                           {phase === "stream" ? <span className="y-fs-caret" aria-hidden="true" /> : null}
                         </>
@@ -1233,7 +1234,7 @@ export function FortuneStreamModal() {
                                     className="y-fs-html y-fs-result-sub-section-start"
                                     id={`y-fs-h-${i}`}
                                     // eslint-disable-next-line react/no-danger
-                                    dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(splitHeadHtml) }}
+                                    dangerouslySetInnerHTML={{ __html: asHtmlString(sanitizeFortuneHtml(splitHeadHtml)) }}
                                   />
                                   {showSubThumb ? (
                                     <div className="y-fs-body-thumb-wrap y-fs-body-thumb-wrap--result-sub">
@@ -1247,7 +1248,7 @@ export function FortuneStreamModal() {
                                     <div
                                       className="y-fs-html"
                                       // eslint-disable-next-line react/no-danger
-                                      dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(split.tail) }}
+                                      dangerouslySetInnerHTML={{ __html: asHtmlString(sanitizeFortuneHtml(split.tail)) }}
                                     />
                                   ) : null}
                                 </>
@@ -1256,7 +1257,7 @@ export function FortuneStreamModal() {
                                   className="y-fs-html"
                                   id={`y-fs-h-${i}`}
                                   // eslint-disable-next-line react/no-danger
-                                  dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(html) }}
+                                  dangerouslySetInnerHTML={{ __html: asHtmlString(sanitizeFortuneHtml(html)) }}
                                 />
                               )}
                               {active ? <span className="y-fs-caret" aria-hidden="true" /> : null}

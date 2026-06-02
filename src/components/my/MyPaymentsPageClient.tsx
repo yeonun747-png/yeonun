@@ -8,6 +8,7 @@ import { useYeonunAuth } from "@/components/auth/YeonunAuthProvider";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import { preloadMyPayments, readMyPaymentsCache, resolveInitialMyPayments } from "@/lib/my-payments-cache";
+import { asHtmlString } from "@/lib/as-html-string";
 
 type PayDetail = {
   product: string;
@@ -316,7 +317,7 @@ export function MyPaymentsPageClient() {
               </svg>
               {detail.libraryBtn}
             </Link>
-            <div className="y-pay-refund-box" dangerouslySetInnerHTML={{ __html: detail.refundHtml }} />
+            <div className="y-pay-refund-box" dangerouslySetInnerHTML={{ __html: asHtmlString(detail.refundHtml) }} />
             <Link href="/support" className="y-pay-contact-btn">
               결제 관련 문의하기 →
             </Link>

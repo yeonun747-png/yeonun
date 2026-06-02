@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useState, type ReactNode } from "react";
+import { asHtmlString } from "@/lib/as-html-string";
 
 const MY_SHEET_SCROLL_Y_KEY = "yeonun:my-sheet-scroll-y";
 /** v2: 스냅샷 DOM이 querySelector에 잡히던 버그로 저장된 잘못된 HTML 무효화 */
@@ -81,7 +82,7 @@ export function SheetBackdropFrame({ children }: { children?: ReactNode }) {
   return (
     <div className="y-my-sheet-backdrop-frame" aria-hidden="true">
       <div className="y-my-sheet-backdrop-page" style={{ transform: `translate3d(0, -${scrollY}px, 0)` }}>
-        {snapshotHtml ? <div dangerouslySetInnerHTML={{ __html: snapshotHtml }} /> : children}
+        {snapshotHtml ? <div dangerouslySetInnerHTML={{ __html: asHtmlString(snapshotHtml) }} /> : children}
       </div>
     </div>
   );

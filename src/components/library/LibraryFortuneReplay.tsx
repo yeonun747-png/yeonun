@@ -12,6 +12,7 @@ import { flattenTocGroupsToFlatItems } from "@/lib/library-toc-snapshot";
 import { fixForeignScriptInFortuneHtmlAsync } from "@/lib/fortune-foreign-script-fix";
 import { hasForeignScriptInFortuneText } from "@/lib/fortune-html-script-sanitize";
 import { sanitizeFortuneHtml } from "@/lib/sanitize-fortune-html";
+import { asHtmlString } from "@/lib/as-html-string";
 import {
   injectMainKickersFromTocIfApplicable,
   sanitizeFortuneJoinedHtmlForLibraryReplay,
@@ -432,7 +433,7 @@ export function LibraryFortuneReplay(props: {
                       <div
                         className="y-fs-html y-fs-html--claude-stream"
                         id="y-fs-h-0"
-                        dangerouslySetInnerHTML={{ __html: sanitizeFortuneHtml(displayHtml) }}
+                        dangerouslySetInnerHTML={{ __html: asHtmlString(sanitizeFortuneHtml(displayHtml)) }}
                       />
                     )}
                   </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { asHtmlString } from "@/lib/as-html-string";
 
 export function AdminThumbnailSvgField({
   name,
@@ -71,7 +72,7 @@ export function AdminThumbnailSvgField({
           <div className={`y-admin-svg-preview-faux-card y-content-card ${previewVariant}`}>
             <div className="y-content-visual">
               <div className="y-content-illust" aria-hidden="true">
-                <span className="y-content-illust-svg" dangerouslySetInnerHTML={{ __html: safe }} />
+                <span className="y-content-illust-svg" dangerouslySetInnerHTML={{ __html: asHtmlString(safe) }} />
               </div>
             </div>
           </div>

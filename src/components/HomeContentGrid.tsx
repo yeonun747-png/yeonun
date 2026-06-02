@@ -7,6 +7,7 @@ import { FortuneDuplicateConfirmSheet } from "@/components/fortune/FortuneDuplic
 import { clearSheetBackdropSnapshot } from "@/components/my/MySheetBackdropFrame";
 import { SheetLink } from "@/components/SheetLink";
 import type { Product } from "@/lib/data/content";
+import { asHtmlString } from "@/lib/as-html-string";
 import {
   fortuneLibraryHref,
   peekFortuneDuplicateLocal,
@@ -502,7 +503,7 @@ export function HomeContentGrid({
               </div>
               <div className="y-content-illust" aria-hidden="true">
                 {inlineSvg ? (
-                  <span className="y-content-illust-svg" dangerouslySetInnerHTML={{ __html: inlineSvg }} />
+                  <span className="y-content-illust-svg" dangerouslySetInnerHTML={{ __html: asHtmlString(inlineSvg) }} />
                 ) : (
                   m.illust
                 )}

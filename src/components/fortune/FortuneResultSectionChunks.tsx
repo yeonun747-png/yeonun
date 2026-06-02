@@ -4,6 +4,7 @@ import { FortuneStreamSectionMedia } from "@/components/modals/FortuneStreamSect
 import type { Product } from "@/lib/data/content";
 import type { FortuneTocItem } from "@/lib/fortune-stream-client";
 import { sanitizeFortuneHtml } from "@/lib/sanitize-fortune-html";
+import { asHtmlString } from "@/lib/as-html-string";
 import { flattenFortuneMenuForStream } from "@/lib/product-fortune-menu";
 import { mainTitleDuplicatedAsFirstSubtitleH3, splitHtmlAfterFirstSubtitleH3Close } from "@/lib/fortune-section-html-split";
 import {
@@ -47,7 +48,7 @@ export function FortuneResultSectionChunks({
       {sectionIndices.map((i) => {
         const item = toc[i];
         if (!item) return null;
-        const html = sanitizeFortuneHtml(sectionHtml[i] ?? "");
+        const html = asHtmlString(sanitizeFortuneHtml(sectionHtml[i] ?? ""));
         const htmlTrim = html.trim();
         if (!htmlTrim) return null;
 
@@ -77,7 +78,7 @@ export function FortuneResultSectionChunks({
             ? mainTitleDuplicatedAsFirstSubtitleH3(split.head, mainLabel)
             : mainTitleDuplicatedAsFirstSubtitleH3(htmlBody, mainLabel));
 
-        const splitHeadHtml = split ? stripLeadingMainKickerParagraph(split.head) : "";
+        const splitHeadHtml = asHtmlString(split ? stripLeadingMainKickerParagraph(split.head) : "");
 
         return (
           <div key={`${item.id}-${i}`} className={chunkCls}>
@@ -97,7 +98,7 @@ export function FortuneResultSectionChunks({
                 <div
                   className="y-fs-html y-fs-result-sub-section-start"
                   // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: splitHeadHtml }}
+                  dangerouslySetInnerHTML={{ __html: asHtmlString(splitHeadHtml) }}
                 />
                 {showSubThumb ? (
                   <div className="y-fs-body-thumb-wrap y-fs-body-thumb-wrap--result-sub">
@@ -108,7 +109,7 @@ export function FortuneResultSectionChunks({
                   <div
                     className="y-fs-html"
                     // eslint-disable-next-line react/no-danger
-                    dangerouslySetInnerHTML={{ __html: split.tail }}
+                    dangerouslySetInnerHTML={{ __html: asHtmlString(split.tail) }}
                   />
                 ) : null}
               </>
@@ -122,7 +123,7 @@ export function FortuneResultSectionChunks({
                 <div
                   className="y-fs-html"
                   // eslint-disable-next-line react/no-danger
-                  dangerouslySetInnerHTML={{ __html: htmlBody }}
+                  dangerouslySetInnerHTML={{ __html: asHtmlString(htmlBody) }}
                 />
               </>
             )}

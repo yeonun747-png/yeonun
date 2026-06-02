@@ -6,6 +6,7 @@ import { TopNav } from "@/components/TopNav";
 import { YeonunRoutedBottomSheetPortal } from "@/components/YeonunRoutedBottomSheetPortal";
 import { SheetBackdropFrame } from "@/components/my/MySheetBackdropFrame";
 import { getProductBySlugCached, getReviewsByProductSlugCached } from "@/lib/data/content";
+import { asHtmlString } from "@/lib/as-html-string";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -187,7 +188,7 @@ export default async function ContentDetailPage({ params, searchParams }: Props)
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: asHtmlString(JSON.stringify(jsonLd)) }}
       />
 
       <section className={`y-cd-hero ${themeKey}`} aria-label="상세 풀이">
