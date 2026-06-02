@@ -123,9 +123,13 @@ export function sanitizeFortuneHtml(html: string): string {
   const raw = String(html ?? "");
   if (!raw.trim()) return "";
   ensureFortuneStyleSanitizeHook();
-  return DOMPurify.sanitize(raw, {
+  // DOMPurify may return TrustedHTML when Trusted Types exist (Chrome).
+  // React's dangerouslySetInnerHTML requires a plain string.
+  return String(
+    DOMPurify.sanitize(raw, {
     ALLOWED_TAGS: FORTUNE_HTML_ALLOWED_TAGS,
     ALLOWED_ATTR: FORTUNE_HTML_ALLOWED_ATTR,
     ALLOW_DATA_ATTR: true,
-  });
+    }),
+  );
 }
