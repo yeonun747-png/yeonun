@@ -93,7 +93,8 @@ export function FortuneProductClient({
   /** SSR 메타용 제목 — 로딩 셸에만 표시 */
   loadingTitle?: string;
 }) {
-  const [bundle, setBundle] = useState<FortuneProductBundle | null>(() => readFortuneProductCache(slug));
+  // SSR·첫 하이드레이션은 로딩 셸로 통일 — localStorage 캐시는 useEffect에서만 반영
+  const [bundle, setBundle] = useState<FortuneProductBundle | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [flowKey, setFlowKey] = useState(0);
 

@@ -17,11 +17,9 @@ type Props = {
 };
 
 export function HomeReviewsSectionClient({ serverSnapshot }: Props) {
-  const cached = typeof window !== "undefined" ? readHomeReviewsCache() : null;
+  // SSR·클라이언트 첫 페인트는 동일 시드(또는 serverSnapshot)만 사용 — localStorage 캐시는 useEffect에서만 반영
   const initial =
-    (cached?.reviews.length ? cached : null) ??
-    (serverSnapshot?.reviews.length ? serverSnapshot : null) ??
-    buildHomeReviewsSeedSnapshot();
+    (serverSnapshot?.reviews.length ? serverSnapshot : null) ?? buildHomeReviewsSeedSnapshot();
 
   const [block, setBlock] = useState<HomeReviewsBlockPayload>(initial);
 

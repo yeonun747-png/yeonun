@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
 import {
   buildFortuneMenuCloudwaysBody,
   type FortuneMenuStreamClientBody,
 } from "@/lib/fortune-menu-stream-payload";
-import { createFortuneStreamToken } from "@/lib/fortune-stream-direct-token";
 import { gateFortuneOrderStream } from "@/lib/llm-stream-gate";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -47,19 +45,7 @@ export async function POST(request: Request) {
     /* fortune_requests 없어도 스트림은 진행 */
   }
 
-  const publicUrl = normalizeCloudwaysBaseUrl(String(process.env.NEXT_PUBLIC_CLOUDWAYS_URL || ""));
-  const stream_token = createFortuneStreamToken();
-
-  if (publicUrl && stream_token) {
-    return NextResponse.json({
-      mode: "direct",
-      request_id,
-      stream_url: publicUrl,
-      stream_token,
-      upstream_body: upstream,
-    });
-  }
-
+  // 브라우저 → Cloudways 직접 /chat 은 CORS 때문에 실패하는 경우가 많음. Next stream-proxy 경유가 기본.
   return NextResponse.json({
     mode: "proxy",
     request_id,

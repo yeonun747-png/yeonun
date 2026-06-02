@@ -58,19 +58,23 @@ export async function fetchFortuneMenuStream(
   }
 
   if (session?.mode === "direct" && session.stream_url && session.stream_token && session.upstream_body) {
-    const directRes = await fetch(`${String(session.stream_url).replace(/\/+$/, "")}/chat`, {
-      method: "POST",
-      headers: {
-        ...hdrs,
-        Authorization: `Bearer ${session.stream_token}`,
-      },
-      body: JSON.stringify(session.upstream_body),
-      signal,
-    });
-    if (isEventStream(directRes)) return directRes;
+    try {
+      const directRes = await fetch(`${String(session.stream_url).replace(/\/+$/, "")}/chat`, {
+        method: "POST",
+        headers: {
+          ...hdrs,
+          Authorization: `Bearer ${session.stream_token}`,
+        },
+        body: JSON.stringify(session.upstream_body),
+        signal,
+      });
+      if (isEventStream(directRes)) return directRes;
+    } catch {
+      /* 브라우저 → Cloudways 직접 연결 실패(CORS·네트워크) — 아래 stream-proxy로 폴백 */
+    }
   }
 
-  if (session?.mode === "proxy" && session.upstream_body) {
+  if (session?.upstream_body) {
     const proxyRes = await fetch("/api/fortune/stream-proxy", {
       method: "POST",
       headers: hdrs,

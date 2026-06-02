@@ -199,15 +199,13 @@ export function FortunePage({
   const [guideTop, setGuideTop] = useState<number | null>(null);
   const savedResultRef = useRef(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [mascot, setMascot] = useState<"yeon" | "un">(() =>
-    typeof window === "undefined" ? "yeon" : Math.random() < 0.5 ? "yeon" : "un",
-  );
+  const [mascot, setMascot] = useState<"yeon" | "un">("yeon");
   const prevFortuneSlugForMascotRef = useRef<string | null>(null);
   const lastHappyClipRef = useRef<string | null>(null);
   const [answerReactClip, setAnswerReactClip] = useState<string | null>(null);
   /** 저장 없이 스텝1: 우상(tr). 스텝0「새로 입력할게요」도 onNew에서 tr. 스텝1→이후로 갔다가 돌아올 때는 이탈 시 tl 리셋 후 tl. */
   const [step1MascotCorner, setStep1MascotCorner] = useState<"tl" | "tr">("tl");
-  const [needSajuConsent] = useState(() => typeof window !== "undefined" && !hasSessionSajuConsent());
+  const [needSajuConsent, setNeedSajuConsent] = useState(false);
   const [sajuConsentChecked, setSajuConsentChecked] = useState(false);
   const onAnswerReactDone = useCallback(() => setAnswerReactClip(null), []);
   const resultStream = useFortuneResultStream({
@@ -244,6 +242,10 @@ export function FortunePage({
   }, [product.slug]);
 
   useEffect(() => registerFortunePrefetchSajuInvalidation(), []);
+
+  useEffect(() => {
+    setNeedSajuConsent(!hasSessionSajuConsent());
+  }, []);
 
   const resetPrefetchAfterSajuChange = useCallback(() => {
     abortFortunePrefetch(product.slug);

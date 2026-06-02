@@ -26,6 +26,8 @@ type ActiveRun = {
 const activeBySlug = new Map<string, ActiveRun>();
 
 const SERVER_PREFETCH_POLL_MS = 1200;
+/** 서버 `after()` Tank가 안 돌거나 Cloudways 연결 실패 시 이 시간 후 브라우저 스트림으로 폴백 */
+const SERVER_PREFETCH_STALL_MS = 25_000;
 
 function useServerTankPrefetch(): boolean {
   if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_FORTUNE_SERVER_PREFETCH === "0") {
@@ -117,7 +119,10 @@ async function runFortuneServerPrefetchDetached(
     throw new Error("prefetch access token missing — prefetch-start again");
   }
 
-  const pollOnce = async (): Promise<"done" | "failed" | "continue"> => {
+  const pollStartedAt = Date.now();
+  let lastSnapshotProgressAt = pollStartedAt;
+
+  const pollOnce = async (): Promise<"done" | "give_up" | "continue"> => {
     if (ac.signal.aborted) return "done";
     const url = `/api/fortune/prefetch-snapshot?request_id=${encodeURIComponent(requestId!)}&access_token=${encodeURIComponent(prefetchAccess!)}`;
     const res = await fetch(url, { cache: "no-store", signal: ac.signal });
@@ -128,17 +133,28 @@ async function runFortuneServerPrefetchDetached(
       error?: string | null;
     };
     if (data.snapshot?.v === 1) {
+      lastSnapshotProgressAt = Date.now();
       notify(data.snapshot);
       if (data.snapshot.complete || inferFortunePrefetchComplete(data.snapshot)) return "done";
     }
     const st = String(data.status ?? "");
     if (st === "completed") {
       const snap = data.snapshot?.v === 1 ? data.snapshot : readFortunePrefetch(slug);
-      if (snap) notify(snap);
+      if (snap) {
+        lastSnapshotProgressAt = Date.now();
+        notify(snap);
+      }
       if (snap && (snap.complete || inferFortunePrefetchComplete(snap))) return "done";
       return "continue";
     }
-    if (st === "failed") return "failed";
+    /** 서버 Tank 실패 — 폴링만 멈추지 말고 브라우저 스트림 폴백으로 넘김 */
+    if (st === "failed") return "give_up";
+
+    const stalledMs = Date.now() - pollStartedAt;
+    const sinceProgressMs = Date.now() - lastSnapshotProgressAt;
+    if (stalledMs >= SERVER_PREFETCH_STALL_MS && sinceProgressMs >= SERVER_PREFETCH_STALL_MS) {
+      return "give_up";
+    }
     return "continue";
   };
 
@@ -157,7 +173,8 @@ async function runFortuneServerPrefetchDetached(
     const tick = async () => {
       try {
         const r = await pollOnce();
-        if (r === "done" || r === "failed") finish();
+        if (r === "done") finish();
+        if (r === "give_up") finish(new Error("server_prefetch_stalled"));
       } catch (e) {
         if (ac.signal.aborted) finish();
         else finish(e);

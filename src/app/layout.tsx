@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 import "./globals.css";
 import { YeonunAuthProvider } from "@/components/auth/YeonunAuthProvider";
-import { ModalLayer } from "@/components/ModalLayer";
+import {
+  ModalLayerClient,
+  StorageNoticeBannerClient,
+} from "@/components/layout/LayoutClientOverlays";
 import { ContentCatalogPreloader } from "@/components/content/ContentCatalogPreloader";
 import { PrimaryTabScrollClient } from "@/components/PrimaryTabScrollClient";
 import { ArchiveReviewProvider } from "@/components/reviews/ArchiveReviewProvider";
 import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetProvider";
 import { AppProviders } from "@/app/providers";
-import { StorageNoticeBanner } from "@/components/legal/StorageNoticeBanner";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 import { ChunkLoadRecovery } from "@/components/ChunkLoadRecovery";
 import { getSiteUrl } from "@/lib/site-url";
@@ -118,14 +119,10 @@ export default function RootLayout({
               {modal}
               <ChunkLoadRecovery />
               <YeonunToastHost />
-              <Suspense fallback={null}>
-                <StorageNoticeBanner />
-              </Suspense>
+              <StorageNoticeBannerClient />
             </WriteReviewSheetProvider>
           </ArchiveReviewProvider>
-          <Suspense fallback={null}>
-            <ModalLayer />
-          </Suspense>
+          <ModalLayerClient />
         </YeonunAuthProvider>
         </AppProviders>
       </body>
