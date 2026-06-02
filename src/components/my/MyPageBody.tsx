@@ -33,6 +33,7 @@ const MY_PREFETCH_ROUTES = [
   "/my",
   "/history/chats",
   "/my/payments",
+  "/my/credit-usage",
   "/checkout/credit",
   "/notices",
   "/support",
@@ -91,7 +92,7 @@ export function MyPageBody() {
                   모든 인연이 기억합니다
                 </h1>
                 <p className="y-my-guest-desc">
-                  가입은 30초. 그 후엔 4명이 당신의 사주를 알고
+                  가입은 3초. 그 후엔 4명이 당신의 사주를 알고
                   <br />
                   매일 새 한 마디를 보냅니다.
                 </p>
@@ -277,7 +278,19 @@ export function MyPageBody() {
                 </div>
                 <div className="y-my-menu-text">
                   <div className="y-my-menu-name">결제 내역</div>
-                  <div className="y-my-menu-desc">최근 12개월</div>
+                  <div className="y-my-menu-desc">카드·휴대폰 · 최근 12개월</div>
+                </div>
+                <span className="y-my-menu-arrow">›</span>
+              </MySheetLink>
+              <MySheetLink className="y-my-menu-item" href="/my/credit-usage">
+                <div className="y-my-menu-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6L6 21l2.3-7-6-4.6h7.6z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div className="y-my-menu-text">
+                  <div className="y-my-menu-name">이용 내역</div>
+                  <div className="y-my-menu-desc">크레딧 적립·사용 · 최근 12개월</div>
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>

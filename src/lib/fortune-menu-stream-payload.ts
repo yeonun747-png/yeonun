@@ -2,9 +2,9 @@ import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters"
 import { getProductBySlug } from "@/lib/data/content";
 import {
   approxInputTokensKoreanHeavy,
-  fortuneCachedSystemBlocks,
+  cachedSystemBlocks,
   padCacheableSystemTextToMinTokens,
-} from "@/lib/fortune-claude-anthropic-cache";
+} from "@/lib/claude-cache-system";
 import {
   buildFortuneMenuCachedSystemPlainText,
   buildFortuneMenuSectionUserMessage,
@@ -150,7 +150,7 @@ export async function buildFortuneMenuCloudwaysBody(
 
   const cachedPlain = buildFortuneMenuCachedSystemPlainText({ role_prompt, restrictions });
   const paddedCacheText = padCacheableSystemTextToMinTokens(cachedPlain);
-  const fortune_menu_cached_system = fortuneCachedSystemBlocks(paddedCacheText);
+  const fortune_menu_cached_system = cachedSystemBlocks(paddedCacheText);
 
   if (String(process.env.FORTUNE_CLAUDE_CACHE_LOG ?? "").trim() === "1") {
     console.log(

@@ -312,6 +312,39 @@ export async function adminAdjustCredits(
   return { wallet, ledger };
 }
 
+/** 출석 7일 연속 크레딧 보상 — 사이클·일자당 1회 */
+export async function grantAttendanceCreditsIfNew(
+  userId: string,
+  cycle: number,
+  todayKst: string,
+  credits: number,
+): Promise<{ granted: number; duplicate: boolean }> {
+  const amount = Math.max(0, Math.floor(credits));
+  if (amount <= 0) return { granted: 0, duplicate: false };
+
+  const grantKey = `7d:cycle${cycle}:${todayKst}`;
+  const sb = supabaseServer();
+  const { data: existing } = await sb
+    .from("user_credit_ledger")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("kind", "admin_adjust")
+    .eq("ref_type", "attendance")
+    .eq("ref_id", grantKey)
+    .maybeSingle();
+  if (existing?.id) return { granted: 0, duplicate: true };
+
+  await adminAdjustCredits(userId, 0, amount, {
+    kind: "admin_adjust",
+    memo: `출석 7일 연속 달성 · ${amount.toLocaleString("ko-KR")} 크레딧`,
+    ref_type: "attendance",
+    ref_id: grantKey,
+    admin_actor: "system",
+  });
+
+  return { granted: amount, duplicate: false };
+}
+
 /** 중복 auth 계정 통합 시 source 지갑 → target 지갑으로 합산 */
 export async function mergeCreditWallets(
   targetUserId: string,

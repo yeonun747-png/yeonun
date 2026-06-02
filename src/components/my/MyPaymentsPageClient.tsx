@@ -172,13 +172,10 @@ export function MyPaymentsPageClient() {
     const fresh = await preloadMyPayments();
     if (fresh) {
       applyPayload(fresh, setApiRows, setYearTotal, setMonthTotal);
-      setHydrated(true);
-      return;
-    }
-
-    if (!cached) {
+    } else if (!cached) {
       setError("load_failed");
     }
+
     setHydrated(true);
   }, [session?.access_token, userId]);
 
@@ -276,7 +273,7 @@ export function MyPaymentsPageClient() {
                     ))}
                   </section>
                 ))}
-                <p className="y-pay-history-foot">최근 12개월 기준 · 환불은 별도 표기될 수 있습니다</p>
+                <p className="y-pay-history-foot">최근 12개월 · 카드·휴대폰 결제만 표시 · 환불은 별도 표기될 수 있습니다</p>
               </>
             ) : null}
             <div style={{ height: 40 }} />
@@ -328,4 +325,3 @@ export function MyPaymentsPageClient() {
     </MySubpageSheet>
   );
 }
-

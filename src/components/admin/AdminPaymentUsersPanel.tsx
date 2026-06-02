@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { AdminMemberFileModal } from "@/components/admin/AdminMemberFileModal";
-import type { AdminPaymentUserRow, AdminPaymentUsersPeriod } from "@/lib/admin-payment-users";
+import type { AdminPaymentUserRow, AdminPaymentUsersPeriod, AdminPaymentUsersSummary } from "@/lib/admin-payment-users";
 
 const PERIODS: { id: AdminPaymentUsersPeriod; label: string }[] = [
   { id: "today", label: "오늘" },
@@ -12,8 +12,74 @@ const PERIODS: { id: AdminPaymentUsersPeriod; label: string }[] = [
   { id: "30d", label: "30일" },
 ];
 
+function fmtCredits(n: number) {
+  return `${n.toLocaleString("ko-KR")}C`;
+}
+
+const EMPTY_SUMMARY: AdminPaymentUsersSummary = {
+  card: { krw: 0, count: 0 },
+  phone: { krw: 0, count: 0 },
+  total: { krw: 0, count: 0 },
+  credit: { credits: 0, count: 0 },
+};
+
+function SummaryColumn({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "rose" | "credit";
+}) {
+  return (
+    <div className="y-admin-v2-pay-sum-item">
+      <div className="y-admin-v2-pay-sum-label">{label}</div>
+      <div
+        className={`y-admin-v2-pay-sum-val${tone === "rose" ? " rose" : ""}${tone === "credit" ? " credit" : ""}`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function PaymentSummaryBar({ summary, loading }: { summary: AdminPaymentUsersSummary; loading: boolean }) {
+  if (loading) {
+    return <div className="y-admin-v2-pay-summary-bar">불러오는 중…</div>;
+  }
+  const { card, phone, total, credit } = summary;
+  return (
+    <div className="y-admin-v2-pay-summary-bar" aria-label="결제 수단별 집계">
+      <SummaryColumn label="카드" value={`${fmtKrw(card.krw)} (${card.count}건)`} />
+      <div className="y-admin-v2-pay-sum-div" aria-hidden />
+      <SummaryColumn label="휴대폰" value={`${fmtKrw(phone.krw)} (${phone.count}건)`} />
+      <div className="y-admin-v2-pay-sum-div" aria-hidden />
+      <SummaryColumn label="총" value={`${fmtKrw(total.krw)} (${total.count}건)`} tone="rose" />
+      <div className="y-admin-v2-pay-sum-div" aria-hidden />
+      <SummaryColumn
+        label="크레딧"
+        value={`${fmtCredits(credit.credits)} 소진 (${credit.count}건)`}
+        tone="credit"
+      />
+    </div>
+  );
+}
+
 function fmtKrw(n: number) {
   return n.toLocaleString("ko-KR") + "원";
+}
+
+function fmtAmountCell(row: AdminPaymentUserRow) {
+  if (row.method === "credit") {
+    return (
+      <span className="y-admin-v2-pay-amt credit">
+        <span className="y-admin-v2-pay-amt-main">{row.amountKrw.toLocaleString("ko-KR")}C</span>
+        <span className="y-admin-v2-pay-amt-sub">소진</span>
+      </span>
+    );
+  }
+  return <span className="y-admin-v2-pay-amt">{fmtKrw(row.amountKrw)}</span>;
 }
 
 function StatusBadge({ status }: { status: AdminPaymentUserRow["status"] }) {
@@ -57,8 +123,7 @@ function SajuCell({ row }: { row: AdminPaymentUserRow }) {
 
 export function AdminPaymentUsersPanel() {
   const [period, setPeriod] = useState<AdminPaymentUsersPeriod>("today");
-  const [count, setCount] = useState(0);
-  const [totalKrw, setTotalKrw] = useState(0);
+  const [summary, setSummary] = useState<AdminPaymentUsersSummary>(EMPTY_SUMMARY);
   const [rows, setRows] = useState<AdminPaymentUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,19 +141,18 @@ export function AdminPaymentUsersPanel() {
         error?: string;
         count?: number;
         totalKrw?: number;
+        summary?: AdminPaymentUsersSummary;
         rows?: AdminPaymentUserRow[];
       };
       if (!res.ok || !j.ok) {
         throw new Error(j.error || "목록을 불러오지 못했습니다.");
       }
-      setCount(Number(j.count) || 0);
-      setTotalKrw(Number(j.totalKrw) || 0);
+      setSummary(j.summary ?? EMPTY_SUMMARY);
       setRows(Array.isArray(j.rows) ? j.rows : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "목록을 불러오지 못했습니다.");
       setRows([]);
-      setCount(0);
-      setTotalKrw(0);
+      setSummary(EMPTY_SUMMARY);
     } finally {
       setLoading(false);
     }
@@ -101,36 +165,20 @@ export function AdminPaymentUsersPanel() {
   return (
     <div className="y-admin-v2-pay-card">
       <div className="y-admin-v2-pay-head">
-        <div className="y-admin-v2-pay-head-left">
-          <span className="y-admin-v2-pay-pulse" aria-hidden />
-          <span className="y-admin-v2-pay-head-title">결제 유저 현황</span>
-        </div>
-        <div className="y-admin-v2-pay-head-right">
-          <div className="y-admin-v2-pay-summary">
-            <div className="y-admin-v2-pay-sum-item">
-              <div className="y-admin-v2-pay-sum-label">건수</div>
-              <div className="y-admin-v2-pay-sum-val">{loading ? "…" : `${count}건`}</div>
-            </div>
-            <div className="y-admin-v2-pay-sum-div" aria-hidden />
-            <div className="y-admin-v2-pay-sum-item">
-              <div className="y-admin-v2-pay-sum-label">합계</div>
-              <div className="y-admin-v2-pay-sum-val rose">{loading ? "…" : fmtKrw(totalKrw)}</div>
-            </div>
-          </div>
-          <div className="y-admin-v2-pay-toggle" role="tablist" aria-label="결제 유저 기간">
-            {PERIODS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                role="tab"
-                aria-selected={period === p.id}
-                className={period === p.id ? "on" : undefined}
-                onClick={() => setPeriod(p.id)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+        <PaymentSummaryBar summary={summary} loading={loading} />
+        <div className="y-admin-v2-pay-toggle" role="tablist" aria-label="결제 유저 기간">
+          {PERIODS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="tab"
+              aria-selected={period === p.id}
+              className={period === p.id ? "on" : undefined}
+              onClick={() => setPeriod(p.id)}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -226,8 +274,8 @@ export function AdminPaymentUsersPanel() {
                     <div className="y-admin-v2-pay-prod-cell">{row.productTitle}</div>
                     <div className="y-admin-v2-pay-prod-cat">{row.categoryLabel}</div>
                   </td>
-                  <td className="r">
-                    <span className="y-admin-v2-pay-amt">{fmtKrw(row.amountKrw)}</span>
+                  <td className="r y-admin-v2-pay-amt-cell">
+                    {fmtAmountCell(row)}
                   </td>
                   <td>
                     <span className="y-admin-v2-pay-method">{row.methodLabel}</span>

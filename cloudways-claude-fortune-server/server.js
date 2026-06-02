@@ -141,10 +141,66 @@ function systemCharsForLog(system) {
   }, 0);
 }
 
+function claudeCacheLogEnabled() {
+  return String(process.env.CLAUDE_CACHE_LOG || "").trim() === "1";
+}
+
+function anthropicCacheMinTokensJs() {
+  const raw = Number(process.env.FORTUNE_CLAUDE_CACHE_MIN_TOKENS ?? "");
+  if (Number.isFinite(raw) && raw >= 256) return Math.floor(raw);
+  return 2048;
+}
+
+/** 한글 위주 러프 추정 — Next `claude-cache-system` 과 동일 (len/3) */
+function approxInputTokensKoreanHeavyJs(text) {
+  return Math.max(1, Math.ceil(String(text ?? "").length / 3));
+}
+
+function padCacheableSystemTextToMinTokensJs(text) {
+  const min = anthropicCacheMinTokensJs();
+  const s = String(text ?? "");
+  if (approxInputTokensKoreanHeavyJs(s) >= min) return s;
+  const targetChars = min * 3;
+  const padHeader =
+    "\n\n[연운 시스템 프롬프트 캐시 길이 패딩 — Anthropic 최소 토큰 충족용. 응답·본문에 출력하지 마세요.]\n";
+  const need = Math.max(0, targetChars - s.length - padHeader.length);
+  const filler = "·".repeat(need);
+  return `${s}${padHeader}${filler}`;
+}
+
+/** 레거시 string system → prompt caching 블록 배열 */
+function toCachedSystemBlock(text) {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) return null;
+  const padded = padCacheableSystemTextToMinTokensJs(trimmed);
+  return [
+    {
+      type: "text",
+      text: padded,
+      cache_control: { type: "ephemeral", ttl: "1h" },
+    },
+  ];
+}
+
+/** @param {string} service @param {Record<string, unknown> | null | undefined} usage */
+function logClaudeCacheUsage(service, usage) {
+  if (!claudeCacheLogEnabled()) return;
+  const u = usage && typeof usage === "object" ? usage : {};
+  const read = typeof u.cache_read_input_tokens === "number" ? u.cache_read_input_tokens : 0;
+  const creation = typeof u.cache_creation_input_tokens === "number" ? u.cache_creation_input_tokens : 0;
+  let status = "MISS";
+  if (read > 0) status = "HIT";
+  else if (creation > 0) status = "WRITE";
+  console.log(`[claude-cache][${service}] ${status} read=${read} creation=${creation}`);
+}
+
 /** @param {Record<string, unknown>} evt */
 function tryLogPromptCacheUsage(evt, opts) {
   const { onceRef } = opts || {};
+  if (!claudeCacheLogEnabled()) return;
+  if (onceRef && onceRef.logged) return;
   if (!evt || typeof evt !== "object") return;
+  if (evt.type !== "message_stop") return;
   const u =
     "usage" in evt && evt.usage && typeof evt.usage === "object"
       ? evt.usage
@@ -152,16 +208,8 @@ function tryLogPromptCacheUsage(evt, opts) {
         ? evt.message.usage
         : null;
   if (!u || typeof u !== "object") return;
-  const cr = u.cache_read_input_tokens;
-  if (typeof cr !== "number" || cr <= 0) return;
-  if (onceRef && onceRef.logged) return;
   if (onceRef) onceRef.logged = true;
-  const cc = u.cache_creation_input_tokens;
-  console.log(
-    `[fortune-claude-cache] cache_read_input_tokens=${cr}` +
-      (typeof cc === "number" ? ` cache_creation_input_tokens=${cc}` : "") +
-      (typeof u.input_tokens === "number" ? ` input_tokens=${u.input_tokens}` : ""),
-  );
+  logClaudeCacheUsage("fortune-legacy", u);
 }
 
 function resolveClaudeParams(reqBody) {
@@ -295,6 +343,11 @@ async function readClaudeSseToHtml(reader, { onTextDelta, ttftCtx, cacheLogOnceR
     }
   } catch (e) {
     streamError = e instanceof Error ? e.message : String(e);
+  }
+
+  if (cacheLogOnceRef && !cacheLogOnceRef.logged && lastUsage) {
+    cacheLogOnceRef.logged = true;
+    logClaudeCacheUsage("fortune-legacy", lastUsage);
   }
 
   const cleanHtml = normalizeHtmlBasics(stripCodeFences(accumulatedText));
@@ -1579,10 +1632,17 @@ app.post("/chat", requireProxySecret, async (req, res) => {
     });
   }
 
-  const system = coerceAnthropicSystem(req.body?.system);
+  let system = coerceAnthropicSystem(req.body?.system);
   const user = String(req.body?.user ?? "").trim();
   if (!system || !user) {
     return res.status(400).json({ error: "Invalid request", message: "system and user are required." });
+  }
+  /** 레거시 string system만 캐시 블록 변환 — 메뉴 `fortune_menu_cached_system` 배열은 그대로 */
+  if (typeof system === "string") {
+    system = toCachedSystemBlock(system);
+    if (!system) {
+      return res.status(400).json({ error: "Invalid request", message: "system is required." });
+    }
   }
 
   let claudeRes;
@@ -1623,11 +1683,6 @@ app.post("/chat", requireProxySecret, async (req, res) => {
     ttftCtx: { ttftDebug, reqId, ms, writeSse },
     cacheLogOnceRef,
   });
-  const singleCr = singleUsage?.cache_read_input_tokens;
-  if (typeof singleCr === "number" && singleCr > 0 && !cacheLogOnceRef.logged) {
-    console.log(`[fortune-claude-cache] single_chat cache_read_input_tokens=${singleCr}`);
-  }
-
   const donePayload = {
     type: "done",
     html: cleanHtml,

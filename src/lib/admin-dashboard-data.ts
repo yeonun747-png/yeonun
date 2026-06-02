@@ -78,7 +78,13 @@ function normalizeCharacterKey(key: string): string {
   return k;
 }
 
-type OrderRow = { amount_krw: number; created_at: string; product_slug: string };
+type OrderRow = {
+  id: string;
+  amount_krw: number;
+  created_at: string;
+  product_slug: string;
+  payment_method: string | null;
+};
 type VoiceRow = { character_key: string; duration_sec: number; started_at: string; user_ref?: string | null; status?: string };
 type FortuneRow = { product_slug: string; created_at: string; status: string; user_ref?: string | null };
 type ChatSessionRow = { user_ref?: string | null; started_at: string; character_key?: string | null };
@@ -212,6 +218,16 @@ function buildProductRank(
     });
 }
 
+function isCreditPaymentOrder(o: OrderRow): boolean {
+  return String(o.payment_method ?? "").trim().toLowerCase() === "credit";
+}
+
+/** PG(카드·휴대폰) 결제 매출만 — 크레딧 소진 주문 제외 */
+function orderCashRevenueKrw(o: OrderRow): number {
+  if (isCreditPaymentOrder(o)) return 0;
+  return Number(o.amount_krw || 0);
+}
+
 function buildDailyRevenue(orders: OrderRow[], today: Date, dayCount: number): { label: string; krw: number }[] {
   const out: { label: string; krw: number }[] = [];
   for (let i = dayCount - 1; i >= 0; i--) {
@@ -219,7 +235,7 @@ function buildDailyRevenue(orders: OrderRow[], today: Date, dayCount: number): {
     const to = kstAddDays(from, 1);
     const krw = orders
       .filter((o) => inRange(o.created_at, from, to))
-      .reduce((s, o) => s + Number(o.amount_krw || 0), 0);
+      .reduce((s, o) => s + orderCashRevenueKrw(o), 0);
     out.push({ label: i === 0 ? "오늘" : fmtMdKst(from), krw });
   }
   return out;
@@ -278,8 +294,8 @@ function buildSlice(
     const voiceSec = voiceInPeriod.reduce((s, v) => s + Number(v.duration_sec || 0), 0);
 
     return {
-      revenueKrw: periodOrders.reduce((s, o) => s + Number(o.amount_krw || 0), 0),
-      revenuePrevKrw: prevOrders.reduce((s, o) => s + Number(o.amount_krw || 0), 0),
+      revenueKrw: periodOrders.reduce((s, o) => s + orderCashRevenueKrw(o), 0),
+      revenuePrevKrw: prevOrders.reduce((s, o) => s + orderCashRevenueKrw(o), 0),
       orderCount: periodOrders.length,
       creditChargeCount: creditOrders.length,
       creditChargeKrw: creditOrders.reduce((s, o) => s + Number(o.amount_krw || 0), 0),
@@ -315,8 +331,8 @@ function buildSlice(
   if (period === "30d") chatsInPeriod = chatCount;
 
   return {
-    revenueKrw: periodOrders.reduce((s, o) => s + Number(o.amount_krw || 0), 0),
-    revenuePrevKrw: prevOrders.reduce((s, o) => s + Number(o.amount_krw || 0), 0),
+    revenueKrw: periodOrders.reduce((s, o) => s + orderCashRevenueKrw(o), 0),
+    revenuePrevKrw: prevOrders.reduce((s, o) => s + orderCashRevenueKrw(o), 0),
     orderCount: periodOrders.length,
     creditChargeCount: creditOrders.length,
     creditChargeKrw: creditOrders.reduce((s, o) => s + Number(o.amount_krw || 0), 0),
@@ -346,18 +362,24 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
   const since30 = kstAddDays(today, -30).toISOString();
   const yesterday = kstAddDays(today, -1);
 
-  const [productsRes, charactersRes, reviewsRes, ordersRes, socialRes, voiceRes, fortuneRes, chatRes, chatSessionsRes, paymentsProbe, llmErrRes] =
+  const [productsRes, charactersRes, reviewsRes, ordersRes, paymentsRes, socialRes, voiceRes, fortuneRes, chatRes, chatSessionsRes, paymentsProbe, llmErrRes] =
     await Promise.all([
       sb.from("products").select("slug,title,price_krw,character_key"),
       sb.from("characters").select("key", { count: "exact", head: true }),
       sb.from("reviews").select("stars,created_at,is_published,product_slug,user_mask"),
       sb
         .from("orders")
-        .select("amount_krw,status,created_at,product_slug")
+        .select("id,amount_krw,status,created_at,product_slug")
         .eq("status", "paid")
         .gte("created_at", since30)
         .order("created_at", { ascending: false })
         .limit(2000),
+      sb
+        .from("payments")
+        .select("order_id,method,status,created_at")
+        .eq("status", "paid")
+        .gte("created_at", since30)
+        .limit(4000),
       sb.from("yeonun_social_users").select("provider,created_at").is("deleted_at", null),
       sb
         .from("voice_sessions")
@@ -390,7 +412,24 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
     if (isFortuneMenuCatalogProductSlug(slug)) catalogCount++;
   }
 
-  const orders = (ordersRes.data ?? []) as OrderRow[];
+  const methodByOrderId = new Map<string, string>();
+  for (const pay of paymentsRes.data ?? []) {
+    const orderId = String((pay as { order_id?: string }).order_id ?? "").trim();
+    if (!orderId) continue;
+    if (!methodByOrderId.has(orderId)) {
+      methodByOrderId.set(orderId, String((pay as { method?: string }).method ?? "").trim().toLowerCase());
+    }
+  }
+
+  const orders = ((ordersRes.data ?? []) as { id: string; amount_krw: number; created_at: string; product_slug: string }[]).map(
+    (o) => ({
+      id: String(o.id),
+      amount_krw: Number(o.amount_krw ?? 0),
+      created_at: o.created_at,
+      product_slug: String(o.product_slug ?? ""),
+      payment_method: methodByOrderId.get(String(o.id)) ?? null,
+    }),
+  );
   const socials = (socialRes.data ?? []) as SocialRow[];
   const voices = (voiceRes.data ?? []) as VoiceRow[];
   const fortunes = (fortuneRes.data ?? []) as FortuneRow[];
@@ -521,7 +560,7 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
     alerts.push({
       tone: "ok",
       title: `어제 결제 매출 전일 대비 +${pct}%`,
-      desc: "orders.status=paid · amount_krw 합계",
+      desc: "카드·휴대폰 PG 결제만 (크레딧 소진 제외)",
       time: fmtMdKst(yesterday),
     });
   }

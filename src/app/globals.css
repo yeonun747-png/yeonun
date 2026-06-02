@@ -524,10 +524,10 @@ body:has(.y-admin-shell--v2) {
 .y-admin-v2-pay-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 16px 18px;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: nowrap;
+  padding: 12px 18px;
   border-bottom: 1px solid #e6e0d8;
 }
 .y-admin-v2-pay-head-left {
@@ -559,47 +559,78 @@ body:has(.y-admin-shell--v2) {
     transform: scale(0.7);
   }
 }
-.y-admin-v2-pay-head-right {
+.y-admin-v2-pay-summary-bar {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.y-admin-v2-pay-summary {
-  display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
+  flex-shrink: 0;
 }
 .y-admin-v2-pay-sum-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 2px;
   text-align: right;
+  min-width: 0;
+}
+.y-admin-v2-pay-sum-div {
+  width: 1px;
+  background: #e6e0d8;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+.y-admin-v2-pay-toggle {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  background: #f0ebe3;
+  border: 1px solid #e6e0d8;
+  border-radius: 7px;
+  padding: 2px;
 }
 .y-admin-v2-pay-sum-label {
   font-size: 9.5px;
   color: #ada49a;
   letter-spacing: 0.04em;
+  line-height: 1.3;
 }
 .y-admin-v2-pay-sum-val {
   font-family: "Noto Serif KR", serif;
   font-size: 16px;
   font-weight: 600;
   color: #1a1815;
-  line-height: 1.2;
+  line-height: 1.35;
+  white-space: nowrap;
+  padding-bottom: 1px;
 }
 .y-admin-v2-pay-sum-val.rose {
   color: #c94b6a;
 }
-.y-admin-v2-pay-sum-div {
-  width: 1px;
-  height: 28px;
-  background: #e6e0d8;
+.y-admin-v2-pay-sum-val.credit {
+  color: #2d6a4f;
 }
-.y-admin-v2-pay-toggle {
-  display: flex;
-  gap: 2px;
-  background: #f0ebe3;
-  border: 1px solid #e6e0d8;
-  border-radius: 7px;
-  padding: 2px;
+.y-admin-v2-pay-amt.credit {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  color: #c94b6a;
+  white-space: normal;
+  line-height: 1.15;
+}
+.y-admin-v2-pay-amt.credit .y-admin-v2-pay-amt-main {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.y-admin-v2-pay-amt.credit .y-admin-v2-pay-amt-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: #2d6a4f;
+}
+.y-admin-v2-pay-table td.y-admin-v2-pay-amt-cell {
+  overflow: visible;
 }
 .y-admin-v2-pay-toggle button {
   padding: 4px 11px;
@@ -641,10 +672,10 @@ body:has(.y-admin-shell--v2) {
   width: 6.5%;
 }
 .y-admin-v2-pay-col-prod {
-  width: 20.5%;
+  width: 19%;
 }
 .y-admin-v2-pay-col-amt {
-  width: 7.5%;
+  width: 9%;
 }
 .y-admin-v2-pay-col-method {
   width: 6.5%;
@@ -2793,14 +2824,14 @@ textarea.y-admin-review-body {
 .y-admin-inq-modal {
   position: fixed;
   inset: 0;
-  z-index: 240;
+  z-index: 12100;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
 }
 .y-admin-inq-modal--detail {
-  z-index: 250;
+  z-index: 12200;
 }
 .y-admin-inq-modal-backdrop {
   position: absolute;
@@ -10010,6 +10041,19 @@ button.y-my-menu-item {
   line-height: 1.5;
   color: #c0392b;
 }
+.y-my-inquiry-retry {
+  display: block;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--y-accent, #8b5a2b);
+  text-decoration: underline;
+  cursor: pointer;
+}
 .y-my-inquiry-submit {
   margin-top: 4px;
   margin-left: 0;
@@ -10030,6 +10074,254 @@ button.y-my-menu-item {
 .y-my-inquiry-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.y-my-inquiry-tabs {
+  display: flex;
+  gap: 0;
+  margin: 10px 16px 8px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(26, 24, 21, 0.06);
+}
+.y-my-inquiry-tabs button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--y-mute);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.y-my-inquiry-tabs button.active {
+  background: #fff;
+  color: var(--y-ink);
+  box-shadow: 0 1px 4px rgba(26, 24, 21, 0.08);
+}
+.y-my-inquiry-tab-badge,
+.y-my-inquiry-menu-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--y-rose);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+.y-my-inquiry-menu-badge {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.y-my-inquiry-history {
+  padding: 0 16px 20px;
+}
+.y-my-inquiry-empty {
+  margin: 24px 0;
+  text-align: center;
+  color: var(--y-mute);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.y-my-inquiry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.y-my-inquiry-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--y-line);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  background: #fff;
+  cursor: pointer;
+}
+.y-my-inquiry-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.y-my-inquiry-card-top time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--y-mute);
+}
+.y-my-inquiry-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(26, 24, 21, 0.06);
+  color: var(--y-mute);
+}
+.y-my-inquiry-status.pending {
+  background: rgba(196, 92, 62, 0.12);
+  color: #a33b24;
+}
+.y-my-inquiry-status.resolved {
+  background: rgba(45, 106, 79, 0.12);
+  color: #2d6a4f;
+}
+.y-my-inquiry-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--y-rose);
+  flex-shrink: 0;
+}
+.y-my-inquiry-card-preview,
+.y-my-inquiry-card-reply-preview {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--y-ink);
+}
+.y-my-inquiry-card-reply-preview {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--y-line);
+  color: var(--y-mute);
+  font-size: 12px;
+}
+.y-my-inquiry-card-reply-preview span {
+  font-weight: 700;
+  color: #2d6a4f;
+  margin-right: 4px;
+}
+.y-my-inquiry-detail {
+  padding: 0 16px 20px;
+}
+.y-my-inquiry-back {
+  border: none;
+  background: none;
+  padding: 4px 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--y-mute);
+  cursor: pointer;
+}
+.y-my-inquiry-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.y-my-inquiry-bubble {
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+.y-my-inquiry-bubble--user {
+  background: rgba(26, 24, 21, 0.04);
+  border: 1px solid var(--y-line);
+}
+.y-my-inquiry-bubble--admin {
+  background: rgba(45, 106, 79, 0.08);
+  border: 1px solid rgba(45, 106, 79, 0.18);
+}
+.y-my-inquiry-bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.y-my-inquiry-bubble-who {
+  font-size: 12px;
+  font-weight: 700;
+}
+.y-my-inquiry-bubble-head time {
+  font-size: 11px;
+  color: var(--y-mute);
+}
+.y-my-inquiry-bubble-body {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--y-ink);
+}
+.y-my-inquiry-waiting {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(196, 92, 62, 0.08);
+  color: #8a4a32;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.y-admin-inq-section + .y-admin-inq-section {
+  margin-top: 24px;
+}
+.y-admin-inq-read-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.y-admin-inq-read-badge.unread {
+  background: rgba(196, 92, 62, 0.14);
+  color: #a33b24;
+}
+.y-admin-inq-read-badge.read {
+  background: rgba(45, 106, 79, 0.12);
+  color: #2d6a4f;
+}
+.y-admin-inq-read-badge.none {
+  color: #ada49a;
+  padding: 0;
+}
+.y-admin-inq-reply-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.y-admin-inq-reply-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7a7169;
+}
+.y-admin-inq-reply-hint {
+  font-weight: 500;
+  color: #ada49a;
+}
+.y-admin-inq-guest-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #faf6f0;
+  border: 1px solid #e6e0d8;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #7a7169;
+}
+.y-admin-inq-reply-field textarea {
+  width: 100%;
+  min-height: 120px;
+  border: 1px solid #e6e0d8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+  font-family: inherit;
 }
 
 /* ===== Auth / Call / Payment 기본 스타일 (목업에서 필요한 부분 이식) ===== */
@@ -13596,6 +13888,23 @@ a.y-vip-card--link {
 .y-pay-history-total-val {
   font-size: 15px;
   font-weight: 600;
+  color: var(--y-ink);
+}
+.y-pay-history-section-head {
+  padding: 16px 16px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--y-ink);
+}
+.y-pay-history-section-divider {
+  height: 8px;
+  margin: 8px 0 0;
+  background: var(--y-bg);
+}
+.y-pay-history-amount.credit-usage.plus {
+  color: #2d6a4f;
+}
+.y-pay-history-amount.credit-usage.minus {
   color: var(--y-ink);
 }
 .y-pay-history-foot {

@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     : [];
   const thumbnail_svg_raw = String(form.get("thumbnail_svg") ?? "");
   const thumbnail_svg = thumbnail_svg_raw.trim().length ? thumbnail_svg_raw : null;
-  const strategyRaw = String(form.get("fortune_stream_strategy") ?? "claude_only").trim();
+  const strategyRaw = String(form.get("fortune_stream_strategy") ?? "hybrid").trim();
   const fortune_stream_strategy = strategyRaw === "hybrid" ? "hybrid" : "claude_only";
   const saju_input_profile = String(form.get("saju_input_profile") ?? "single").trim() === "pair" ? "pair" : "single";
 

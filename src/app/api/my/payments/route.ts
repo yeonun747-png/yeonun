@@ -41,6 +41,12 @@ function titleFromPayload(raw: unknown, slug: string): string {
   return slug.replace(/-/g, " ");
 }
 
+/** 마이 결제내역: 카드·휴대폰(PG)만 표시. 크레딧 소진 결제는 제외 */
+function isPgPaymentMethod(method: string | null | undefined): boolean {
+  const m = String(method ?? "").trim().toLowerCase();
+  return m === "card" || m === "phone";
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
@@ -163,6 +169,8 @@ export async function GET(request: Request) {
   }
 
   for (const p of payments) {
+    if (!isPgPaymentMethod(p.method)) continue;
+
     const ord = p.order_id ? orderMap.get(p.order_id) : undefined;
     if (!ord) continue;
 
@@ -195,7 +203,7 @@ export async function GET(request: Request) {
   for (const r of refundRows) {
     if (!r.payment_id) continue;
     const pay = paymentById.get(r.payment_id);
-    if (!pay || !pay.order_id) continue;
+    if (!pay || !pay.order_id || !isPgPaymentMethod(pay.method)) continue;
     const ord = orderMap.get(pay.order_id);
     if (!ord) continue;
 

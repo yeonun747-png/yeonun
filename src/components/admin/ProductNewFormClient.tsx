@@ -166,12 +166,12 @@ export function ProductNewFormClient({
       <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
         <span className="y-admin-stack-legend">메뉴 점사 스트림</span>
         <label className="y-admin-radio-option">
-          <input type="radio" name="fortune_stream_strategy" value="claude_only" defaultChecked />
-          <span>Claude 단독 (기본)</span>
+          <input type="radio" name="fortune_stream_strategy" value="claude_only" />
+          <span>Claude 단독</span>
         </label>
         <label className="y-admin-radio-option">
-          <input type="radio" name="fortune_stream_strategy" value="hybrid" />
-          <span>하이브리드 — 첫 대메뉴는 Claude, 이후는 Gemini Pro와 병렬 생성</span>
+          <input type="radio" name="fortune_stream_strategy" value="hybrid" defaultChecked />
+          <span>하이브리드 (기본) — 첫 대메뉴는 Claude, 이후는 Gemini Pro와 병렬 생성</span>
         </label>
       </fieldset>
 

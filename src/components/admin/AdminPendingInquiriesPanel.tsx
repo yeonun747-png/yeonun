@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { AdminInquiryQueueTable } from "@/components/admin/AdminInquiryQueueTable";
-import { useAdminInquiryResolve } from "@/hooks/useAdminInquiryResolve";
+import { AdminInquiryReplyModal } from "@/components/admin/AdminInquiryReplyModal";
 import { YEONUN_ADMIN_INQUIRIES_CHANGED } from "@/lib/admin-inquiry-events";
-import type { UserInquiryRow } from "@/lib/user-inquiries-server";
+import type { UserInquiryRow } from "@/lib/user-inquiries-types";
 
 type QueuePayload = {
   pending: UserInquiryRow[];
@@ -34,17 +34,20 @@ export function AdminInquiryQueueModal({
 }) {
   const [queue, setQueue] = useState<QueuePayload>({ pending: [], resolved: [] });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<UserInquiryRow | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       setQueue(await fetchInquiryQueue());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "조회 오류");
     } finally {
       setLoading(false);
     }
   }, []);
-
-  const { busyId, error, resolve } = useAdminInquiryResolve(reload);
 
   useEffect(() => {
     if (!open) return;
@@ -79,7 +82,7 @@ export function AdminInquiryQueueModal({
       <button type="button" className="y-admin-inq-modal-backdrop" aria-label="닫기" onClick={onClose} />
       <div className="y-admin-inq-modal-dialog y-admin-inq-modal-dialog--wide">
         <header className="y-admin-inq-modal-head">
-          <h3 id="admin-inq-queue-title">미처리 문의</h3>
+          <h3 id="admin-inq-queue-title">고객 문의</h3>
           <button type="button" className="y-admin-inq-modal-close" onClick={onClose}>
             ×
           </button>
@@ -90,19 +93,30 @@ export function AdminInquiryQueueModal({
               {error}
             </p>
           ) : null}
-          {loading && queue.pending.length === 0 ? (
-            <p className="y-admin-inq-empty">불러오는 중…</p>
-          ) : (
-            <AdminInquiryQueueTable
-              rows={queue.pending}
-              mode="pending"
-              busyId={busyId}
-              onResolve={(id) => void resolve(id)}
-              onOpenMember={onOpenMember}
-            />
-          )}
+          <section className="y-admin-inq-section">
+            <h4 className="y-admin-inq-resolved-title">미처리 ({queue.pending.length})</h4>
+            {loading && queue.pending.length === 0 ? (
+              <p className="y-admin-inq-empty">불러오는 중…</p>
+            ) : (
+              <AdminInquiryQueueTable
+                rows={queue.pending}
+                mode="pending"
+                onOpenMember={onOpenMember}
+                onRequestReply={setReplyTarget}
+              />
+            )}
+          </section>
+          <section className="y-admin-inq-section">
+            <h4 className="y-admin-inq-resolved-title">처리 완료 · 최근 40건</h4>
+            <AdminInquiryQueueTable rows={queue.resolved} mode="resolved" onOpenMember={onOpenMember} />
+          </section>
         </div>
       </div>
+      <AdminInquiryReplyModal
+        row={replyTarget}
+        onClose={() => setReplyTarget(null)}
+        onResolved={reload}
+      />
     </div>,
     document.body,
   );

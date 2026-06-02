@@ -8,6 +8,7 @@ import {
   type AttendanceRewardKind,
 } from "@/lib/attendance-rewards";
 import { badgeStreak, computeStampDisplay } from "@/lib/attendance-sync-core";
+import { grantAttendanceCreditsIfNew } from "@/lib/credit-server";
 import { addKstCalendarDays, formatKstDateKey } from "@/lib/datetime/kst";
 import { env } from "@/lib/env";
 
@@ -330,6 +331,11 @@ export async function POST(request: Request) {
 
     if (rewardKind === "voice_5min") {
       voiceSeconds = attendanceVoiceRewardCredits();
+      try {
+        await grantAttendanceCreditsIfNew(userId, cycle, todayKst, voiceSeconds);
+      } catch (e) {
+        console.warn("[attendance/sync] credit grant", e);
+      }
     } else if (rewardKind === "coupon_5pct") {
       const g = await grantCouponOrPending(supabase, userId, now);
       couponPendingFromReward = g === "pending";

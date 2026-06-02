@@ -8,8 +8,26 @@ import {
   type AdminMemberFileAdjustProps,
   type AdminMemberFileTab,
 } from "@/components/admin/AdminMemberFilePanel";
-import { useAdminInquiryResolve } from "@/hooks/useAdminInquiryResolve";
-import type { AdminMemberFile } from "@/lib/admin-cs-member";
+import { AdminInquiryReplyModal } from "@/components/admin/AdminInquiryReplyModal";
+import type { AdminMemberFile, AdminMemberFileInquiryRow } from "@/lib/admin-cs-member";
+import type { UserInquiryRow } from "@/lib/user-inquiries-server";
+
+function toReplyTarget(row: AdminMemberFileInquiryRow): UserInquiryRow {
+  return {
+    id: row.id,
+    user_id: null,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    body: row.body,
+    status: row.status === "pending" ? "pending" : "resolved",
+    created_at: row.created_at,
+    resolved_at: row.resolved_at,
+    resolved_by: null,
+    admin_reply: row.admin_reply,
+    reply_read_at: row.reply_read_at,
+  };
+}
 
 export function AdminMemberFileModal({
   userId,
@@ -34,20 +52,7 @@ export function AdminMemberFileModal({
   const [refId, setRefId] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "ok" | "err">("info");
-
-  const { busyId: resolvingInquiryId, resolve: resolveInquiryRaw } = useAdminInquiryResolve(async () => {
-    if (!userId) return;
-    setMessageTone("ok");
-    setMessage("문의를 처리완료했습니다.");
-    await loadFile(userId);
-  });
-
-  const resolveInquiry = useCallback(
-    (inquiryId: string) => {
-      void resolveInquiryRaw(inquiryId);
-    },
-    [resolveInquiryRaw],
-  );
+  const [replyTarget, setReplyTarget] = useState<UserInquiryRow | null>(null);
 
   const loadFile = useCallback(async (uid: string) => {
     const res = await fetch(`/api/admin/credits/file?user_id=${encodeURIComponent(uid)}`, {
@@ -57,6 +62,13 @@ export function AdminMemberFileModal({
     if (!res.ok || !data.ok || !data.file) throw new Error(data.error || "조회 실패");
     setFile(data.file as AdminMemberFile);
   }, []);
+
+  const onInquiryReplied = useCallback(async () => {
+    if (!userId) return;
+    setMessageTone("ok");
+    setMessage("답변이 등록되었습니다.");
+    await loadFile(userId);
+  }, [loadFile, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -194,13 +206,17 @@ export function AdminMemberFileModal({
               initialTab={initialTab}
               adjust={adjust}
               inquiryResolve={{
-                busyId: resolvingInquiryId,
-                onResolve: resolveInquiry,
+                onRequestReply: (row) => setReplyTarget(toReplyTarget(row)),
               }}
             />
           ) : null}
         </div>
       </div>
+      <AdminInquiryReplyModal
+        row={replyTarget}
+        onClose={() => setReplyTarget(null)}
+        onResolved={() => void onInquiryReplied()}
+      />
     </div>,
     document.body,
   );

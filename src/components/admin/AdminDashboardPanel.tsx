@@ -408,7 +408,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
       <div className="y-admin-v2-row y-admin-v2-row-60-40">
         <div className="y-admin-v2-card">
           <div className="y-admin-v2-card-title">{chartTitle}</div>
-          <div className="y-admin-v2-card-sub">일별 결제 금액 (원)</div>
+          <div className="y-admin-v2-card-sub">일별 PG 결제 금액 (카드·휴대폰, 크레딧 소진 제외)</div>
           <RevenueChart points={slice.dailyRevenue} />
           <div className="y-admin-v2-mini-row">
             {[
@@ -457,6 +457,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
         </div>
       </div>
 
+      <div className="y-admin-v2-sl">결제 · 유저 현황</div>
       <AdminPaymentUsersPanel />
 
       <div className="y-admin-v2-sl">콘텐츠 · 전환</div>

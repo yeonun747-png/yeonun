@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { getCharacterModePrompt, getCharacterPersona, getServicePrompt } from "@/lib/data/characters";
+import {
+  cachedSystemBlocks,
+  padCacheableSystemTextToMinTokens,
+} from "@/lib/claude-cache-system";
+import { wrapAnthropicSseStreamWithCacheLogging } from "@/lib/claude-cache-logger";
 import { buildRollingWindowAnthropicInput, type DialogTurnMsg } from "@/lib/dialog-window-claude";
 import { logLlmErrorEvent } from "@/lib/llm-error-log";
 import { CREDIT_CHAT_PER_USER_MESSAGE, gateConsultStream } from "@/lib/llm-stream-gate";
@@ -9,7 +14,46 @@ import { spendCredits } from "@/lib/credit-server";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const PROMPT_CACHING_BETA = "prompt-caching-2024-07-31";
+
 type Msg = { role: "user" | "assistant"; content: string };
+
+type AnthropicMessage =
+  | { role: "user" | "assistant"; content: string }
+  | {
+      role: "user";
+      content: Array<{ type: "text"; text: string }>;
+    };
+
+function buildChatDynamicPrefix(manseBlock: string, systemAddendum: string): string {
+  const parts = [manseBlock.trim()];
+  const add = String(systemAddendum ?? "").trim();
+  if (add) parts.push(`[대화 컨텍스트]\n${add}`);
+  return parts.filter(Boolean).join("\n\n");
+}
+
+/** 동적 prefix는 마지막 user 턴(현재 입력)에만 붙임 */
+function attachDynamicPrefixToLastUser(messages: DialogTurnMsg[], dynamicPrefix: string): AnthropicMessage[] {
+  const out: AnthropicMessage[] = messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+  for (let i = out.length - 1; i >= 0; i--) {
+    if (out[i].role !== "user") continue;
+    const userText = String(
+      typeof out[i].content === "string" ? out[i].content : "",
+    ).trim();
+    out[i] = {
+      role: "user",
+      content: [
+        { type: "text", text: dynamicPrefix },
+        { type: "text", text: userText },
+      ],
+    };
+    break;
+  }
+  return out;
+}
 
 export async function POST(request: Request) {
   const gate = await gateConsultStream(request);
@@ -72,18 +116,20 @@ export async function POST(request: Request) {
     ? `[사용자 사주명식]\n${manseRaw.slice(0, 12_000)}`
     : "[사용자 사주명식]\n(미입력 — 사용자가 말한 범위 안에서만 다룹니다.)";
 
-  const baseSystem = [
+  const staticSystem = [
     commonBlock || "당신은 연운(緣運)의 채팅 상담자입니다. 한국어로 답합니다. 짧고 따뜻하게, 과장된 단정은 피합니다.",
     charBlock,
     personaBlock,
-    manseBlock,
   ]
     .filter(Boolean)
     .join("\n\n");
 
   const rolled = await buildRollingWindowAnthropicInput({ apiKey, linearMessages: history });
-  const system = [baseSystem, rolled.systemAddendum].filter(Boolean).join("\n\n");
-  const anthropicMessages = rolled.messages;
+  const dynamicPrefix = buildChatDynamicPrefix(manseBlock, rolled.systemAddendum);
+  const anthropicMessages = attachDynamicPrefixToLastUser(rolled.messages, dynamicPrefix);
+
+  const paddedStatic = padCacheableSystemTextToMinTokens(staticSystem);
+  const system = cachedSystemBlocks(paddedStatic);
 
   const model = String(process.env.VOICE_LLM_MODEL ?? "claude-sonnet-4-6").trim() || "claude-sonnet-4-6";
 
@@ -92,6 +138,7 @@ export async function POST(request: Request) {
     headers: {
       "content-type": "application/json",
       "anthropic-version": "2023-06-01",
+      "anthropic-beta": PROMPT_CACHING_BETA,
       "x-api-key": apiKey,
     },
     body: JSON.stringify({
@@ -100,7 +147,7 @@ export async function POST(request: Request) {
       temperature: 0.85,
       stream: true,
       system,
-      messages: anthropicMessages.map((m) => ({ role: m.role, content: m.content })),
+      messages: anthropicMessages,
     }),
   });
 
@@ -110,7 +157,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: t.slice(0, 800) || "Anthropic stream failed" }, { status: upstream.status || 502 });
   }
 
-  return new NextResponse(upstream.body, {
+  const loggedBody = wrapAnthropicSseStreamWithCacheLogging(upstream.body, "chat");
+
+  return new NextResponse(loggedBody, {
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",

@@ -7,7 +7,7 @@ import { YeonunSheetPortal } from "@/components/YeonunSheetPortal";
 import { YEONUN_AUTH_SESSION_CHANGED } from "@/lib/auth-session-events";
 import type { AttendanceRewardKind } from "@/lib/attendance-rewards";
 import { rewardModalBodyKo, rewardModalTitleKo } from "@/lib/attendance-rewards";
-import { applyAttendanceCreditReward } from "@/lib/mission-rewards";
+import { syncCreditsFromServer } from "@/lib/credit-client";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 type SyncPayload = {
@@ -45,7 +45,7 @@ export function TodayAttendanceClient() {
 
   const applyCompletionUi = useCallback((p: SyncPayload, modalUserId: string) => {
     if (p.voiceSecondsAdded > 0) {
-      applyAttendanceCreditReward(p.voiceSecondsAdded);
+      void syncCreditsFromServer();
     }
     if (p.pendingCouponGranted) {
       window.dispatchEvent(new CustomEvent("yeonun:toast", { detail: { message: "대기 중이던 할인 쿠폰이 발급됐어요" } }));

@@ -3,8 +3,26 @@
 import { useCallback, useState } from "react";
 
 import { AdminMemberFilePanel } from "@/components/admin/AdminMemberFilePanel";
-import { useAdminInquiryResolve } from "@/hooks/useAdminInquiryResolve";
-import type { AdminMemberFile } from "@/lib/admin-cs-member";
+import { AdminInquiryReplyModal } from "@/components/admin/AdminInquiryReplyModal";
+import type { AdminMemberFile, AdminMemberFileInquiryRow } from "@/lib/admin-cs-member";
+import type { UserInquiryRow } from "@/lib/user-inquiries-server";
+
+function toReplyTarget(row: AdminMemberFileInquiryRow): UserInquiryRow {
+  return {
+    id: row.id,
+    user_id: null,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    body: row.body,
+    status: row.status === "pending" ? "pending" : "resolved",
+    created_at: row.created_at,
+    resolved_at: row.resolved_at,
+    resolved_by: null,
+    admin_reply: row.admin_reply,
+    reply_read_at: row.reply_read_at,
+  };
+}
 
 type MemberHit = {
   user_id: string;
@@ -30,6 +48,7 @@ export function AdminMemberCreditsClient() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "ok" | "err">("info");
+  const [replyTarget, setReplyTarget] = useState<UserInquiryRow | null>(null);
 
   const loadFile = useCallback(async (userId: string) => {
     const res = await fetch(`/api/admin/credits/file?user_id=${encodeURIComponent(userId)}`, {
@@ -129,19 +148,12 @@ export function AdminMemberCreditsClient() {
     }
   }, [adjustKind, deltaFree, deltaPaid, loadFile, memo, refId, selected]);
 
-  const { busyId: resolvingInquiryId, resolve: resolveInquiryRaw } = useAdminInquiryResolve(async () => {
+  const onInquiryReplied = useCallback(async () => {
     if (!selected) return;
     setMessageTone("ok");
-    setMessage("문의를 처리완료했습니다.");
+    setMessage("답변이 등록되었습니다.");
     await loadFile(selected.user_id);
-  });
-
-  const resolveInquiry = useCallback(
-    (inquiryId: string) => {
-      void resolveInquiryRaw(inquiryId);
-    },
-    [resolveInquiryRaw],
-  );
+  }, [loadFile, selected]);
 
   return (
     <div className="y-admin-member-credits">
@@ -229,8 +241,7 @@ export function AdminMemberCreditsClient() {
             onAdjust: () => void applyAdjust(),
           }}
           inquiryResolve={{
-            busyId: resolvingInquiryId,
-            onResolve: resolveInquiry,
+            onRequestReply: (row) => setReplyTarget(toReplyTarget(row)),
           }}
         />
       ) : searched && members.length > 0 && selected && !file && busy ? (
@@ -238,6 +249,11 @@ export function AdminMemberCreditsClient() {
       ) : searched && members.length > 0 && !selected ? (
         <p className="y-admin-member-credits-empty">목록에서 회원을 선택하면 파일카드가 열립니다.</p>
       ) : null}
+      <AdminInquiryReplyModal
+        row={replyTarget}
+        onClose={() => setReplyTarget(null)}
+        onResolved={() => void onInquiryReplied()}
+      />
     </div>
   );
 }

@@ -167,14 +167,15 @@ function PaymentLogTable({ rows }: { rows: AdminMemberFilePaymentRow[] }) {
   );
 }
 
+import { fmtInquiryDateTime, inquiryBodyPreview } from "@/lib/user-inquiry-format";
+import { isInquiryReplyUnread } from "@/lib/user-inquiries-types";
+
 function InquiriesTable({
   rows,
-  resolveBusyId,
-  onResolve,
+  onRequestReply,
 }: {
   rows: AdminMemberFileInquiryRow[];
-  resolveBusyId?: string | null;
-  onResolve?: (id: string) => void;
+  onRequestReply?: (row: AdminMemberFileInquiryRow) => void;
 }) {
   if (rows.length === 0) {
     return <p className="y-admin-member-credits-empty">접수된 문의가 없습니다.</p>;
@@ -189,8 +190,10 @@ function InquiriesTable({
             <th>전화번호</th>
             <th>상태</th>
             <th>문의 내용</th>
+            <th>답변</th>
             <th>접수일</th>
-            {onResolve ? <th>처리</th> : null}
+            <th>회원 확인</th>
+            {onRequestReply ? <th>처리</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -205,17 +208,34 @@ function InquiriesTable({
                 </span>
               </td>
               <td className="y-admin-cs-inquiry-body">{row.body}</td>
+              <td className="y-admin-cs-inquiry-body">
+                {row.status === "resolved" && row.admin_reply
+                  ? inquiryBodyPreview(row.admin_reply, 80)
+                  : "—"}
+              </td>
               <td className="y-admin-member-credits-cell-time">{fmtDt(row.created_at)}</td>
-              {onResolve ? (
+              <td>
+                {row.status === "resolved" && row.admin_reply ? (
+                  isInquiryReplyUnread({
+                    status: "resolved",
+                    admin_reply: row.admin_reply,
+                    reply_read_at: row.reply_read_at,
+                  }) ? (
+                    <span className="y-admin-inq-read-badge unread">미확인</span>
+                  ) : (
+                    <span className="y-admin-inq-read-badge read" title={fmtInquiryDateTime(row.reply_read_at)}>
+                      확인함
+                    </span>
+                  )
+                ) : (
+                  "—"
+                )}
+              </td>
+              {onRequestReply ? (
                 <td>
                   {row.status === "pending" ? (
-                    <button
-                      type="button"
-                      className="y-admin-cs-inquiry-resolve-btn"
-                      disabled={resolveBusyId === row.id}
-                      onClick={() => onResolve(row.id)}
-                    >
-                      {resolveBusyId === row.id ? "처리 중…" : "처리완료"}
+                    <button type="button" className="y-admin-cs-inquiry-resolve-btn" onClick={() => onRequestReply(row)}>
+                      답변 작성
                     </button>
                   ) : (
                     <span className="y-admin-cs-muted">{fmtDt(row.resolved_at)}</span>
@@ -269,8 +289,7 @@ function ReviewsTable({ rows }: { rows: AdminMemberFileReviewRow[] }) {
 }
 
 export type AdminMemberFileInquiryResolveProps = {
-  busyId: string | null;
-  onResolve: (id: string) => void;
+  onRequestReply: (row: AdminMemberFileInquiryRow) => void;
 };
 
 export function AdminMemberFilePanel({
@@ -490,11 +509,7 @@ export function AdminMemberFilePanel({
           <p className="y-admin-cs-file-subhead">
             {email}님의 문의 · 총 {inquiries.length}건
           </p>
-          <InquiriesTable
-            rows={inquiries}
-            resolveBusyId={inquiryResolve?.busyId}
-            onResolve={inquiryResolve?.onResolve}
-          />
+          <InquiriesTable rows={inquiries} onRequestReply={inquiryResolve?.onRequestReply} />
         </div>
       ) : null}
     </div>

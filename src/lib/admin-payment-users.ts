@@ -31,14 +31,23 @@ export type AdminPaymentUserRow = {
   productTitle: string;
   categoryLabel: string;
   amountKrw: number;
+  method: string;
   methodLabel: string;
   status: "ok" | "refund" | "pending";
+};
+
+export type AdminPaymentUsersSummary = {
+  card: { krw: number; count: number };
+  phone: { krw: number; count: number };
+  total: { krw: number; count: number };
+  credit: { credits: number; count: number };
 };
 
 export type AdminPaymentUsersPayload = {
   period: AdminPaymentUsersPeriod;
   count: number;
   totalKrw: number;
+  summary: AdminPaymentUsersSummary;
   rows: AdminPaymentUserRow[];
 };
 
@@ -403,6 +412,7 @@ export async function loadAdminPaymentUsers(
       productTitle: String(product?.title ?? titleFromPayload(pay.raw_payload, slug)),
       categoryLabel,
       amountKrw: Number(order.amount_krw ?? 0),
+      method: String(pay.method ?? "").trim().toLowerCase(),
       methodLabel: paymentMethodLabel(pay.method),
       status,
     });
@@ -410,8 +420,32 @@ export async function loadAdminPaymentUsers(
 
   rows.sort((a, b) => new Date(b.paidAtIso).getTime() - new Date(a.paidAtIso).getTime());
 
-  const count = rows.length;
-  const totalKrw = rows.reduce((s, r) => (r.status === "refund" ? s : s + r.amountKrw), 0);
+  const summary: AdminPaymentUsersSummary = {
+    card: { krw: 0, count: 0 },
+    phone: { krw: 0, count: 0 },
+    total: { krw: 0, count: 0 },
+    credit: { credits: 0, count: 0 },
+  };
 
-  return { period, count, totalKrw, rows };
+  for (const row of rows) {
+    if (row.status === "refund") continue;
+    if (row.method === "card") {
+      summary.card.krw += row.amountKrw;
+      summary.card.count += 1;
+    } else if (row.method === "phone") {
+      summary.phone.krw += row.amountKrw;
+      summary.phone.count += 1;
+    } else if (row.method === "credit") {
+      summary.credit.credits += row.amountKrw;
+      summary.credit.count += 1;
+    }
+  }
+
+  summary.total.krw = summary.card.krw + summary.phone.krw;
+  summary.total.count = summary.card.count + summary.phone.count;
+
+  const count = rows.filter((r) => r.status !== "refund").length;
+  const totalKrw = summary.total.krw;
+
+  return { period, count, totalKrw, summary, rows };
 }
