@@ -377,6 +377,29 @@ function anthropicSystemToPlainText(systemPayload) {
 }
 
 /**
+ * Anthropic prompt-cache 최소 토큰 충족용 패딩(헤더 + 가운뎃점 filler)을 제거한다.
+ * 이 패딩은 Claude 캐시에만 의미가 있고 Gemini에는 순수 입력 부풀림(프리필↑ → 첫 글자 지연↑)이라
+ * Gemini systemInstruction 평문으로 보낼 때만 떼어낸다. (Claude용 cached 배열은 그대로 유지)
+ */
+function stripCacheSystemPadding(text) {
+  let s = String(text ?? "");
+  const marker = "[연운 시스템 프롬프트 캐시 길이 패딩";
+  const idx = s.indexOf(marker);
+  if (idx !== -1) {
+    const cut = s.lastIndexOf("\n\n", idx);
+    s = s.slice(0, cut === -1 ? idx : cut);
+  }
+  // 안전망: 헤더가 달라도 남은 가운뎃점(·) 패딩 런 제거
+  s = s.replace(/\u00b7{20,}/g, "");
+  return s.trim();
+}
+
+/** Gemini systemInstruction 평문(패딩 제거 포함) */
+function geminiSystemPlainText(systemPayload) {
+  return stripCacheSystemPadding(anthropicSystemToPlainText(systemPayload));
+}
+
+/**
  * cachedContents.create 응답의 name 정규화.
  * AI Studio는 `cachedContents/{id}` 형태가 흔하고, 일부 응답은 `projects/.../cachedContents/{id}` 등 긴 경로일 수 있음.
  */
@@ -525,7 +548,8 @@ function buildGeminiMenuSinglePassUserTextOffset(menuSections, markerStartIdx) {
     parts.push(`\n[구간 ${g} — 작성 지시]\n${String(menuSections[i]?.user ?? "").trim()}\n`);
   }
   parts.push(
-    `\n이제 **구간 ${markerStartIdx}**부터 위 형식대로 \`${geminiMenuOpenMarker(markerStartIdx)}\` 로 시작해 모든 구간을 끝까지 출력하세요.`,
+    `\n이제 **구간 ${markerStartIdx}**부터 위 형식대로 모든 구간을 끝까지 출력하세요.`,
+    `**중요(첫 글자 규칙): 출력의 맨 처음 글자는 반드시 \`${geminiMenuOpenMarker(markerStartIdx)}\` 여야 합니다.** 그 앞에 인사·머리말·설명·빈 줄·코드펜스(\`\`\`) 등 어떤 문자도 절대 넣지 말고, 곧바로 마커부터 시작하세요.`,
   );
   return parts.join("\n");
 }
@@ -769,8 +793,9 @@ async function geminiRunMenuSinglePassStream({
       maxOutputTokens: singleCap,
     },
   };
-  if (String(systemText ?? "").trim()) {
-    streamBody.systemInstruction = { parts: [{ text: String(systemText).trim() }] };
+  const systemTextForGemini = stripCacheSystemPadding(systemText);
+  if (systemTextForGemini) {
+    streamBody.systemInstruction = { parts: [{ text: systemTextForGemini }] };
   }
   const sharder = createGeminiMenuSingleStreamSharder(writeSse, menuSectionCount, sectionIndexOffset);
   const { streamError } = await geminiConsumeStreamGenerateContent(apiKey, model, streamBody, (d) =>
@@ -974,7 +999,7 @@ async function geminiStreamSectionHtml(apiKey, model, systemPayload, userText, r
       ? String(streamOpts.cachedContent).trim()
       : null;
   const { maxTokens, temperature } = resolveClaudeParams(reqBody);
-  const systemText = cachedContent ? "" : anthropicSystemToPlainText(systemPayload);
+  const systemText = cachedContent ? "" : geminiSystemPlainText(systemPayload);
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent` +
     `?key=${encodeURIComponent(apiKey)}&alt=sse`;
@@ -1206,7 +1231,7 @@ app.post("/chat", requireProxySecret, async (req, res) => {
 
         if (!didGeminiSingle) {
           if (useGemini && cachedSysOk) {
-            const systemForCache = anthropicSystemToPlainText(menuCachedSystem);
+            const systemForCache = geminiSystemPlainText(menuCachedSystem);
             if (systemForCache.length > 0 && geminiKey) {
               const cr = await geminiCreateMenuCache(geminiKey, menuModel, systemForCache);
               if (cr.name) {
