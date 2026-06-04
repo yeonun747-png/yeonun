@@ -25,6 +25,7 @@ type StreamSessionJson = {
   request_id?: string | null;
   stream_url?: string;
   stream_token?: string;
+  stream_pass?: string;
   upstream_body?: Record<string, unknown>;
 };
 
@@ -87,9 +88,11 @@ export async function fetchFortuneMenuStream(
 
   if (session?.upstream_body) {
     logFortuneStreamPathChosen("/api/fortune/stream-proxy (SSE)");
+    const streamPass = String(session.stream_pass ?? "").trim();
+    const proxyHdrs = streamPass ? { ...hdrs, "x-fortune-stream-pass": streamPass } : hdrs;
     const proxyRes = await fetch("/api/fortune/stream-proxy", {
       method: "POST",
-      headers: hdrs,
+      headers: proxyHdrs,
       body: JSON.stringify({
         request_id: session.request_id ?? undefined,
         upstream_body: session.upstream_body,

@@ -637,16 +637,8 @@ export function FortunePage({
   const menuCardResultLocked =
     menuCardEntry && step === layout.stepResult && (!result || !result.complete);
 
-  const menuCardPrefetchStreaming =
-    menuCardEntry &&
-    step > 0 &&
-    step < layout.stepResult &&
-    (prefetchRunnerActive || Boolean(prefetch && !prefetch.complete));
-
-  const menuCardStreamGuardActive = menuCardResultLocked || menuCardPrefetchStreaming;
-
   const onBack = useCallback(() => {
-    if (menuCardStreamGuardActive) {
+    if (menuCardResultLocked) {
       showStreamWaitAlert();
       return;
     }
@@ -666,7 +658,7 @@ export function FortunePage({
     }
     const prev = Math.max(0, step - 1) as FortuneStep;
     go(prev, "back");
-  }, [go, headerBackHref, menuCardEntry, menuCardStreamGuardActive, router, showStreamWaitAlert, step, stored]);
+  }, [go, headerBackHref, menuCardEntry, menuCardResultLocked, router, showStreamWaitAlert, step, stored]);
 
   const onPillarTalk = useCallback((text: string) => {
     setGuideTextOverride(text);
@@ -693,17 +685,11 @@ export function FortunePage({
   /** 점사 결과 스텝에서는 마스코트 미표시 */
   const showFortuneMascot = menuCardEntry && step < layout.stepResult;
 
-  useFortuneMenuCardExitLock(menuCardStreamGuardActive, { onExitAttempt: showStreamWaitAlert });
+  useFortuneMenuCardExitLock(menuCardResultLocked, { onExitAttempt: showStreamWaitAlert });
 
   useEffect(() => {
-    if (!menuCardStreamGuardActive) return undefined;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [menuCardStreamGuardActive]);
+    if (step !== layout.stepResult) setStreamWaitAlertOpen(false);
+  }, [layout.stepResult, step]);
 
   /** 결과: 스트림 완료 후에만 헤더 나가기(메뉴 카드 잠금 해제 후) */
   const showFortuneResultHeaderExit =
@@ -717,12 +703,15 @@ export function FortunePage({
       data-fortune-preview={step === layout.stepPreview ? "1" : undefined}
       data-fortune-menu-card={menuCardEntry ? "1" : undefined}
       data-fortune-menu-card-result-lock={menuCardResultLocked ? "1" : undefined}
-      data-fortune-menu-card-stream-guard={menuCardStreamGuardActive ? "1" : undefined}
+      data-fortune-menu-card-stream-guard={menuCardResultLocked ? "1" : undefined}
       data-extra-inputs={layout.hasProductExtras && step === 2 ? "1" : undefined}
       data-extra-slug={layout.hasProductExtras && step === 2 ? product.slug : undefined}
       style={guideTop == null ? undefined : ({ "--fortune-v2-guide-top": `${guideTop}px` } as CSSProperties)}
     >
-      <FortuneStreamWaitAlert open={streamWaitAlertOpen} onConfirm={() => setStreamWaitAlertOpen(false)} />
+      <FortuneStreamWaitAlert
+        open={streamWaitAlertOpen && menuCardResultLocked}
+        onConfirm={() => setStreamWaitAlertOpen(false)}
+      />
       {menuCardEntry ? (
         <MascotGlbErrorBoundary label="MascotPreloadClient">
           <MascotPreloadClient />

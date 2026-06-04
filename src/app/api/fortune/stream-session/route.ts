@@ -4,6 +4,7 @@ import {
   buildFortuneMenuCloudwaysBody,
   type FortuneMenuStreamClientBody,
 } from "@/lib/fortune-menu-stream-payload";
+import { createFortuneStreamToken } from "@/lib/fortune-stream-direct-token";
 import { gateFortuneOrderStream } from "@/lib/llm-stream-gate";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -46,9 +47,11 @@ export async function POST(request: Request) {
   }
 
   // 브라우저 → Cloudways 직접 /chat 은 CORS 때문에 실패하는 경우가 많음. Next stream-proxy 경유가 기본.
+  // stream_pass: 여기서 결제/소유권 게이트를 통과했음을 증명 → stream-proxy가 IP 레이트리밋을 건너뛰게 함.
   return NextResponse.json({
     mode: "proxy",
     request_id,
+    stream_pass: createFortuneStreamToken(),
     upstream_body: upstream,
   });
 }

@@ -1,7 +1,7 @@
 import { proxyFortuneMenuSseToResponse } from "@/lib/fortune-menu-stream-proxy";
 import type { FortuneMenuCloudwaysBody } from "@/lib/fortune-menu-stream-payload";
 import { assertFortunePrefetchAccess } from "@/lib/consult-session-access";
-import { gateFortunePrefetchStream } from "@/lib/llm-stream-gate";
+import { gateFortuneStreamProxy } from "@/lib/llm-stream-gate";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -17,7 +17,9 @@ type Body = {
 };
 
 export async function POST(request: Request) {
-  const limited = await gateFortunePrefetchStream(request);
+  // stream-session에서 발급한 pass가 있으면(이미 게이트 통과) IP 레이트리밋을 건너뛴다.
+  // pass가 없을 때만 관대한 IP 게이트(fail-open) 적용 → 직접 호출 어뷰즈만 캡.
+  const limited = await gateFortuneStreamProxy(request);
   if (limited) return limited;
 
   const body = (await request.json().catch(() => ({}))) as Body;
