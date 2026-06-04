@@ -1,5 +1,8 @@
-import { getCharacterModePrompt, getServicePrompt } from "@/lib/data/characters";
-import { getProductBySlug } from "@/lib/data/content";
+import {
+  getCharacterModePromptTtl,
+  getProductBySlugTtl,
+  getServicePromptTtl,
+} from "@/lib/data/fortune-prompt-cache";
 import { cachedSystemBlocks, padCacheableSystemTextToMinTokens } from "@/lib/claude-cache-system";
 import {
   buildFortuneMenuCachedSystemPlainText,
@@ -73,7 +76,12 @@ export async function buildFortuneMenuCloudwaysBody(
   const title = String(body.title ?? "풀이").trim() || "풀이";
   const manse_ryeok_text = String(body.manse_ryeok_text ?? "").trim();
 
-  const product = await getProductBySlug(product_slug);
+  // 상품·프롬프트는 서로 의존하지 않으므로 한 웨이브로 병렬 로드(+TTL 캐시) → 시작 지연 단축.
+  const [product, common, character] = await Promise.all([
+    getProductBySlugTtl(product_slug),
+    getServicePromptTtl("yeonun_fortune_text_system"),
+    getCharacterModePromptTtl(character_key, "fortune_text"),
+  ]);
   if (!product) {
     return { ok: false, status: 404, error: "product_not_found" };
   }
@@ -97,11 +105,6 @@ export async function buildFortuneMenuCloudwaysBody(
   if (flat.length === 0) {
     return { ok: false, status: 404, error: "no_fortune_menus" };
   }
-
-  const [common, character] = await Promise.all([
-    getServicePrompt("yeonun_fortune_text_system"),
-    getCharacterModePrompt(character_key, "fortune_text"),
-  ]);
 
   const charBlock = String(character?.prompt ?? "").trim();
   const commonBlock = String(common?.prompt ?? "").trim();

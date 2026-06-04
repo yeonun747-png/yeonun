@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { isAdminRequest } from "@/lib/admin-auth";
 import { isCreditPackageProductSlug } from "@/lib/credit-package-products";
+import { invalidateFortunePromptCache } from "@/lib/data/fortune-prompt-cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { emptyFortuneMenu, parseFortuneMenuJson } from "@/lib/product-fortune-menu";
 import { parseFortuneQuestionsJsonFromForm } from "@/lib/product-fortune-questions";
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
     if (json) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.redirect(new URL("/admin", request.url), 303);
   }
+  invalidateFortunePromptCache();
 
   const { data: after } = await supabase.from("products").select("payment_code").eq("slug", slug).maybeSingle();
   const payment_code = after?.payment_code != null && after.payment_code !== "" ? Number(after.payment_code) : null;

@@ -1,6 +1,7 @@
 import { normalizeCloudwaysBaseUrl } from "@/lib/cloudways-base-url";
 import type { FortuneMenuCloudwaysBody } from "@/lib/fortune-menu-stream-payload";
 import { requireCloudwaysProxySecret } from "@/lib/internal-api-secret";
+import { getKeepAliveDispatcher } from "@/lib/keepalive-dispatcher";
 
 export function getCloudwaysFortuneBaseUrl(): string {
   return normalizeCloudwaysBaseUrl(
@@ -43,6 +44,7 @@ export async function proxyFortuneMenuSseToResponse(
     return Response.json({ error: "CLOUDWAYS_PROXY_SECRET is not configured" }, { status: 503 });
   }
 
+  const dispatcher = await getKeepAliveDispatcher();
   const upstream = await fetch(`${cloudwaysUrl}/chat`, {
     method: "POST",
     headers: {
@@ -52,7 +54,8 @@ export async function proxyFortuneMenuSseToResponse(
     },
     cache: "no-store",
     body: JSON.stringify(upstreamBody),
-  });
+    ...(dispatcher ? { dispatcher } : {}),
+  } as RequestInit & { dispatcher?: unknown });
 
   if (!upstream.ok || !upstream.body) {
     const details = await upstream.text().catch(() => "");

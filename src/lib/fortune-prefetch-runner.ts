@@ -28,6 +28,11 @@ const activeBySlug = new Map<string, ActiveRun>();
 const SERVER_PREFETCH_POLL_MS = 1200;
 /** 서버 `after()` Tank가 안 돌거나 Cloudways 연결 실패 시 이 시간 후 브라우저 스트림으로 폴백 */
 const SERVER_PREFETCH_STALL_MS = 25_000;
+/**
+ * 첫 스냅샷 데드라인: 서버 Tank가 아예 안 뜨는 최악의 경우 25초를 다 기다리지 않고
+ * 더 빨리 브라우저 스트림으로 폴백해 점사 시작 지연을 줄인다(스냅샷이 한 번이라도 오면 이후엔 STALL_MS 적용).
+ */
+const SERVER_PREFETCH_FIRST_SNAPSHOT_MS = 8_000;
 
 function useServerTankPrefetch(): boolean {
   if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_FORTUNE_SERVER_PREFETCH === "0") {
@@ -121,6 +126,7 @@ async function runFortuneServerPrefetchDetached(
 
   const pollStartedAt = Date.now();
   let lastSnapshotProgressAt = pollStartedAt;
+  let receivedAnySnapshot = false;
 
   const pollOnce = async (): Promise<"done" | "give_up" | "continue"> => {
     if (ac.signal.aborted) return "done";
@@ -134,6 +140,7 @@ async function runFortuneServerPrefetchDetached(
     };
     if (data.snapshot?.v === 1) {
       lastSnapshotProgressAt = Date.now();
+      receivedAnySnapshot = true;
       notify(data.snapshot);
       if (data.snapshot.complete || inferFortunePrefetchComplete(data.snapshot)) return "done";
     }
@@ -152,6 +159,10 @@ async function runFortuneServerPrefetchDetached(
 
     const stalledMs = Date.now() - pollStartedAt;
     const sinceProgressMs = Date.now() - lastSnapshotProgressAt;
+    // 스냅샷이 한 번도 안 왔으면(서버 Tank 미기동 의심) 더 짧은 데드라인으로 빠르게 폴백.
+    if (!receivedAnySnapshot && stalledMs >= SERVER_PREFETCH_FIRST_SNAPSHOT_MS) {
+      return "give_up";
+    }
     if (stalledMs >= SERVER_PREFETCH_STALL_MS && sinceProgressMs >= SERVER_PREFETCH_STALL_MS) {
       return "give_up";
     }

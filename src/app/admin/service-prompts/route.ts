@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isAdminRequest } from "@/lib/admin-auth";
+import { invalidateFortunePromptCache } from "@/lib/data/fortune-prompt-cache";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
   }
 
   await supabaseServer().from("service_prompts").upsert({ key, title, prompt, is_active }, { onConflict: "key" });
+  invalidateFortunePromptCache();
   if (wantsJson) return NextResponse.json({ ok: true as const });
   return NextResponse.redirect(new URL(`/admin#${hash}`, request.url), 303);
 }
