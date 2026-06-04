@@ -2,6 +2,8 @@ import { cache } from "react";
 
 import { approxVisibleCharsFromFortuneHtml } from "@/lib/fortune-saved-html-toc";
 import { parseTocSnapshotFromPayload } from "@/lib/library-toc-snapshot";
+import { parseFortuneSajuInputSnapshot } from "@/lib/fortune-saju-input-snapshot";
+import type { FortuneBirthPayload } from "@/lib/fortune-ux/sajuStorage";
 import type { FortuneTocItem } from "@/lib/fortune-stream-client";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -13,6 +15,8 @@ export type FortuneLibraryPayload = {
   source?: string;
   /** 본인 생년월일시 fingerprint — 보관함 중복 판별 */
   saju_fingerprint?: string;
+  /** 점사 당시 본인 생년월일시 — 보관함 만세력 재현 */
+  saju_input?: FortuneBirthPayload;
   /** taekil-goodday 보관함 재생 시 목적별 필터(레거시 12섹션 저장본) */
   taekil_purpose?: string;
 };
@@ -54,6 +58,7 @@ function parsePayload(raw: unknown): FortuneLibraryPayload {
     profile: o.profile === "pair" ? "pair" : "single",
     source: typeof o.source === "string" ? o.source : undefined,
     saju_fingerprint: typeof o.saju_fingerprint === "string" ? o.saju_fingerprint : undefined,
+    saju_input: parseFortuneSajuInputSnapshot(o.saju_input) ?? undefined,
     taekil_purpose: typeof o.taekil_purpose === "string" ? o.taekil_purpose : undefined,
   };
 }

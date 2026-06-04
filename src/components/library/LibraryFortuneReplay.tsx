@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { FortuneResultSectionChunks, enrichTocWithMenuMedia } from "@/components/fortune/FortuneResultSectionChunks";
 import { FortuneVoiceConsultDock } from "@/components/modals/FortuneVoiceConsultDock";
 import { LibraryFortuneDetailHeader } from "@/components/library/LibraryFortuneDetailHeader";
+import { LibraryReplayManseSection } from "@/components/library/LibraryReplayManseSection";
 import type { Product } from "@/lib/data/content";
 import { flattenTocGroupsToFlatItems } from "@/lib/library-toc-snapshot";
 import { fixForeignScriptInFortuneHtmlAsync } from "@/lib/fortune-foreign-script-fix";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/fortune-saved-html-toc";
 import type { FortuneTocItem } from "@/lib/fortune-stream-client";
 import type { FortuneTocMainGroup } from "@/lib/product-fortune-menu";
+import type { FortuneBirthPayload } from "@/lib/fortune-ux/sajuStorage";
 import { ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
 import { hasVoiceConsultCredits } from "@/lib/voice-consult-credit-gate";
 import {
@@ -64,6 +66,9 @@ export function LibraryFortuneReplay(props: {
   profile: "single" | "pair";
   /** DB 저장 목적(taekil-goodday) — localStorage 없을 때 보관함 필터용 */
   taekilPurposeStored?: string | null;
+  /** 점사 당시 본인 생년월일시(DB) */
+  sajuInputStored?: FortuneBirthPayload | null;
+  sajuFingerprintStored?: string | null;
 }) {
   const {
     heroTitle,
@@ -83,6 +88,8 @@ export function LibraryFortuneReplay(props: {
     voiceConsultSummary,
     profile,
     taekilPurposeStored,
+    sajuInputStored,
+    sajuFingerprintStored,
   } = props;
 
   const router = useRouter();
@@ -349,6 +356,11 @@ export function LibraryFortuneReplay(props: {
                 </p>
               ) : null}
             </header>
+
+            <LibraryReplayManseSection
+              sajuInputStored={sajuInputStored}
+              sajuFingerprintStored={sajuFingerprintStored}
+            />
 
             {hasToc ? (
               <section className="y-fs-toc-panel" id="y-fs-toc-anchor" aria-label="목차 영역">

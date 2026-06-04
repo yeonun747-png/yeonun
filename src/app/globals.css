@@ -13650,6 +13650,17 @@ button.y-fs-act-consult:disabled {
   position: relative;
   z-index: 2;
 }
+/** 보관함 재생 — 점사 당시 만세력(히어로·목차와 동일 좌우 22px) */
+.y-lib-replay-manse {
+  padding: 0 22px 16px;
+  background: var(--y-fs-cream);
+}
+.y-lib-replay-manse .y-manse-detail-header {
+  margin-bottom: 10px;
+}
+.y-lib-replay-manse .y-manse-detail-table-wrap {
+  margin: 0;
+}
 .y-lib-detail-head-title {
   flex: 1;
   min-width: 0;

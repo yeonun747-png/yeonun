@@ -414,6 +414,7 @@ export function FortunePage({
           toc_sections: result.toc,
           ...(result.tocGroups ? { toc_groups: result.tocGroups } : {}),
           ...(sajuFingerprint ? { saju_fingerprint: sajuFingerprint } : {}),
+          ...(storedSaju ? { saju_input: storedSaju } : {}),
           ...(product.slug === TAEKIL_GOODDAY_SLUG
             ? {
                 taekil_purpose:

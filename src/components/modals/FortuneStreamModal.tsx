@@ -640,6 +640,7 @@ export function FortuneStreamModal() {
           ...(toc.length > 0 ? { toc_sections: toc } : {}),
           ...(tocGroups && tocGroups.length > 0 ? { toc_groups: tocGroups } : {}),
           ...(sajuFingerprint ? { saju_fingerprint: sajuFingerprint } : {}),
+          ...(storedSaju ? { saju_input: storedSaju } : {}),
           ...(product === TAEKIL_GOODDAY_SLUG
             ? {
                 taekil_purpose:

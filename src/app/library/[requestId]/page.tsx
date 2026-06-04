@@ -119,6 +119,8 @@ export default async function LibraryFortuneDetailPage({ params }: Props) {
             voiceConsultSummary={detail.voice_consult_summary}
             profile={detail.payload.profile === "pair" ? "pair" : "single"}
             taekilPurposeStored={detail.payload.taekil_purpose ?? null}
+            sajuInputStored={detail.payload.saju_input ?? null}
+            sajuFingerprintStored={detail.payload.saju_fingerprint ?? null}
           />
         </div>
       </main>

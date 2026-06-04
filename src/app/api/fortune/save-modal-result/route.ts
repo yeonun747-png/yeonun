@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { normalizeFortuneSajuInputForSave } from "@/lib/fortune-saju-input-snapshot";
 import { optionalMyUserId } from "@/lib/my-route-auth";
 import { assertPaidFortuneStreamAccess } from "@/lib/order-access";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
     toc_groups?: unknown;
     taekil_purpose?: string;
     saju_fingerprint?: string;
+    saju_input?: unknown;
   };
 
   const product_slug = String(body.product_slug ?? "").trim();
@@ -51,6 +53,7 @@ export async function POST(request: Request) {
   }
 
   const order_id: string | null = paid.order.id ?? null;
+  const sajuInput = normalizeFortuneSajuInputForSave(body.saju_input);
 
   const payload = {
     title: String(body.title ?? "").trim() || null,
@@ -65,6 +68,7 @@ export async function POST(request: Request) {
     ...(typeof body.saju_fingerprint === "string" && body.saju_fingerprint.trim()
       ? { saju_fingerprint: body.saju_fingerprint.trim() }
       : {}),
+    ...(sajuInput ? { saju_input: sajuInput } : {}),
   };
 
   const authUserId = await optionalMyUserId(request);
