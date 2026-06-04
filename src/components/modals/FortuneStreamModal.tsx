@@ -45,7 +45,7 @@ import { fetchFortuneMenuStream } from "@/lib/fortune-ux/fetchFortuneMenuStream"
 import { notifyFortuneLibrarySaved } from "@/lib/fortune-library-list-refresh";
 import { orderAccessAuthHeaders } from "@/lib/order-access-client";
 import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
-import { appendFortuneDuplicateLocalEntry } from "@/lib/fortune-duplicate-local-index";
+import { invalidateFortuneDuplicateCheckCache } from "@/lib/fortune-duplicate-client";
 import { readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { ensureConsultTrialCreditsIfEligible } from "@/lib/credit-balance-local";
@@ -658,15 +658,7 @@ export function FortuneStreamModal() {
       const sb = supabaseBrowser();
       const uid = (await sb?.auth.getSession())?.data.session?.user?.id;
       if (uid) notifyFortuneLibrarySaved(uid);
-      const requestId = typeof j.request_id === "string" ? j.request_id.trim() : "";
-      if (requestId && sajuFingerprint) {
-        appendFortuneDuplicateLocalEntry({
-          requestId,
-          productSlug: product,
-          sajuFingerprint,
-          completedAt: new Date().toISOString(),
-        });
-      }
+      invalidateFortuneDuplicateCheckCache(product);
       const resultId = typeof j.result_id === "string" ? j.result_id.trim() : "";
       if (resultId) libraryResultIdRef.current = resultId;
       setLibrarySaved(true);

@@ -48,7 +48,7 @@ import { orderAccessAuthHeaders } from "@/lib/order-access-client";
 import { getOhaengMascotGuideText } from "@/lib/fortune-ux/ohaengMascotGuide";
 import { persistYeonunSajuV1, readStoredSaju } from "@/lib/fortune-ux/sajuStorage";
 import { buildSajuFingerprint } from "@/lib/fortune-saju-fingerprint";
-import { appendFortuneDuplicateLocalEntry } from "@/lib/fortune-duplicate-local-index";
+import { invalidateFortuneDuplicateCheckCache } from "@/lib/fortune-duplicate-client";
 import { getBearerAccessTokenForApi } from "@/lib/fetch-with-auth";
 import { pushLocalSajuToServerProfile } from "@/lib/profile-push-to-server";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -432,15 +432,7 @@ export function FortunePage({
       const sb = supabaseBrowser();
       const uid = (await sb?.auth.getSession())?.data.session?.user?.id;
       if (uid) notifyFortuneLibrarySaved(uid);
-      const requestId = typeof j.request_id === "string" ? j.request_id.trim() : "";
-      if (requestId && sajuFingerprint) {
-        appendFortuneDuplicateLocalEntry({
-          requestId,
-          productSlug: product.slug,
-          sajuFingerprint,
-          completedAt: new Date().toISOString(),
-        });
-      }
+      invalidateFortuneDuplicateCheckCache(product.slug);
       return typeof j.result_id === "string" ? j.result_id.trim() : null;
     })();
 

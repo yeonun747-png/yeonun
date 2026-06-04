@@ -10,7 +10,6 @@ import type { Product } from "@/lib/data/content";
 import { asHtmlString } from "@/lib/as-html-string";
 import {
   fortuneLibraryHref,
-  peekFortuneDuplicateLocal,
   resolveFortuneDuplicateForProduct,
   type FortuneDuplicateHit,
 } from "@/lib/fortune-duplicate-client";
@@ -436,12 +435,6 @@ export function HomeContentGrid({
   const openFortuneProduct = useCallback(
     async (href: string, slug: string) => {
       if (checkingSlug) return;
-
-      const instantDup = peekFortuneDuplicateLocal(slug);
-      if (instantDup) {
-        setDuplicateGate({ href, hit: instantDup });
-        return;
-      }
 
       if (!readStoredSaju()) {
         navigate(href);
