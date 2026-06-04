@@ -26,6 +26,16 @@ type ActiveRun = {
 const activeBySlug = new Map<string, ActiveRun>();
 
 const SERVER_PREFETCH_POLL_MS = 1200;
+/**
+ * 첫 스냅샷을 더 빨리 받기 위한 폴링 backoff(ms).
+ * 서버 Tank가 첫 섹션을 내자마자 화면에 닿도록 초반엔 짧게 폴링하고, 이후 기본 간격으로 수렴한다.
+ * 리스트 소진 후에는 SERVER_PREFETCH_POLL_MS 고정.
+ */
+const SERVER_PREFETCH_POLL_BACKOFF_MS = [350, 500, 700, 1000];
+
+function serverPrefetchPollDelay(tickIndex: number): number {
+  return SERVER_PREFETCH_POLL_BACKOFF_MS[tickIndex] ?? SERVER_PREFETCH_POLL_MS;
+}
 /** 서버 `after()` Tank가 안 돌거나 Cloudways 연결 실패 시 이 시간 후 브라우저 스트림으로 폴백 */
 const SERVER_PREFETCH_STALL_MS = 25_000;
 /**
@@ -170,10 +180,14 @@ async function runFortuneServerPrefetchDetached(
   };
 
   await new Promise<void>((resolve, reject) => {
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let tickIndex = 0;
+    let done = false;
 
     const finish = (err?: unknown) => {
-      if (timer) clearInterval(timer);
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
       ac.signal.removeEventListener("abort", onAbort);
       if (err) reject(err);
       else resolve();
@@ -181,11 +195,20 @@ async function runFortuneServerPrefetchDetached(
 
     const onAbort = () => finish();
 
+    /** 재귀 setTimeout: backoff 간격으로 폴링하며 틱 중첩(이전 폴 미완료 중 새 폴) 방지 */
+    const scheduleNext = () => {
+      if (done) return;
+      const delay = serverPrefetchPollDelay(tickIndex);
+      tickIndex += 1;
+      timer = setTimeout(() => void tick(), delay);
+    };
+
     const tick = async () => {
       try {
         const r = await pollOnce();
-        if (r === "done") finish();
-        if (r === "give_up") finish(new Error("server_prefetch_stalled"));
+        if (r === "done") return finish();
+        if (r === "give_up") return finish(new Error("server_prefetch_stalled"));
+        scheduleNext();
       } catch (e) {
         if (ac.signal.aborted) finish();
         else finish(e);
@@ -194,7 +217,6 @@ async function runFortuneServerPrefetchDetached(
 
     ac.signal.addEventListener("abort", onAbort);
     void tick();
-    timer = setInterval(() => void tick(), SERVER_PREFETCH_POLL_MS);
   });
 }
 
