@@ -24,3 +24,39 @@ export function buildFortunePrefetchContextKey(input: FortuneBirthPayload): stri
   const name = String(input.name ?? "").trim();
   return `${buildSajuFingerprint(input)}|n:${name}`;
 }
+
+/** 서버 Tank — `client_body.user_info`만으로 context key (달력은 양력 기본) */
+export function buildFortunePrefetchContextKeyFromStreamUserInfo(
+  userInfo?: { name?: string; gender?: string; birth_date?: string; birth_hour?: string } | null,
+): string | null {
+  if (!userInfo || typeof userInfo !== "object") return null;
+  const birthDate = String(userInfo.birth_date ?? "").trim();
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(birthDate);
+  if (!m) return null;
+
+  let hour = "";
+  let minute = "00";
+  const birthHour = String(userInfo.birth_hour ?? "").trim();
+  if (birthHour) {
+    const hm = /^(\d{1,2})(?::(\d{1,2}))?$/.exec(birthHour);
+    if (hm) {
+      hour = hm[1].padStart(2, "0");
+      minute = (hm[2] ?? "00").padStart(2, "0");
+    }
+  }
+
+  const genderRaw = String(userInfo.gender ?? "").trim();
+  const gender: FortuneBirthPayload["gender"] =
+    genderRaw === "여" || genderRaw === "female" || genderRaw === "f" ? "female" : "male";
+
+  return buildFortunePrefetchContextKey({
+    name: String(userInfo.name ?? "").trim(),
+    calendarType: "solar",
+    year: m[1],
+    month: m[2],
+    day: m[3],
+    hour,
+    minute,
+    gender,
+  });
+}

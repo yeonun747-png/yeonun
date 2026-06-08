@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AdminCrudEditActions } from "@/components/admin/AdminCrudEditActions";
 import { AdminProductFortuneQuestionsEditor } from "@/components/admin/AdminProductFortuneQuestionsEditor";
 import { AdminThumbnailSvgField } from "@/components/admin/AdminThumbnailSvgField";
 import { ProductFortuneMenuEditor } from "@/components/admin/ProductFortuneMenuEditor";
@@ -49,11 +50,13 @@ function ProductEditorForm({
   categories,
   characters,
   previewVariant,
+  onClose,
 }: {
   row: Row;
   categories: Row[];
   characters: Row[];
   previewVariant: string;
+  onClose: () => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const tagsArr = Array.isArray(row.tags) ? (row.tags as unknown[]).map((t) => String(t)) : [];
@@ -133,8 +136,11 @@ function ProductEditorForm({
     }
   };
 
+  const formId = `edit-product-${text(row.slug)}`;
+
   return (
-    <form ref={formRef} className="y-admin-form y-admin-edit-form" onSubmit={onSubmit}>
+    <>
+    <form ref={formRef} id={formId} className="y-admin-form y-admin-edit-form" onSubmit={onSubmit}>
       <label className="y-admin-field-stack">
         <span className="y-admin-stack-legend">slug</span>
         <input name="slug" defaultValue={text(row.slug, "")} />
@@ -252,14 +258,18 @@ function ProductEditorForm({
 
       {saveMsg ? <p className="y-admin-save-ok">{saveMsg}</p> : null}
       {saveErr ? <p className="y-admin-save-err">{saveErr}</p> : null}
-
-      <div className="y-admin-edit-actions">
-        <button type="submit">수정 저장</button>
-        <button form={`delete-product-${text(row.slug)}`} type="submit" className="y-admin-danger">
-          삭제
-        </button>
-      </div>
     </form>
+    <AdminCrudEditActions
+      saveFormId={formId}
+      deleteAction="/admin/products/delete"
+      deleteFields={{ slug: text(row.slug, "") }}
+      deleteModalTitle="상품 삭제"
+      deleteItemLabel={text(row.title)}
+      deleteLeadSuffix="상품을 삭제할까요?"
+      deleteMeta={`slug: ${text(row.slug, "")}`}
+      onClose={onClose}
+    />
+    </>
   );
 }
 
@@ -274,18 +284,46 @@ export function ProductEditorBlock({
   characters: Row[];
   previewVariant: string;
 }) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const openScrollTopRef = useRef(0);
+
+  const captureOpenScrollTop = useCallback(() => {
+    const d = detailsRef.current;
+    if (!d) return;
+    const summary = d.querySelector("summary");
+    const anchor = summary ?? d;
+    openScrollTopRef.current = anchor.getBoundingClientRect().top + window.scrollY;
+  }, []);
+
+  const handleToggle = useCallback(() => {
+    const d = detailsRef.current;
+    if (!d?.open) return;
+    requestAnimationFrame(() => {
+      captureOpenScrollTop();
+    });
+  }, [captureOpenScrollTop]);
+
+  const handleClose = useCallback(() => {
+    const d = detailsRef.current;
+    if (d) d.open = false;
+    const top = openScrollTopRef.current;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top, behavior: "smooth" });
+      });
+    });
+  }, []);
+
   return (
-    <details className="y-admin-editor" suppressHydrationWarning>
+    <details ref={detailsRef} className="y-admin-editor" onToggle={handleToggle} suppressHydrationWarning>
       <ProductEditorSummary row={row} />
       <ProductEditorForm
         row={row}
         categories={categories}
         characters={characters}
         previewVariant={previewVariant}
+        onClose={handleClose}
       />
-      <form id={`delete-product-${text(row.slug)}`} action="/admin/products/delete" method="post">
-        <input type="hidden" name="slug" value={text(row.slug, "")} />
-      </form>
     </details>
   );
 }

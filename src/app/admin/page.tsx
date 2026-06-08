@@ -9,13 +9,17 @@ import { AdminDashboardPanel } from "@/components/admin/AdminDashboardPanel";
 import { AdminMemberCreditsClient } from "@/components/admin/AdminMemberCreditsClient";
 import { AdminReviewCreateForm } from "@/components/admin/AdminReviewCreateForm";
 import { AdminReviewEditor } from "@/components/admin/AdminReviewEditor";
+import { AdminCategoryEditor } from "@/components/admin/AdminCategoryEditor";
+import { AdminCharacterEditor } from "@/components/admin/AdminCharacterEditor";
 import { AdminCharacterModePromptEditor } from "@/components/admin/AdminCharacterModePromptEditor";
+import { AdminCrudEditActions } from "@/components/admin/AdminCrudEditActions";
 import { AdminServicePromptForm } from "@/components/admin/AdminServicePromptForm";
 import { AdminWorkspace } from "@/components/admin/AdminWorkspace";
 import { ProductEditorBlock } from "@/components/admin/ProductEditorClient";
 import { ProductNewFormClient } from "@/components/admin/ProductNewFormClient";
 import { TtsVoiceListPreview } from "@/components/admin/TtsVoiceListPreview";
 import { loadAdminDashboardData } from "@/lib/admin-dashboard-data";
+import { resolveFortuneRequestStatusDetail } from "@/lib/admin-fortune-ops-detail";
 import { isFortuneMenuCatalogProductSlug } from "@/lib/credit-package-products";
 import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
 import type { TtsVoiceOption } from "@/components/admin/VoiceCharacterPromptTtsFields";
@@ -136,6 +140,71 @@ function money(v: unknown) {
   return Number.isFinite(n) ? `${n.toLocaleString("ko-KR")}원` : "-";
 }
 
+async function enrichFortuneRequestsForOps(
+  fortuneRequests: { rows: Row[]; ready: boolean; error?: string },
+  productRows: Row[],
+): Promise<{ rows: Row[]; ready: boolean; error?: string }> {
+  if (!fortuneRequests.ready) return fortuneRequests;
+
+  const productMap = new Map(productRows.map((p) => [text(p.slug, ""), p]));
+  const userRefs = [
+    ...new Set(
+      fortuneRequests.rows
+        .map((r) => text(r.user_ref, "").trim())
+        .filter((uid) => uid && uid !== "guest"),
+    ),
+  ];
+  const orderIds = [
+    ...new Set(
+      fortuneRequests.rows
+        .map((r) => text(r.order_id, "").trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  const profileMap = new Map<string, string>();
+  const orderMap = new Map<string, { order_no?: string; status?: string }>();
+  const supabase = supabaseServer();
+  if (userRefs.length) {
+    const { data } = await supabase.from("profiles").select("id, display_name").in("id", userRefs);
+    for (const p of data ?? []) {
+      const id = text(p.id, "").trim();
+      const name = text(p.display_name, "").trim();
+      if (id && name) profileMap.set(id, name);
+    }
+  }
+  if (orderIds.length) {
+    const { data } = await supabase.from("orders").select("id, order_no, status").in("id", orderIds);
+    for (const o of data ?? []) {
+      const id = text(o.id, "").trim();
+      if (id) orderMap.set(id, { order_no: text(o.order_no), status: text(o.status) });
+    }
+  }
+
+  const rows = fortuneRequests.rows.map((r) => {
+    const slug = text(r.product_slug, "");
+    const product = productMap.get(slug);
+    const uid = text(r.user_ref, "").trim();
+    const displayName = uid ? profileMap.get(uid) : "";
+    const orderId = text(r.order_id, "").trim();
+    const order = orderId ? orderMap.get(orderId) : null;
+    const enriched = {
+      ...r,
+      user_name:
+        displayName ||
+        (uid && uid !== "guest" ? `${uid.slice(0, 8)}…` : uid === "guest" ? "게스트" : "-"),
+      product_title: product ? text(product.title) : slug || "-",
+      product_price_krw: product?.price_krw ?? null,
+    };
+    return {
+      ...enriched,
+      status_detail: resolveFortuneRequestStatusDetail(enriched, order),
+    };
+  });
+
+  return { ...fortuneRequests, rows };
+}
+
 /** 상품에 붙이는 카테고리 — 프론트 「전체」탭용 slug `all` 제외 */
 function categoriesAssignableToProducts(rows: Row[]) {
   return rows.filter((c) => text(c.slug) !== "all");
@@ -194,7 +263,7 @@ export default async function AdminHomePage() {
       readRows("coupons", "id,code,type,value,is_active,used_count,max_uses", "created_at", 20),
       readRows("webhook_events", "id,provider,event_type,status,processed_at", "processed_at", 20),
       readRows("voice_sessions", "id,character_key,status,started_at,ended_at,duration_sec,cost_krw,summary", "started_at", 20),
-      readRows("fortune_requests", "id,product_slug,status,model,created_at", "created_at", 20),
+      readRows("fortune_requests", "id,user_ref,product_slug,order_id,status,model,payload,created_at", "created_at", 20),
       readRows(
         "notices",
         "slug,category,title,published_on,body,is_published,show_new_dot,sort_order,updated_at",
@@ -224,6 +293,8 @@ export default async function AdminHomePage() {
 
   /** 크레딧 충전 패키지(9001~9003) — PG·결제용 DB 행만 유지, 어드민·메뉴 카드에는 미노출 */
   const catalogProductRows = products.rows.filter((p) => isFortuneMenuCatalogProductSlug(text(p.slug, "")));
+
+  const fortuneRequestsEnriched = await enrichFortuneRequestsForOps(fortuneRequests, products.rows);
 
   const dashboardData = await loadAdminDashboardData();
 
@@ -277,13 +348,13 @@ export default async function AdminHomePage() {
 
           <CrudSection id="admin-categories" title="카테고리 목록" hint="홈/전체 풀이 탭의 라벨과 정렬 순서입니다.">
             {categories.rows.length === 0 ? <EmptyPanel label="카테고리" error={categories.error} /> : categories.rows.map((c) => (
-              <CategoryEditor key={text(c.slug)} row={c} />
+              <AdminCategoryEditor key={text(c.slug)} row={c} />
             ))}
           </CrudSection>
 
           <CrudSection id="admin-characters" title="캐릭터 목록" hint="인연 안내자 카드, 만남 탭, 캐릭터 상세의 원천 데이터입니다.">
             {characters.rows.length === 0 ? <EmptyPanel label="캐릭터" error={characters.error} /> : characters.rows.map((c) => (
-              <CharacterEditor key={text(c.key)} row={c} />
+              <AdminCharacterEditor key={text(c.key)} row={c} />
             ))}
           </CrudSection>
 
@@ -503,7 +574,7 @@ export default async function AdminHomePage() {
               <span className="y-admin-eyebrow">FORTUNE OPS</span>
               <h2>점사 운영</h2>
             </div>
-            <StatusPill tone={fortuneRequests.ready ? "good" : "warn"}>{fortuneRequests.ready ? "요청 연결" : "스키마 준비"}</StatusPill>
+            <StatusPill tone={fortuneRequestsEnriched.ready ? "good" : "warn"}>{fortuneRequestsEnriched.ready ? "요청 연결" : "스키마 준비"}</StatusPill>
           </div>
           <div className="y-admin-card" style={{ marginBottom: 12 }}>
             <h3>공통 프롬프트 — 텍스트 점사형</h3>
@@ -534,7 +605,25 @@ export default async function AdminHomePage() {
             })}
           </CrudSection>
           <div className="y-admin-grid">
-            <OpsList title="점사 요청" data={fortuneRequests} fields={["product_slug", "status", "model", "created_at"]} table="fortune_requests" hash="fortune" statuses={["queued", "streaming", "completed", "failed", "retrying"]} />
+            <OpsList
+              title="점사 요청"
+              data={fortuneRequestsEnriched}
+              fields={["user_name", "product_title", "product_price_krw", "product_slug", "status", "model", "created_at"]}
+              fieldLabels={{
+                user_name: "유저명",
+                product_title: "한글상품명",
+                product_price_krw: "상품금액",
+                product_slug: "상품 slug",
+                status: "상태",
+                model: "모델",
+                created_at: "요청 시각",
+              }}
+              detailField="status_detail"
+              detailLabel="상세 사유"
+              table="fortune_requests"
+              hash="fortune"
+              statuses={["queued", "streaming", "completed", "failed", "retrying"]}
+            />
           </div>
           <OpsRunbook
             title="점사 운영 체크"
@@ -627,6 +716,8 @@ function NoticeEditor({ row }: { row: Row }) {
   const dateLabel = /^\d{4}-\d{2}-\d{2}$/.test(pub)
     ? pub.replace(/-/g, ".")
     : pub;
+  const slug = text(row.slug, "");
+  const editFormId = `edit-notice-${slug}`;
   return (
     <details className="y-admin-editor" suppressHydrationWarning>
       <summary>
@@ -641,8 +732,8 @@ function NoticeEditor({ row }: { row: Row }) {
         </span>
         <StatusPill tone={row.is_published === false ? "warn" : "good"}>{row.is_published === false ? "비게시" : "게시"}</StatusPill>
       </summary>
-      <form action="/admin/notices" method="post" className="y-admin-form y-admin-edit-form">
-        <input name="slug" defaultValue={text(row.slug, "")} />
+      <form id={editFormId} action="/admin/notices" method="post" className="y-admin-form y-admin-edit-form">
+        <input name="slug" defaultValue={slug} />
         <select name="category" defaultValue={text(row.category, "notice")}>
           <option value="event">이벤트</option>
           <option value="update">업데이트</option>
@@ -660,65 +751,16 @@ function NoticeEditor({ row }: { row: Row }) {
           <option value="false">비게시</option>
         </select>
         <textarea name="body" defaultValue={text(row.body, "")} rows={12} />
-        <div className="y-admin-edit-actions">
-          <button type="submit">수정 저장</button>
-          <button form={`delete-notice-${text(row.slug)}`} type="submit" className="y-admin-danger">
-            삭제
-          </button>
-        </div>
       </form>
-      <form id={`delete-notice-${text(row.slug)}`} action="/admin/notices/delete" method="post">
-        <input type="hidden" name="slug" value={text(row.slug, "")} />
-      </form>
-    </details>
-  );
-}
-
-function CategoryEditor({ row }: { row: Row }) {
-  return (
-    <details className="y-admin-editor" suppressHydrationWarning>
-      <summary>
-        <span><strong>{text(row.label)}</strong><em>{text(row.slug)} · sort {text(row.sort_order)}</em></span>
-        <StatusPill>카테고리</StatusPill>
-      </summary>
-      <form action="/admin/categories" method="post" className="y-admin-form y-admin-edit-form">
-        <input name="slug" defaultValue={text(row.slug, "")} />
-        <input name="label" defaultValue={text(row.label, "")} />
-        <input name="sort_order" defaultValue={text(row.sort_order, "0")} inputMode="numeric" />
-        <div className="y-admin-edit-actions">
-          <button type="submit">수정 저장</button>
-          <button form={`delete-category-${text(row.slug)}`} type="submit" className="y-admin-danger">삭제</button>
-        </div>
-      </form>
-      <form id={`delete-category-${text(row.slug)}`} action="/admin/categories/delete" method="post">
-        <input type="hidden" name="slug" value={text(row.slug, "")} />
-      </form>
-    </details>
-  );
-}
-
-function CharacterEditor({ row }: { row: Row }) {
-  return (
-    <details className="y-admin-editor" suppressHydrationWarning>
-      <summary>
-        <span><strong>{text(row.name)} · {text(row.han)}</strong><em>{text(row.key)} · {text(row.spec)}</em></span>
-        <StatusPill tone="good">캐릭터</StatusPill>
-      </summary>
-      <form action="/admin/characters" method="post" className="y-admin-form y-admin-edit-form">
-        <input name="key" defaultValue={text(row.key, "")} />
-        <input name="name" defaultValue={text(row.name, "")} />
-        <input name="han" defaultValue={text(row.han, "")} />
-        <input name="en" defaultValue={text(row.en, "")} />
-        <input name="spec" defaultValue={text(row.spec, "")} />
-        <textarea name="greeting" defaultValue={text(row.greeting, "")} />
-        <div className="y-admin-edit-actions">
-          <button type="submit">수정 저장</button>
-          <button form={`delete-character-${text(row.key)}`} type="submit" className="y-admin-danger">삭제</button>
-        </div>
-      </form>
-      <form id={`delete-character-${text(row.key)}`} action="/admin/characters/delete" method="post">
-        <input type="hidden" name="key" value={text(row.key, "")} />
-      </form>
+      <AdminCrudEditActions
+        saveFormId={editFormId}
+        deleteAction="/admin/notices/delete"
+        deleteFields={{ slug }}
+        deleteModalTitle="공지 삭제"
+        deleteItemLabel={text(row.title)}
+        deleteLeadSuffix="공지를 삭제할까요?"
+        deleteMeta={`slug: ${slug}`}
+      />
     </details>
   );
 }
@@ -826,6 +868,8 @@ function TtsVoicesRegistry({
 }
 
 function TtsVoiceEditor({ row, adminTtsPreviewToken }: { row: Row; adminTtsPreviewToken?: string | null }) {
+  const id = text(row.id, "");
+  const editFormId = `edit-tts-${id}`;
   return (
     <details className="y-admin-editor mini" suppressHydrationWarning>
       <summary>
@@ -851,8 +895,8 @@ function TtsVoiceEditor({ row, adminTtsPreviewToken }: { row: Row; adminTtsPrevi
           </form>
         </span>
       </summary>
-      <form action="/admin/tts-voices" method="post" className="y-admin-form y-admin-edit-form">
-        <input type="hidden" name="id" value={text(row.id, "")} />
+      <form id={editFormId} action="/admin/tts-voices" method="post" className="y-admin-form y-admin-edit-form">
+        <input type="hidden" name="id" value={id} />
         <input name="label" defaultValue={text(row.label, "")} />
         <input name="external_id" defaultValue={text(row.external_id, "")} readOnly={text(row.provider) === "openai_realtime"} aria-readonly={text(row.provider) === "openai_realtime"} />
         <input type="hidden" name="provider" value={text(row.provider, "openai_realtime")} />
@@ -866,16 +910,16 @@ function TtsVoiceEditor({ row, adminTtsPreviewToken }: { row: Row; adminTtsPrevi
           <option value="true">활성</option>
           <option value="false">비활성</option>
         </select>
-        <div className="y-admin-edit-actions">
-          <button type="submit">수정 저장</button>
-          <button form={`delete-tts-${text(row.id)}`} type="submit" className="y-admin-danger">
-            삭제
-          </button>
-        </div>
       </form>
-      <form id={`delete-tts-${text(row.id)}`} action="/admin/tts-voices/delete" method="post">
-        <input type="hidden" name="id" value={text(row.id, "")} />
-      </form>
+      <AdminCrudEditActions
+        saveFormId={editFormId}
+        deleteAction="/admin/tts-voices/delete"
+        deleteFields={{ id }}
+        deleteModalTitle="보이스 삭제"
+        deleteItemLabel={text(row.label)}
+        deleteLeadSuffix="보이스를 삭제할까요?"
+        deleteMeta={`id: ${id}`}
+      />
     </details>
   );
 }
@@ -888,8 +932,11 @@ function CouponList({ data }: { data: { rows: Row[]; ready: boolean; error?: str
         <EmptyPanel label="쿠폰" error={data.error} />
       ) : (
         <div className="y-admin-mini-list">
-          {data.rows.slice(0, 8).map((r) => (
-            <details key={text(r.id)} className="y-admin-editor mini" suppressHydrationWarning>
+          {data.rows.slice(0, 8).map((r) => {
+            const id = text(r.id, "");
+            const editFormId = `edit-coupon-${id}`;
+            return (
+            <details key={id} className="y-admin-editor mini" suppressHydrationWarning>
               <summary>
                 <span>
                   <strong>{text(r.code)}</strong>
@@ -897,8 +944,8 @@ function CouponList({ data }: { data: { rows: Row[]; ready: boolean; error?: str
                 </span>
                 <StatusPill tone={r.is_active ? "good" : "warn"}>{r.is_active ? "활성" : "비활성"}</StatusPill>
               </summary>
-              <form action="/admin/coupons" method="post" className="y-admin-form y-admin-edit-form">
-                <input type="hidden" name="id" defaultValue={text(r.id, "")} />
+              <form id={editFormId} action="/admin/coupons" method="post" className="y-admin-form y-admin-edit-form">
+                <input type="hidden" name="id" defaultValue={id} />
                 <input name="code" defaultValue={text(r.code, "")} />
                 <select name="type" defaultValue={text(r.type, "amount")}>
                   <option value="amount">정액 할인</option>
@@ -910,16 +957,19 @@ function CouponList({ data }: { data: { rows: Row[]; ready: boolean; error?: str
                   <option value="true">활성</option>
                   <option value="false">비활성</option>
                 </select>
-                <div className="y-admin-edit-actions">
-                  <button type="submit">수정 저장</button>
-                  <button form={`delete-coupon-${text(r.id)}`} type="submit" className="y-admin-danger">삭제</button>
-                </div>
               </form>
-              <form id={`delete-coupon-${text(r.id)}`} action="/admin/coupons/delete" method="post">
-                <input type="hidden" name="id" value={text(r.id, "")} />
-              </form>
+              <AdminCrudEditActions
+                saveFormId={editFormId}
+                deleteAction="/admin/coupons/delete"
+                deleteFields={{ id }}
+                deleteModalTitle="쿠폰 삭제"
+                deleteItemLabel={text(r.code)}
+                deleteLeadSuffix="쿠폰을 삭제할까요?"
+                deleteMeta={`id: ${id}`}
+              />
             </details>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -930,6 +980,9 @@ function OpsList({
   title,
   data,
   fields,
+  fieldLabels,
+  detailField,
+  detailLabel = "상세",
   table,
   hash = "dashboard",
   statuses = [],
@@ -937,10 +990,18 @@ function OpsList({
   title: string;
   data: { rows: Row[]; ready: boolean; error?: string };
   fields: string[];
+  fieldLabels?: Record<string, string>;
+  detailField?: string;
+  detailLabel?: string;
   table?: string;
   hash?: string;
   statuses?: string[];
 }) {
+  const formatField = (f: string, r: Row) => {
+    if (f.includes("amount") || f.includes("cost") || f.includes("price")) return money(r[f]);
+    return text(r[f]);
+  };
+
   return (
     <div className="y-admin-card">
       <h3>{title}</h3>
@@ -948,29 +1009,45 @@ function OpsList({
         <EmptyPanel label={title} error={data.error} />
       ) : (
         <div className="y-admin-mini-list">
-          {data.rows.slice(0, 8).map((r, idx) => (
-            <div key={`${title}-${idx}`} className="y-admin-mini-row">
-              {fields.map((f) => (
-                <span key={f}>
-                  <em>{f}</em>
-                  {f.includes("amount") || f.includes("cost") ? money(r[f]) : text(r[f])}
-                </span>
-              ))}
-              {table && text(r.id, "") ? (
-                <form action="/admin/ops-status" method="post" className="y-admin-status-form">
-                  <input type="hidden" name="table" value={table} />
-                  <input type="hidden" name="id" value={text(r.id, "")} />
-                  <input type="hidden" name="hash" value={hash} />
-                  <select name="status" defaultValue={text(r.status, statuses[0] ?? "")}>
-                    {statuses.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <button type="submit">상태 저장</button>
-                </form>
-              ) : null}
-            </div>
-          ))}
+          {data.rows.slice(0, 8).map((r, idx) => {
+            const detail = detailField ? text(r[detailField], "").trim() : "";
+            const statusKey = text(r.status, "").toLowerCase();
+            const detailTone =
+              statusKey === "failed" || statusKey === "retrying" ? "y-admin-mini-row-detail--warn" : "y-admin-mini-row-detail--info";
+            return (
+              <div key={`${title}-${idx}`} className="y-admin-mini-row-wrap">
+                <div className="y-admin-mini-row">
+                  {fields.map((f) => (
+                    <span key={f}>
+                      <em>{fieldLabels?.[f] ?? f}</em>
+                      {formatField(f, r)}
+                    </span>
+                  ))}
+                  {table && text(r.id, "") ? (
+                    <form action="/admin/ops-status" method="post" className="y-admin-status-form">
+                      <input type="hidden" name="table" value={table} />
+                      <input type="hidden" name="id" value={text(r.id, "")} />
+                      <input type="hidden" name="hash" value={hash} />
+                      <select name="status" defaultValue={text(r.status, statuses[0] ?? "")}>
+                        {statuses.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="submit">상태 저장</button>
+                    </form>
+                  ) : null}
+                </div>
+                {detail ? (
+                  <p className={`y-admin-mini-row-detail ${detailTone}`}>
+                    <em>{detailLabel}</em>
+                    {detail}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

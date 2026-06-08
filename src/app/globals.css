@@ -1490,8 +1490,8 @@ body:has(.y-admin-shell--v2) {
   font-size: 12.5px;
   font-weight: 800;
 }
-.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink),
-.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink),
+.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-danger-pill):not(.y-admin-secondary):not(.y-admin-pill-btn):not(.y-admin-btn-ink),
+.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-danger-pill):not(.y-admin-secondary):not(.y-admin-pill-btn):not(.y-admin-btn-ink),
 .y-admin-status-form button[type="submit"]:not(.y-admin-btn-ink),
 .y-admin-save-btn {
   background: var(--y-admin-save-bg);
@@ -1503,23 +1503,23 @@ body:has(.y-admin-shell--v2) {
     box-shadow 0.15s ease,
     transform 0.1s ease;
 }
-.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):not(:disabled):hover,
-.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):not(:disabled):hover,
+.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-danger-pill):not(.y-admin-secondary):not(.y-admin-pill-btn):not(.y-admin-btn-ink):not(:disabled):hover,
+.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-danger-pill):not(.y-admin-secondary):not(.y-admin-pill-btn):not(.y-admin-btn-ink):not(:disabled):hover,
 .y-admin-status-form button[type="submit"]:not(.y-admin-btn-ink):not(:disabled):hover,
 .y-admin-save-btn:not(:disabled):hover {
   background: var(--y-admin-save-bg-hover);
   box-shadow: 0 6px 18px rgba(140, 42, 64, 0.34);
 }
-.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):not(:disabled):active,
-.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):not(:disabled):active,
+.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-danger-pill):not(.y-admin-secondary):not(.y-admin-pill-btn):not(.y-admin-btn-ink):not(:disabled):active,
+.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-danger-pill):not(.y-admin-secondary):not(.y-admin-pill-btn):not(.y-admin-btn-ink):not(:disabled):active,
 .y-admin-status-form button[type="submit"]:not(.y-admin-btn-ink):not(:disabled):active,
 .y-admin-save-btn:not(:disabled):active {
   background: var(--y-admin-save-bg-active);
   transform: translateY(1px);
   box-shadow: 0 2px 8px rgba(140, 42, 64, 0.22);
 }
-.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):disabled,
-.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-secondary):not(.y-admin-btn-ink):disabled,
+.y-admin-form button[type="submit"]:not(.y-admin-danger):not(.y-admin-danger-pill):not(.y-admin-secondary):not(.y-admin-pill-btn):not(.y-admin-btn-ink):disabled,
+.y-admin-form button:not([type]):not(.y-admin-danger):not(.y-admin-danger-pill):not(.y-admin-secondary):not(.y-admin-pill-btn):not(.y-admin-btn-ink):disabled,
 .y-admin-status-form button[type="submit"]:not(.y-admin-btn-ink):disabled,
 .y-admin-save-btn:disabled {
   opacity: 0.48;
@@ -1688,6 +1688,38 @@ body:has(.y-admin-shell--v2) {
   font-size: 11px;
   font-weight: 800;
 }
+.y-admin-danger-pill {
+  border: 0;
+  border-radius: 999px;
+  background: var(--y-ink);
+  color: #fff;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 800;
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.y-admin-danger-pill:not(:disabled):hover {
+  background: #2d2a26;
+}
+.y-admin-pill-btn {
+  border: 0;
+  border-radius: 999px;
+  background: #4a5263;
+  color: #fff;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 800;
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.y-admin-pill-btn:not(:disabled):hover {
+  background: #3a4250;
+}
 .y-admin-pill {
   display: inline-flex;
   align-items: center;
@@ -1734,6 +1766,47 @@ body:has(.y-admin-shell--v2) {
   font-style: normal;
   font-size: 10px;
   color: var(--y-mute-2);
+}
+.y-admin-mini-row-wrap {
+  display: grid;
+  gap: 0;
+}
+.y-admin-mini-row-wrap > .y-admin-mini-row {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.y-admin-mini-row-detail {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 0.5px solid var(--y-line);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+.y-admin-mini-row-detail--info {
+  background: #f7f4ef;
+  color: var(--y-mute);
+}
+.y-admin-mini-row-detail--info em {
+  color: var(--y-mute-2);
+}
+.y-admin-mini-row-detail--warn {
+  background: #fff7f7;
+  color: #8c2a40;
+}
+.y-admin-mini-row-detail--warn em {
+  color: #a3324d;
+}
+.y-admin-mini-row-detail em {
+  display: block;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
 }
 .y-admin-editor.mini {
   border-radius: 16px;
@@ -2993,10 +3066,13 @@ textarea.y-admin-review-body {
   padding: 12px 14px;
   border-radius: 14px;
   border: 0.5px solid var(--y-line);
-  background: #fdfcfa;
+  background: #fff;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.y-admin-fortune-main-card--alt {
+  background: linear-gradient(145deg, rgba(244, 249, 246, 0.98) 0%, rgba(232, 242, 236, 0.94) 100%);
 }
 .y-admin-fortune-main-head {
   display: flex;
@@ -3335,6 +3411,186 @@ textarea.y-admin-review-body {
   gap: 8px;
   align-items: center;
 }
+.y-admin-confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.y-admin-confirm-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(26, 24, 21, 0.45);
+  cursor: pointer;
+}
+.y-admin-confirm-modal-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 400px);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(26, 24, 21, 0.2);
+  padding: 20px 22px;
+}
+.y-admin-confirm-modal-dialog h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #ff0000;
+}
+.y-admin-confirm-modal-lead {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #ff0000;
+}
+.y-admin-confirm-modal-lead strong {
+  font-weight: 800;
+  color: #ff0000;
+}
+.y-admin-confirm-modal-meta {
+  margin: 0 0 18px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #ff0000;
+}
+.y-admin-confirm-modal-foot {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.y-admin-confirm-modal-ghost {
+  border: 1px solid #e6e0d8;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: #fff;
+  color: var(--y-ink);
+  cursor: pointer;
+}
+.y-admin-confirm-modal-ghost:hover {
+  background: #fafaf7;
+}
+.y-admin-confirm-modal-danger {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 12.5px;
+  font-weight: 800;
+  background: #ff0000;
+  color: #fff;
+  cursor: pointer;
+}
+.y-admin-confirm-modal-danger:hover {
+  background: #cc0000;
+}
+.y-admin-editor-body {
+  display: flex;
+  flex-direction: column;
+}
+.y-admin-editor-body .y-admin-edit-form {
+  padding-bottom: 0;
+}
+.y-admin-crud-edit-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 14px 14px;
+}
+.y-admin-crud-edit-actions__delete {
+  order: 0 !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
+.y-admin-crud-edit-actions__save {
+  order: 1 !important;
+  flex: 1 1 auto !important;
+  min-width: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 13px 14px;
+  background: var(--y-admin-save-bg);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  box-shadow: var(--y-admin-save-shadow);
+  cursor: pointer;
+}
+.y-admin-crud-edit-actions__save:not(:disabled):hover {
+  background: var(--y-admin-save-bg-hover);
+  box-shadow: 0 6px 18px rgba(140, 42, 64, 0.34);
+}
+.y-admin-crud-edit-actions__save:not(:disabled):active {
+  background: var(--y-admin-save-bg-active);
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(140, 42, 64, 0.22);
+}
+.y-admin-crud-edit-actions__close {
+  order: 2 !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
+.y-admin-product-edit-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 14px 14px;
+}
+.y-admin-product-edit-actions .y-admin-danger-pill,
+.y-admin-product-edit-actions .y-admin-pill-btn {
+  flex: 0 0 auto;
+  width: auto;
+}
+.y-admin-product-edit-actions .y-admin-edit-save-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  border-radius: 999px;
+  padding: 13px 14px;
+  background: var(--y-admin-save-bg);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 800;
+  box-shadow: var(--y-admin-save-shadow);
+  cursor: pointer;
+}
+.y-admin-crud-edit-actions .y-admin-edit-save-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.y-admin-product-edit-actions .y-admin-edit-save-btn:not(:disabled):hover {
+  background: var(--y-admin-save-bg-hover);
+  box-shadow: 0 6px 18px rgba(140, 42, 64, 0.34);
+}
+.y-admin-crud-edit-actions .y-admin-edit-save-btn:not(:disabled):hover,
+.y-admin-crud-edit-actions .y-admin-crud-edit-actions__save:not(:disabled):hover {
+  background: var(--y-admin-save-bg-hover);
+  box-shadow: 0 6px 18px rgba(140, 42, 64, 0.34);
+}
+.y-admin-product-edit-actions .y-admin-edit-save-btn:not(:disabled):active {
+  background: var(--y-admin-save-bg-active);
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(140, 42, 64, 0.22);
+}
+.y-admin-crud-edit-actions .y-admin-edit-save-btn:not(:disabled):active,
+.y-admin-crud-edit-actions .y-admin-crud-edit-actions__save:not(:disabled):active {
+  background: var(--y-admin-save-bg-active);
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(140, 42, 64, 0.22);
+}
 .y-admin-edit-actions .y-admin-danger {
   padding: 12px 14px;
 }
@@ -3426,7 +3682,9 @@ textarea.y-admin-review-body {
   .y-admin-crud-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  #admin-products .y-admin-crud-list {
+  #admin-products .y-admin-crud-list,
+  #admin-categories .y-admin-crud-list,
+  #admin-characters .y-admin-crud-list {
     grid-template-columns: 1fr;
   }
   #admin-notices .y-admin-crud-list {

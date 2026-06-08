@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useCallback, useRef, useState, type FormEvent } from "react";
+
+import { AdminCrudEditActions } from "@/components/admin/AdminCrudEditActions";
 
 type ProductOption = { slug: string; title: string };
 
@@ -34,6 +36,7 @@ export function AdminReviewEditor({ row, products }: { row: ReviewRow; products:
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const deleteFormRef = useRef<HTMLFormElement>(null);
 
   const isShowcase = row.is_showcase === true;
   const isUserReview = Boolean(row.user_ref) && !isShowcase;
@@ -69,13 +72,13 @@ export function AdminReviewEditor({ row, products }: { row: ReviewRow; products:
     }
   };
 
-  const onDelete = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!window.confirm("이 리뷰를 삭제할까요?")) return;
+  const handleDeleteConfirm = useCallback(async () => {
+    const form = deleteFormRef.current;
+    if (!form) return;
     setDeleting(true);
     setMessage(null);
     try {
-      await postForm("/admin/reviews/delete", e.currentTarget);
+      await postForm("/admin/reviews/delete", form);
       setMessage("삭제됐습니다.");
       router.refresh();
     } catch (err) {
@@ -83,7 +86,7 @@ export function AdminReviewEditor({ row, products }: { row: ReviewRow; products:
     } finally {
       setDeleting(false);
     }
-  };
+  }, [router]);
 
   return (
     <details className="y-admin-editor y-admin-review-editor" suppressHydrationWarning>
@@ -143,21 +146,19 @@ export function AdminReviewEditor({ row, products }: { row: ReviewRow; products:
           </label>
         </fieldset>
         {message ? <p className="y-admin-form-msg">{message}</p> : null}
-        <div className="y-admin-edit-actions">
-          <button type="submit" disabled={saving || deleting}>
-            {saving ? "저장 중…" : "수정 저장"}
-          </button>
-          <button
-            type="submit"
-            form={`delete-review-${text(row.id)}`}
-            className="y-admin-danger"
-            disabled={saving || deleting}
-          >
-            {deleting ? "삭제 중…" : "삭제"}
-          </button>
-        </div>
       </form>
-      <form id={`delete-review-${text(row.id)}`} onSubmit={onDelete} className="y-admin-review-delete-form">
+      <AdminCrudEditActions
+        saveFormId={formId}
+        saveLabel={saving ? "저장 중…" : "수정 저장"}
+        saveDisabled={saving || deleting}
+        deleteModalTitle="리뷰 삭제"
+        deleteItemLabel={text(row.user_mask)}
+        deleteLeadSuffix="리뷰를 삭제할까요?"
+        deleteMeta={`id: ${text(row.id)} · ${text(row.product_slug)}`}
+        onDeleteConfirm={handleDeleteConfirm}
+        confirmBusy={deleting}
+      />
+      <form ref={deleteFormRef} className="y-admin-review-delete-form">
         <input type="hidden" name="id" value={text(row.id)} />
       </form>
     </details>

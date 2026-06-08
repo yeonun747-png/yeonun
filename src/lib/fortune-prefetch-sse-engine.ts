@@ -26,6 +26,8 @@ export type FortunePrefetchPumpOptions = {
   onSnapshot: (payload: FortunePrefetchV1) => void;
   /** 미지정 시 섹션 외국어 보정 스케줄 생략(서버 Tank) */
   scheduleSectionFix?: boolean;
+  /** 서버 Tank — 브라우저 localStorage 대신 요청 본문에서 전달 */
+  contextKey?: string | null;
 };
 
 export type FortunePrefetchPump = {
@@ -43,7 +45,7 @@ export type FortunePrefetchPump = {
 };
 
 export function createFortunePrefetchPump(opts: FortunePrefetchPumpOptions): FortunePrefetchPump {
-  const { profile, initial, onSnapshot, scheduleSectionFix = true } = opts;
+  const { profile, initial, onSnapshot, scheduleSectionFix = true, contextKey: contextKeyOverride } = opts;
 
   let toc: FortuneTocItem[] = initial ? [...initial.toc] : [];
   let toc_groups: FortuneTocMainGroup[] | null = initial?.toc_groups ?? null;
@@ -63,8 +65,14 @@ export function createFortunePrefetchPump(opts: FortunePrefetchPumpOptions): For
 
   const isAlreadyComplete = Boolean(initial?.complete);
 
+  const resolveContextKey = (): string | null => {
+    if (contextKeyOverride !== undefined) return contextKeyOverride;
+    if (typeof window === "undefined") return null;
+    return readFortunePrefetchContextKey();
+  };
+
   const flush = (complete: boolean) => {
-    const ctx = readFortunePrefetchContextKey();
+    const ctx = resolveContextKey();
     const payload: FortunePrefetchV1 = {
       v: 1,
       ...(ctx ? { context_key: ctx } : {}),

@@ -67,7 +67,7 @@ export function ProductFortuneMenuEditor({
         <p className="y-admin-muted">대메뉴를 추가하세요.</p>
       ) : (
         menus.map((main, mi) => (
-          <div key={main.id} className="y-admin-fortune-main-card">
+          <div key={main.id} className={`y-admin-fortune-main-card${mi % 2 === 1 ? " y-admin-fortune-main-card--alt" : ""}`}>
             <div className="y-admin-fortune-main-head">
               <strong>대메뉴 {mi + 1}</strong>
               <button type="button" className="y-admin-danger-soft" onClick={() => removeMain(mi)}>
@@ -104,7 +104,7 @@ export function ProductFortuneMenuEditor({
               (main.sub_menus ?? []).map((sub, si) => (
                 <div key={sub.id} className="y-admin-fortune-sub-card">
                   <div className="y-admin-fortune-sub-head">
-                    <strong>소메뉴 {si + 1}</strong>
+                    <strong>소메뉴{mi + 1}-{si + 1}</strong>
                     <button type="button" className="y-admin-danger-soft" onClick={() => removeSub(mi, si)}>
                       삭제
                     </button>

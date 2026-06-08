@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 const PANEL_IDS = ["dashboard", "content", "reviews", "notices", "commerce", "credits", "voice", "fortune", "chat", "logs"] as const;
 export type AdminPanelId = (typeof PANEL_IDS)[number];
@@ -33,19 +33,21 @@ function scrollMainPanelToTop(id: AdminPanelId) {
 }
 
 function readPanelFromHash(): AdminPanelId {
-  if (typeof window === "undefined") return "dashboard";
   const h = window.location.hash.slice(1) as AdminPanelId;
   return PANEL_IDS.includes(h) ? h : "dashboard";
 }
 
-export function AdminWorkspace(props: AdminWorkspaceProps) {
-  const [panel, setPanel] = useState<AdminPanelId>(readPanelFromHash);
+function subscribePanelHash(onStoreChange: () => void) {
+  window.addEventListener("hashchange", onStoreChange);
+  return () => window.removeEventListener("hashchange", onStoreChange);
+}
 
-  useEffect(() => {
-    const onHash = () => setPanel(readPanelFromHash());
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+function getPanelServerSnapshot(): AdminPanelId {
+  return "dashboard";
+}
+
+export function AdminWorkspace(props: AdminWorkspaceProps) {
+  const panel = useSyncExternalStore(subscribePanelHash, readPanelFromHash, getPanelServerSnapshot);
 
   useEffect(() => {
     scrollMainPanelToTop(panel);
@@ -74,7 +76,6 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
                   aria-current={panel === id ? "page" : undefined}
                   onClick={(e) => {
                     e.preventDefault();
-                    setPanel(id);
                     window.location.hash = id;
                     scrollMainPanelToTop(id);
                   }}
@@ -92,11 +93,13 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         </form>
       </aside>
       <div className="y-admin-main-wrap y-admin-main-wrap--v2">
-        {PANEL_IDS.map((id) => (
-          <main key={id} className="y-admin-main y-admin-main-single y-admin-main--v2" id={id} hidden={panel !== id}>
-            {props[id]}
-          </main>
-        ))}
+        {PANEL_IDS.map((id) =>
+          panel === id ? (
+            <main key={id} className="y-admin-main y-admin-main-single y-admin-main--v2" id={id}>
+              {props[id]}
+            </main>
+          ) : null,
+        )}
       </div>
     </div>
   );

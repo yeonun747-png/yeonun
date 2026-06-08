@@ -1,5 +1,3 @@
-"use client";
-
 import type { CalendarType } from "@/lib/manse-ryeok";
 
 /** `fortune-manse-context`·FortuneStream 본문과 동일한 키 — localStorage + sessionStorage 동시 기록 */
@@ -17,6 +15,7 @@ export type FortuneBirthPayload = {
 };
 
 export function persistYeonunSajuV1(payload: FortuneBirthPayload) {
+  if (typeof window === "undefined") return;
   const raw = JSON.stringify(payload);
   try {
     localStorage.setItem(YEONUN_SAJU_LS_KEY, raw);

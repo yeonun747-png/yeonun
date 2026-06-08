@@ -13,6 +13,7 @@ import {
   normalizeFortunePrefetchSnapshot,
   type FortunePrefetchV1,
 } from "@/lib/fortune-prefetch-storage";
+import { buildFortunePrefetchContextKeyFromStreamUserInfo } from "@/lib/fortune-saju-fingerprint";
 import type { DemoProfile } from "@/lib/fortune-two-stage-demo";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -194,6 +195,7 @@ export async function runFortuneServerPrefetchJob(requestId: string): Promise<vo
     profile,
     initial: snapshotFromPayload(payload),
     scheduleSectionFix: false,
+    contextKey: buildFortunePrefetchContextKeyFromStreamUserInfo(clientBody?.user_info) ?? null,
     onSnapshot: (snap) => {
       pendingSnapshot = normalizeFortunePrefetchSnapshot(snap);
       void throttledDbFlush(inferFortunePrefetchComplete(pendingSnapshot));
