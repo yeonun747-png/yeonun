@@ -11,18 +11,13 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
 
   const body = (await request.json().catch(() => ({}))) as {
-    local_paid?: number;
-    local_free?: number;
     local_first_purchase_done?: boolean;
   };
 
   try {
     let wallet = await getWallet(auth.userId);
     if (!wallet) {
-      wallet = await ensureWallet(auth.userId, {
-        importPaid: Number(body.local_paid) || 0,
-        importFree: Number(body.local_free) || 0,
-      });
+      wallet = await ensureWallet(auth.userId);
     }
 
     wallet = (await reconcileFirstPurchaseDone(auth.userId)) ?? wallet;

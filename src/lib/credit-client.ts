@@ -50,7 +50,7 @@ function applyServerWalletToLocal(w: ServerWalletPayload): void {
   notifyCreditUpdated();
 }
 
-/** 로그인 후 서버 지갑 → local 동기화(최초 1회 local→서버 이전 포함) */
+/** 로그인 후 서버 지갑 → local 동기화. 신규 계정은 서버 가입 체험 1170(기기 잔여 미이전). */
 export async function syncCreditsFromServer(): Promise<boolean> {
   const headers = authHeaders();
   if (!headers) return false;
@@ -60,8 +60,6 @@ export async function syncCreditsFromServer(): Promise<boolean> {
     method: "POST",
     headers,
     body: JSON.stringify({
-      local_paid: local.paid,
-      local_free: local.free,
       local_first_purchase_done: local.firstPurchaseDone,
     }),
   });

@@ -17,6 +17,7 @@ import { CallHistoryClient } from "@/components/history/CallHistoryClient";
 import { LibraryListScreenClient } from "@/components/library/LibraryListScreenClient";
 import { MyCreditOverviewSection } from "@/components/my/MyCreditOverviewSection";
 import { MyInquiryMenuItemClient } from "@/components/my/MyInquiryMenuItemClient";
+import { MyInviteMenuItem } from "@/components/my/MyInviteMenuItem";
 import { MyLogoutMenuItemClient } from "@/components/my/MyLogoutMenuItemClient";
 import { MyMemberProfileHeader } from "@/components/my/MyMemberProfileHeader";
 import { MySajuCardBlock } from "@/components/my/MySajuCardBlock";
@@ -164,6 +165,7 @@ export function MyPageBody() {
 
             <div className="y-my-menu-section">
               <div className="y-my-menu-section-title">이용 안내</div>
+              <MyInviteMenuItem />
               <MySheetLink className="y-my-menu-item" href={creditTopupLoginHref("/my?credit=1")}>
                 <div className="y-my-menu-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">

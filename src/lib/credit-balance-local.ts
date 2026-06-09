@@ -100,7 +100,8 @@ function runConsultTrialLegacyInstallGateOnce(): void {
 }
 
 /**
- * 음성·채팅 상담 공통 — 기기당 최초 1회 무료 체험 크레딧.
+ * 음성·채팅 상담 공통 — 기기당 최초 1회 무료 체험 크레딧(1170).
+ * 가입 시 서버에서 별도 1170 지급(기기 잔여는 이전하지 않음).
  * @returns 이번 호출에서 신규 지급했으면 true
  */
 export function ensureConsultTrialCreditsIfEligible(): boolean {

@@ -65,34 +65,18 @@ export async function getWallet(userId: string): Promise<CreditWalletRow | null>
   return data as CreditWalletRow | null;
 }
 
-export async function ensureWallet(
-  userId: string,
-  opts?: { importPaid?: number; importFree?: number },
-): Promise<CreditWalletRow> {
+/** 신규 회원 지갑 — 항상 가입 체험 1170. 비로그인 기기 잔여는 이전하지 않음(별도 기기 체험). */
+export async function ensureWallet(userId: string): Promise<CreditWalletRow> {
   const existing = await getWallet(userId);
   if (existing) return existing;
-
-  const paid = Math.max(0, Math.floor(opts?.importPaid ?? 0));
-  const free = Math.max(0, Math.floor(opts?.importFree ?? 0));
-
-  let finalPaid = paid;
-  let finalFree = free;
-  let kind: CreditLedgerKind = "migration_import";
-  let memo = "기기 지갑 → 서버 이전";
-
-  if (paid === 0 && free === 0) {
-    finalFree = CREDIT_FREE_TRIAL_GRANT;
-    kind = "trial_grant";
-    memo = "신규 회원 무료 체험";
-  }
 
   const sb = supabaseServer();
   const { data, error } = await sb
     .from("user_credit_wallets")
     .insert({
       user_id: userId,
-      paid_balance: finalPaid,
-      free_balance: finalFree,
+      paid_balance: 0,
+      free_balance: CREDIT_FREE_TRIAL_GRANT,
       free_expires_at: defaultFreeExpiresAt(),
       first_purchase_done: false,
     })
@@ -106,12 +90,12 @@ export async function ensureWallet(
   const wallet = data as CreditWalletRow;
 
   await insertLedger(userId, {
-    delta_paid: kind === "trial_grant" ? 0 : finalPaid,
-    delta_free: kind === "trial_grant" ? finalFree : finalFree,
+    delta_paid: 0,
+    delta_free: CREDIT_FREE_TRIAL_GRANT,
     paid_after: wallet.paid_balance,
     free_after: wallet.free_balance,
-    kind,
-    memo,
+    kind: "trial_grant",
+    memo: "신규 회원 무료 체험",
   });
 
   return wallet;

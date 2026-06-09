@@ -2,15 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { formatKstDateKey } from "@/lib/datetime/kst";
+import { formatKstConsultHeaderKo } from "@/lib/datetime/kst";
 import { readM08AssignedKst } from "@/lib/referral-pending";
 import { supabaseBrowser } from "@/lib/supabase/client";
+
+function formatKstDateKeyKo(key: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key.trim());
+  if (!m) return key;
+  return `${Number(m[1])}년 ${Number(m[2])}월 ${Number(m[3])}일`;
+}
 
 export function InvitePageClient() {
   const [code, setCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [shareBusy, setShareBusy] = useState(false);
-  const assignedKst = readM08AssignedKst();
+  const inviteLinkStartKey = readM08AssignedKst();
+  const inviteLinkStartLabel = formatKstDateKeyKo(inviteLinkStartKey);
+  const todayLabel = formatKstConsultHeaderKo(new Date());
 
   useEffect(() => {
     void (async () => {
@@ -33,7 +41,7 @@ export function InvitePageClient() {
   }, []);
 
   const inviteUrl = code
-    ? `${typeof window !== "undefined" ? window.location.origin : "https://yeonun.com"}/?ref=${encodeURIComponent(code)}&m08_kst=${assignedKst}`
+    ? `${typeof window !== "undefined" ? window.location.origin : "https://yeonun.com"}/?ref=${encodeURIComponent(code)}&m08_kst=${inviteLinkStartKey}`
     : "";
 
   const shareInvite = useCallback(async () => {
@@ -65,7 +73,7 @@ export function InvitePageClient() {
       <p style={{ fontSize: 13, color: "var(--y-mute)", lineHeight: 1.7, marginBottom: 20 }}>
         초대 링크로 가입한 친구와 나 모두 3,900 크레딧을 받아요.
         <br />
-        미션 배정일({assignedKst}) 기준 7일 이내 가입 건에 적용돼요.
+        이 링크를 만든 날({inviteLinkStartLabel})부터 7일 안에 가입한 친구에게 적용돼요.
       </p>
 
       {loading ? (
@@ -98,7 +106,7 @@ export function InvitePageClient() {
       )}
 
       <p style={{ marginTop: 24, fontSize: 11.5, color: "var(--y-mute)" }}>
-        오늘(KST {formatKstDateKey(new Date())}) · 무제한 초대 가능
+        오늘 {todayLabel} · 친구는 여러 명 초대할 수 있어요
       </p>
     </main>
   );
