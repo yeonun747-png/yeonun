@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { MySubpageSheet } from "@/components/my/MySubpageSheet";
 import { formatKstConsultHeaderKo } from "@/lib/datetime/kst";
 import { readM08AssignedKst } from "@/lib/referral-pending";
 import { supabaseBrowser } from "@/lib/supabase/client";
@@ -66,48 +67,54 @@ export function InvitePageClient() {
   }, [inviteUrl, shareBusy]);
 
   return (
-    <main className="yeonunPage" style={{ maxWidth: 520, margin: "0 auto", padding: "24px 20px 48px" }}>
-      <h1 className="ySectionTitle" style={{ marginBottom: 8 }}>
-        친구 초대
-      </h1>
-      <p style={{ fontSize: 13, color: "var(--y-mute)", lineHeight: 1.7, marginBottom: 20 }}>
-        초대 링크로 가입한 친구와 나 모두 3,900 크레딧을 받아요.
-        <br />
-        이 링크를 만든 날({inviteLinkStartLabel})부터 7일 안에 가입한 친구에게 적용돼요.
-      </p>
-
-      {loading ? (
-        <p style={{ fontSize: 13, color: "var(--y-mute)" }}>초대 코드 불러오는 중…</p>
-      ) : code ? (
-        <>
-          <div
-            style={{
-              border: "1px solid var(--y-line)",
-              borderRadius: 12,
-              padding: "14px 16px",
-              marginBottom: 16,
-              fontSize: 13,
-              wordBreak: "break-all",
-            }}
-          >
-            {inviteUrl}
-          </div>
-          <button type="button" className="y-my-credit-login-btn" disabled={shareBusy} onClick={() => void shareInvite()}>
-            {shareBusy ? "공유 중…" : "초대 링크 공유"}
-          </button>
-        </>
-      ) : (
-        <p style={{ fontSize: 13, color: "var(--y-mute)" }}>
-          로그인 후 초대 코드를 발급할 수 있어요.{" "}
-          <a href="/my?modal=auth" style={{ color: "var(--y-ink)" }}>
-            로그인
-          </a>
+    <MySubpageSheet title="친구 초대" ariaLabel="친구 초대" useHistoryBack>
+      <div className="y-sub-scroll-page" style={{ padding: "8px 20px 32px" }}>
+        <p style={{ fontSize: 13, color: "var(--y-mute)", lineHeight: 1.7, margin: "0 0 20px" }}>
+          초대 링크로 가입한 친구와 나 모두 3,900 크레딧을 받아요.
+          <br />
+          이 링크를 만든 날({inviteLinkStartLabel})부터 7일 안에 가입한 친구에게 적용돼요.
         </p>
-      )}
 
-      <p style={{ marginTop: 24, fontSize: 11.5, color: "var(--y-mute)" }}>
-        오늘 {todayLabel} · 친구는 여러 명 초대할 수 있어요
-      </p>
-    </main>
+        {loading ? (
+          <p style={{ fontSize: 13, color: "var(--y-mute)" }}>초대 코드 불러오는 중…</p>
+        ) : code ? (
+          <>
+            <div
+              style={{
+                border: "1px solid var(--y-line)",
+                borderRadius: 12,
+                padding: "14px 16px",
+                marginBottom: 16,
+                fontSize: 13,
+                wordBreak: "break-all",
+              }}
+            >
+              {inviteUrl}
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <button
+                type="button"
+                className="y-my-credit-login-btn"
+                disabled={shareBusy}
+                onClick={() => void shareInvite()}
+              >
+                {shareBusy ? "공유 중…" : "초대 링크 공유"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <p style={{ fontSize: 13, color: "var(--y-mute)" }}>
+            로그인 후 초대 코드를 발급할 수 있어요.{" "}
+            <a href="/my?modal=auth" style={{ color: "var(--y-ink)" }}>
+              로그인
+            </a>
+          </p>
+        )}
+
+        <p style={{ marginTop: 24, fontSize: 11.5, color: "var(--y-mute)" }}>
+          오늘 {todayLabel} · 친구는 여러 명 초대할 수 있어요
+        </p>
+      </div>
+    </MySubpageSheet>
   );
 }

@@ -1,4 +1,5 @@
 import { InvitePageClient } from "@/components/invite/InvitePageClient";
+import { MyTabBackdrop } from "@/components/my/MyTabBackdrop";
 
 export const metadata = {
   title: "친구 초대 | 연운 緣運",
@@ -6,5 +7,12 @@ export const metadata = {
 };
 
 export default function InvitePage() {
-  return <InvitePageClient />;
+  return (
+    <>
+      <MyTabBackdrop />
+      <div className="y-history-route-live">
+        <InvitePageClient />
+      </div>
+    </>
+  );
 }
