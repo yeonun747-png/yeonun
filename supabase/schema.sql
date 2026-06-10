@@ -110,6 +110,16 @@ alter table public.products
 comment on column public.products.payment_code is 'PG 등에서 상품을 구분하는 4자리 숫자(1000~9999). 신규 insert 시 자동 부여.';
 comment on column public.products.fortune_menu is '점사 UI용 대메뉴/소메뉴 트리(JSON).';
 
+alter table public.products
+  add column if not exists library_retention_kind text not null default 'days'
+    check (library_retention_kind in ('days', 'kst_day', 'kst_month')),
+  add column if not exists library_retention_days int not null default 60
+    check (library_retention_days >= 1 and library_retention_days <= 3650);
+comment on column public.products.library_retention_kind is
+  '보관함 열람: days=완료 KST일 포함 N일(자정 리셋), kst_day=당일만, kst_month=당월만';
+comment on column public.products.library_retention_days is
+  'library_retention_kind=days 일 때 보관 일수(기본 60)';
+
 create unique index if not exists products_payment_code_key
   on public.products (payment_code)
   where payment_code is not null;

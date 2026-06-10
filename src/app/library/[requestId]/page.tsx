@@ -14,6 +14,7 @@ import {
   getFortuneLibraryDetail,
   isUuidRequestId,
 } from "@/lib/library-fortune";
+import { isLibraryRetentionValid, parseLibraryRetentionFromProduct } from "@/lib/library-retention";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -85,6 +86,10 @@ export default async function LibraryFortuneDetailPage({ params }: Props) {
     productRow = p ?? null;
     productTitle = p?.title ?? null;
   }
+
+  const retentionPolicy = parseLibraryRetentionFromProduct(productRow);
+  const savedAnchor = detail.completed_at || detail.created_at;
+  if (!isLibraryRetentionValid(savedAnchor, retentionPolicy)) notFound();
 
   const heroTitle = detail.payload.title?.trim() || productTitle || "저장된 풀이";
   const charLabel = fortuneLibraryCharLabel(detail.payload.character_key);

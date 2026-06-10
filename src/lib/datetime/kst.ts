@@ -70,6 +70,15 @@ export function kstStartOfMonth(date: Date = new Date()): Date {
   return new Date(`${year}-${pad2(month)}-01T00:00:00+09:00`);
 }
 
+/** KST 다음 달 1일 00:00:00 — 당월 보관 만료 시각 */
+export function kstStartOfNextMonth(date: Date = new Date()): Date {
+  const { year, month } = getKstParts(date);
+  if (month >= 12) {
+    return new Date(`${year + 1}-01-01T00:00:00+09:00`);
+  }
+  return new Date(`${year}-${pad2(month + 1)}-01T00:00:00+09:00`);
+}
+
 /** KST 이번 주 월요일 00:00:00 */
 export function kstStartOfWeekMonday(date: Date = new Date()): Date {
   const start = kstStartOfDay(date);

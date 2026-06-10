@@ -3896,6 +3896,11 @@ body:has(> .y-modal.open) > :not(.y-modal):not(.y-toast-host):not(.y-rv-overlay)
 body:has(> .y-modal.open) .y-storage-notice {
   display: none !important;
 }
+/** 바텀시트 열릴 때 PWA 설치 유도 배너·iOS 안내가 시트 위에 겹치지 않도록 숨김 */
+body:has(> .y-modal.open) .y-pwa-install-banner,
+body:has(> .y-modal.open) .y-pwa-ios-overlay {
+  display: none !important;
+}
 @keyframes yModalFade {
   from {
     opacity: 0;

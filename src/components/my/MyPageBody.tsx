@@ -118,7 +118,7 @@ export function MyPageBody() {
                 </div>
                 <div className="y-my-menu-text">
                   <div className="y-my-menu-name">점사 보관함</div>
-                  <div className="y-my-menu-desc">구매한 풀이 60일간 보관</div>
+                  <div className="y-my-menu-desc">구매한 풀이 상품별 기간 보관</div>
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </button>
@@ -237,7 +237,7 @@ export function MyPageBody() {
                 </div>
                 <div className="y-my-menu-text">
                   <div className="y-my-menu-name">점사 보관함</div>
-                  <div className="y-my-menu-desc">구매한 풀이 60일간 보관</div>
+                  <div className="y-my-menu-desc">구매한 풀이 상품별 기간 보관</div>
                 </div>
                 <span className="y-my-menu-arrow">›</span>
               </MySheetLink>

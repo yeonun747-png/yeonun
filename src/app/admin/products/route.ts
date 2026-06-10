@@ -4,6 +4,7 @@ import { isAdminRequest } from "@/lib/admin-auth";
 import { isCreditPackageProductSlug } from "@/lib/credit-package-products";
 import { invalidateFortunePromptCache } from "@/lib/data/fortune-prompt-cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { normalizeLibraryRetentionKind } from "@/lib/library-retention";
 import { emptyFortuneMenu, parseFortuneMenuJson } from "@/lib/product-fortune-menu";
 import { parseFortuneQuestionsJsonFromForm } from "@/lib/product-fortune-questions";
 
@@ -45,6 +46,10 @@ export async function POST(request: Request) {
   const strategyRaw = String(form.get("fortune_stream_strategy") ?? "hybrid").trim();
   const fortune_stream_strategy = strategyRaw === "hybrid" ? "hybrid" : "claude_only";
   const saju_input_profile = String(form.get("saju_input_profile") ?? "single").trim() === "pair" ? "pair" : "single";
+  const library_retention_kind = normalizeLibraryRetentionKind(form.get("library_retention_kind"));
+  let library_retention_days = Number(String(form.get("library_retention_days") ?? "60").trim());
+  if (!Number.isFinite(library_retention_days) || library_retention_days < 1) library_retention_days = 60;
+  if (library_retention_days > 3650) library_retention_days = 3650;
 
   const fortuneMenuRaw = String(form.get("fortune_menu_json") ?? "").trim();
   let fortune_menu = emptyFortuneMenu();
@@ -98,6 +103,8 @@ export async function POST(request: Request) {
     fortune_menu,
     fortune_questions,
     fortune_stream_strategy,
+    library_retention_kind,
+    library_retention_days,
   };
 
   if (prev?.payment_code != null && prev.payment_code !== "") {

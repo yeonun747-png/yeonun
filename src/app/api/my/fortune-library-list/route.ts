@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getProductsBySlugsCached } from "@/lib/data/content";
 import { buildLibraryListItemVm } from "@/lib/library-list-vm";
 import { listFortuneLibraryItems, type FortuneLibraryListRow } from "@/lib/library-fortune";
+import { parseLibraryRetentionFromProduct } from "@/lib/library-retention";
 import { requireMyUserId } from "@/lib/my-route-auth";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +23,9 @@ export async function GET(request: Request) {
     const slugs = [...new Set(rows.map((r) => r.product_slug).filter(Boolean))] as string[];
     const products = slugs.length ? await getProductsBySlugsCached(slugs) : [];
     const productTitleBySlug = Object.fromEntries(products.map((p) => [p.slug, p.title]));
+    const retentionBySlug = Object.fromEntries(products.map((p) => [p.slug, parseLibraryRetentionFromProduct(p)]));
     const sorted = [...rows].sort((a, b) => rowSortTime(b) - rowSortTime(a));
-    const items = sorted.map((r) => buildLibraryListItemVm(r, productTitleBySlug));
+    const items = sorted.map((r) => buildLibraryListItemVm(r, productTitleBySlug, retentionBySlug));
     return NextResponse.json({ ok: true as const, items });
   } catch (e) {
     const message = e instanceof Error ? e.message : "목록을 불러오지 못했습니다.";

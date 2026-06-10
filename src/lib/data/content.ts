@@ -4,6 +4,11 @@ import { isFortuneMenuCatalogProductSlug } from "@/lib/credit-package-products";
 import { readProductThumbnailsForSlugs } from "@/lib/data/product-thumbnails";
 import { parseFortuneMenuJson, type FortuneMenuPayload } from "@/lib/product-fortune-menu";
 import { normalizeFortuneStreamStrategy, type FortuneStreamStrategy } from "@/lib/fortune-stream-strategy";
+import {
+  DEFAULT_LIBRARY_RETENTION_DAYS,
+  normalizeLibraryRetentionKind,
+  type LibraryRetentionKind,
+} from "@/lib/library-retention";
 import { supabaseServer } from "@/lib/supabase/server";
 import { cache } from "react";
 
@@ -35,6 +40,10 @@ export type Product = {
   fortune_questions: unknown | null;
   /** 메뉴 점사 스트림: claude_only(기본) | hybrid */
   fortune_stream_strategy: FortuneStreamStrategy;
+  /** 보관함 열람 기간 종류 */
+  library_retention_kind: LibraryRetentionKind;
+  /** 보관함 열람 일수 (kind=days) */
+  library_retention_days: number;
   created_at: string;
 };
 
@@ -42,7 +51,7 @@ export type Product = {
 const PRODUCT_SELECT_LEGACY =
   "slug,title,quote,category_slug,badge,price_krw,character_key,home_section_slug,tags,thumbnail_svg,created_at";
 const PRODUCT_SELECT_WITH_PROFILE = `${PRODUCT_SELECT_LEGACY},saju_input_profile`;
-const PRODUCT_SELECT_FULL = `${PRODUCT_SELECT_WITH_PROFILE},payment_code,fortune_menu,fortune_questions,fortune_stream_strategy`;
+const PRODUCT_SELECT_FULL = `${PRODUCT_SELECT_WITH_PROFILE},payment_code,fortune_menu,fortune_questions,fortune_stream_strategy,library_retention_kind,library_retention_days`;
 /** 풀이 목록·카드 그리드용 — fortune_menu 등 대용량 JSON 제외 */
 const PRODUCT_SELECT_LIST = `${PRODUCT_SELECT_WITH_PROFILE},payment_code`;
 
@@ -55,7 +64,9 @@ function missingPaymentOrMenuColumn(msg: string) {
     (msg.includes("payment_code") ||
       msg.includes("fortune_menu") ||
       msg.includes("fortune_questions") ||
-      msg.includes("fortune_stream_strategy")) &&
+      msg.includes("fortune_stream_strategy") ||
+      msg.includes("library_retention_kind") ||
+      msg.includes("library_retention_days")) &&
     (msg.includes("does not exist") || msg.includes("column"))
   );
 }
@@ -80,6 +91,8 @@ function asProductListRow(row: unknown): Product {
     fortune_menu: { main_menus: [] },
     fortune_questions: null,
     fortune_stream_strategy: "claude_only",
+    library_retention_kind: "days",
+    library_retention_days: DEFAULT_LIBRARY_RETENTION_DAYS,
     created_at: String(r.created_at ?? ""),
   };
 }
@@ -105,6 +118,10 @@ function asProduct(row: unknown): Product {
     fortune_menu: parseFortuneMenuJson(r.fortune_menu),
     fortune_questions: r.fortune_questions ?? null,
     fortune_stream_strategy: normalizeFortuneStreamStrategy(r.fortune_stream_strategy),
+    library_retention_kind: normalizeLibraryRetentionKind(r.library_retention_kind),
+    library_retention_days: Number.isFinite(Number(r.library_retention_days))
+      ? Math.min(3650, Math.max(1, Math.trunc(Number(r.library_retention_days))))
+      : DEFAULT_LIBRARY_RETENTION_DAYS,
     created_at: String(r.created_at ?? ""),
   };
 }

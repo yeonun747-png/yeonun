@@ -30,6 +30,10 @@ const PRODUCTS_SELECT_NO_PROFILE =
   "slug,title,quote,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,created_at";
 
 const PRODUCTS_SELECT_ADMIN =
+  "slug,title,quote,payment_code,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,fortune_questions,fortune_stream_strategy,library_retention_kind,library_retention_days,created_at";
+
+/** `library_retention_*` 컬럼 마이그레이션 전 DB */
+const PRODUCTS_SELECT_ADMIN_PRE_LIBRARY_RETENTION =
   "slug,title,quote,payment_code,price_krw,category_slug,character_key,badge,home_section_slug,tags,thumbnail_svg,saju_input_profile,fortune_menu,fortune_questions,fortune_stream_strategy,created_at";
 
 /** `fortune_stream_strategy` 컬럼 마이그레이션 전 DB */
@@ -94,14 +98,26 @@ async function readRows(table: string, select = "*", order?: string, limit = 20)
     if (
       error &&
       table === "products" &&
+      (error.message.includes("library_retention_kind") || error.message.includes("library_retention_days")) &&
+      (error.message.includes("does not exist") || error.message.includes("column"))
+    ) {
+      let q2 = supabase.from(table).select(PRODUCTS_SELECT_ADMIN_PRE_LIBRARY_RETENTION);
+      if (order) q2 = q2.order(order, { ascending: false });
+      const fourth = await q2.limit(limit);
+      data = fourth.data;
+      error = fourth.error;
+    }
+    if (
+      error &&
+      table === "products" &&
       error.message.includes("fortune_stream_strategy") &&
       (error.message.includes("does not exist") || error.message.includes("column"))
     ) {
       let q2 = supabase.from(table).select(PRODUCTS_SELECT_ADMIN_PRE_STREAM_STRATEGY);
       if (order) q2 = q2.order(order, { ascending: false });
-      const fourth = await q2.limit(limit);
-      data = fourth.data;
-      error = fourth.error;
+      const fifth = await q2.limit(limit);
+      data = fifth.data;
+      error = fifth.error;
     }
     if (error) return { rows: [], ready: false, error: error.message };
     const rowsUnknown = (data ?? []) as unknown;

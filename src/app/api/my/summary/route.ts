@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+import { getProductsBySlugs } from "@/lib/data/content";
 import { env } from "@/lib/env";
+import { listFortuneLibraryItems } from "@/lib/library-fortune";
+import {
+  DEFAULT_LIBRARY_RETENTION,
+  isLibraryRetentionValid,
+  parseLibraryRetentionFromProduct,
+} from "@/lib/library-retention";
 
 export const dynamic = "force-dynamic";
-
-const LIBRARY_RETENTION_MS = 60 * 24 * 60 * 60 * 1000;
 
 export type MySummaryPayload = {
   ok: true;
@@ -48,36 +53,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
-  const cutoffMs = Date.now() - LIBRARY_RETENTION_MS;
-
-  const { data: reqRows, error: fErr } = await supabase
-    .from("fortune_requests")
-    .select("id")
-    .eq("user_ref", uid)
-    .eq("status", "completed")
-    .contains("payload", { source: "fortune_stream_modal" });
-
-  if (fErr) {
-    return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
-  }
-
-  const reqIds = (reqRows ?? []).map((r) => r.id).filter(Boolean);
   let archiveCount = 0;
-
-  if (reqIds.length > 0) {
-    const { data: results, error: resErr } = await supabase
-      .from("fortune_results")
-      .select("completed_at")
-      .in("request_id", reqIds);
-
-    if (resErr) {
-      return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
+  try {
+    const rows = await listFortuneLibraryItems(uid);
+    const slugs = [...new Set(rows.map((r) => r.product_slug).filter(Boolean))] as string[];
+    const products = slugs.length ? await getProductsBySlugs(slugs) : [];
+    const retentionBySlug = Object.fromEntries(
+      products.map((p) => [p.slug, parseLibraryRetentionFromProduct(p)]),
+    );
+    for (const row of rows) {
+      const slug = row.product_slug?.trim() ?? "";
+      const policy = retentionBySlug[slug] ?? DEFAULT_LIBRARY_RETENTION;
+      const when = row.completed_at || row.created_at;
+      if (isLibraryRetentionValid(when, policy)) archiveCount += 1;
     }
-
-    for (const r of results ?? []) {
-      const t = r.completed_at ? Date.parse(r.completed_at) : NaN;
-      if (Number.isFinite(t) && t >= cutoffMs) archiveCount += 1;
-    }
+  } catch {
+    return NextResponse.json({ ok: false, error: "fetch_failed" }, { status: 500 });
   }
 
   const { data: orders, error: oErr } = await supabase.from("orders").select("id, amount_krw, product_slug").eq("user_ref", uid);

@@ -106,7 +106,7 @@ export function LibraryListScreenClient({
                 </button>
               ))}
             </div>
-            <p className="y-lib-mock-policy">구매한 풀이는 60일간 보관됩니다.</p>
+            <p className="y-lib-mock-policy">구매한 풀이는 상품별 기간 동안 보관됩니다. (KST 자정 기준)</p>
           </>
         ) : null}
 

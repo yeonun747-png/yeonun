@@ -1,13 +1,6 @@
+import { getProductBySlugCached } from "@/lib/data/content";
 import { listFortuneLibraryItems, type FortuneLibraryListRow } from "@/lib/library-fortune";
-
-const HOLD_MS = 60 * 24 * 60 * 60 * 1000;
-
-function isValidFortuneLibraryRow(row: FortuneLibraryListRow): boolean {
-  const when = row.completed_at || row.created_at;
-  const anchor = Date.parse(when);
-  if (!Number.isFinite(anchor)) return false;
-  return anchor + HOLD_MS > Date.now();
-}
+import { isLibraryRetentionValid, parseLibraryRetentionFromProduct } from "@/lib/library-retention";
 
 function rowSortTime(row: FortuneLibraryListRow): number {
   const iso = row.completed_at || row.created_at;
@@ -29,6 +22,9 @@ export async function findFortuneLibraryDuplicate(
   const fp = sajuFingerprint.trim();
   if (!slug || !fp) return null;
 
+  const product = await getProductBySlugCached(slug);
+  const policy = parseLibraryRetentionFromProduct(product);
+
   const rows = await listFortuneLibraryItems(userRef);
   let best: FortuneLibraryListRow | null = null;
   let bestTime = 0;
@@ -37,7 +33,8 @@ export async function findFortuneLibraryDuplicate(
     if (row.product_slug !== slug) continue;
     const rowFp = row.payload.saju_fingerprint?.trim();
     if (!rowFp || rowFp !== fp) continue;
-    if (!isValidFortuneLibraryRow(row)) continue;
+    const when = row.completed_at || row.created_at;
+    if (!isLibraryRetentionValid(when, policy)) continue;
     const t = rowSortTime(row);
     if (t > bestTime) {
       bestTime = t;

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { usePWAInstall } from "@/lib/pwa/usePWAInstall";
 
 export function InstallPromptBanner() {
@@ -12,8 +14,18 @@ export function InstallPromptBanner() {
     closeInstallPrompt,
     closeIosGuide,
   } = usePWAInstall();
+  const [bodySheetOpen, setBodySheetOpen] = useState(false);
 
-  if (isInstalled) return null;
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const sync = () => setBodySheetOpen(Boolean(document.body.querySelector(":scope > .y-modal.open")));
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(document.body, { childList: true, subtree: false, attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+
+  if (isInstalled || bodySheetOpen) return null;
 
   const showAutoPrompt = installPromptOpen;
   const showIosModal = (showAutoPrompt && isIOS) || iosGuideOpen;

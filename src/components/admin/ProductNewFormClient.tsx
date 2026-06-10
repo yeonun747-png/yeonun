@@ -8,6 +8,7 @@ import { ProductFortuneMenuEditor } from "@/components/admin/ProductFortuneMenuE
 import { emptyFortuneMenu, type FortuneMenuPayload } from "@/lib/product-fortune-menu";
 import { cloneFortuneQuestionsForEditor } from "@/lib/product-fortune-questions";
 import type { FortuneQuestionItem } from "@/lib/fortune-ux/defaultQuestions";
+import { DEFAULT_LIBRARY_RETENTION_DAYS } from "@/lib/library-retention";
 
 type Row = Record<string, unknown>;
 
@@ -161,6 +162,34 @@ export function ProductNewFormClient({
           <input type="radio" name="saju_input_profile" value="pair" />
           <span>궁합형 — 상대·자녀 등 두 번째 생시 필요</span>
         </label>
+      </fieldset>
+
+      <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>
+        <span className="y-admin-stack-legend">점사 보관함 열람 기간</span>
+        <label className="y-admin-radio-option">
+          <input type="radio" name="library_retention_kind" value="days" defaultChecked />
+          <span>고정 일수 (KST 자정 기준, 기본 60일)</span>
+        </label>
+        <label className="y-admin-field-stack" style={{ marginLeft: 24 }}>
+          <span className="y-admin-stack-legend">보관 일수</span>
+          <input
+            name="library_retention_days"
+            type="number"
+            min={1}
+            max={3650}
+            defaultValue={DEFAULT_LIBRARY_RETENTION_DAYS}
+            inputMode="numeric"
+          />
+        </label>
+        <label className="y-admin-radio-option">
+          <input type="radio" name="library_retention_kind" value="kst_day" />
+          <span>당일만 — 자정이 지나면 만료</span>
+        </label>
+        <label className="y-admin-radio-option">
+          <input type="radio" name="library_retention_kind" value="kst_month" />
+          <span>당월만 — 다음달 1일 00:00 KST 만료</span>
+        </label>
+        <span className="y-admin-fortune-menu-hint">모든 기간은 한국 표준시(KST) 자정을 기준으로 리셋됩니다.</span>
       </fieldset>
 
       <fieldset className="y-admin-field-stack y-admin-saju-profile-fieldset" style={{ border: "none", padding: 0, margin: 0 }}>

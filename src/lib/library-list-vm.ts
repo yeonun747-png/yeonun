@@ -4,6 +4,11 @@ import {
   type LibraryCharacterFilterKey,
 } from "@/lib/library-character-filters";
 import { fortuneLibraryCharLabel, type FortuneLibraryListRow } from "@/lib/library-fortune";
+import {
+  DEFAULT_LIBRARY_RETENTION,
+  libraryRetentionBadge,
+  type LibraryRetentionPolicy,
+} from "@/lib/library-retention";
 
 export type LibraryListItemVm = {
   requestId: string;
@@ -21,15 +26,13 @@ export type LibraryListItemVm = {
   badge: { kind: "days"; left: number } | { kind: "expired" };
 };
 
-const HOLD_MS = 60 * 24 * 60 * 60 * 1000;
-
-function retentionBadge(completedOrCreatedIso: string): LibraryListItemVm["badge"] {
-  const anchor = Date.parse(completedOrCreatedIso);
-  if (!Number.isFinite(anchor)) return { kind: "expired" };
-  const expire = anchor + HOLD_MS;
-  const left = Math.ceil((expire - Date.now()) / (24 * 60 * 60 * 1000));
-  if (left <= 0) return { kind: "expired" };
-  return { kind: "days", left };
+function retentionPolicyForSlug(
+  slug: string | null | undefined,
+  bySlug: Record<string, LibraryRetentionPolicy>,
+): LibraryRetentionPolicy {
+  const key = slug?.trim();
+  if (key && bySlug[key]) return bySlug[key];
+  return DEFAULT_LIBRARY_RETENTION;
 }
 
 function formatKstDateYmdDots(iso: string): string {
@@ -57,6 +60,7 @@ function rowDisplayTitle(row: FortuneLibraryListRow, productTitleBySlug: Record<
 export function buildLibraryListItemVm(
   row: FortuneLibraryListRow,
   productTitleBySlug: Record<string, string>,
+  retentionBySlug: Record<string, LibraryRetentionPolicy> = {},
 ): LibraryListItemVm {
   const slug = row.product_slug?.trim();
   const productTitle = slug && productTitleBySlug[slug] ? productTitleBySlug[slug] : "풀이";
@@ -75,6 +79,6 @@ export function buildLibraryListItemVm(
     dateYmd: formatKstDateYmdDots(when),
     timeLabel: formatKstTimeAmPm(when),
     visibleChars: row.visible_char_count,
-    badge: retentionBadge(when),
+    badge: libraryRetentionBadge(when, retentionPolicyForSlug(slug, retentionBySlug)),
   };
 }
