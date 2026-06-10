@@ -17,6 +17,15 @@ describe("library-retention KST midnight", () => {
     expect(isLibraryRetentionValid(anchor, policy, new Date("2026-06-10T00:00:01+09:00").getTime())).toBe(false);
   });
 
+  it("kst_month_3: valid for 3 calendar months, expires on 4th month 1st 00:00 KST", () => {
+    const policy = parseLibraryRetentionFromProduct({ library_retention_kind: "kst_month_3", library_retention_days: 60 });
+    const anchor = "2026-06-15T10:00:00+09:00";
+    const expire = libraryRetentionExpiresAtMs(anchor, policy);
+    expect(expire).toBe(new Date("2026-09-01T00:00:00+09:00").getTime());
+    expect(isLibraryRetentionValid(anchor, policy, new Date("2026-08-31T23:59:00+09:00").getTime())).toBe(true);
+    expect(isLibraryRetentionValid(anchor, policy, new Date("2026-09-01T00:00:00+09:00").getTime())).toBe(false);
+  });
+
   it("kst_month: valid through month end, expires on next month 1st 00:00 KST", () => {
     const policy = parseLibraryRetentionFromProduct({ library_retention_kind: "kst_month", library_retention_days: 60 });
     const anchor = "2026-06-15T10:00:00+09:00";

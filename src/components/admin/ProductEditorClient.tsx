@@ -269,6 +269,15 @@ function ProductEditorForm({
           />
           <span>당월만 — 다음달 1일 00:00 KST 만료 (예: 이달, 내게 찾아올 것들)</span>
         </label>
+        <label className="y-admin-radio-option">
+          <input
+            type="radio"
+            name="library_retention_kind"
+            value="kst_month_3"
+            defaultChecked={retentionKind === "kst_month_3"}
+          />
+          <span>3개월 — 완료월 포함 3달, 4번째 달 1일 00:00 KST 만료</span>
+        </label>
         <span className="y-admin-fortune-menu-hint">모든 기간은 한국 표준시(KST) 자정을 기준으로 리셋됩니다.</span>
       </fieldset>
 

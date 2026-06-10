@@ -1,6 +1,6 @@
-import { kstAddDays, kstStartOfDay, kstStartOfNextMonth } from "@/lib/datetime/kst";
+import { kstAddDays, kstStartOfDay, kstStartOfMonthOffset, kstStartOfNextMonth } from "@/lib/datetime/kst";
 
-export type LibraryRetentionKind = "days" | "kst_day" | "kst_month";
+export type LibraryRetentionKind = "days" | "kst_day" | "kst_month" | "kst_month_3";
 
 export type LibraryRetentionPolicy = {
   kind: LibraryRetentionKind;
@@ -22,7 +22,7 @@ function clampRetentionDays(n: number): number {
 
 export function normalizeLibraryRetentionKind(raw: unknown): LibraryRetentionKind {
   const k = String(raw ?? "").trim();
-  if (k === "kst_day" || k === "kst_month") return k;
+  if (k === "kst_day" || k === "kst_month" || k === "kst_month_3") return k;
   return "days";
 }
 
@@ -48,6 +48,8 @@ export function libraryRetentionExpiresAtMs(anchorIso: string, policy: LibraryRe
       return kstAddDays(kstStartOfDay(anchorDate), 1).getTime();
     case "kst_month":
       return kstStartOfNextMonth(anchorDate).getTime();
+    case "kst_month_3":
+      return kstStartOfMonthOffset(anchorDate, 3).getTime();
     case "days":
     default:
       return kstAddDays(kstStartOfDay(anchorDate), policy.days).getTime();
@@ -83,6 +85,8 @@ export function formatLibraryRetentionLabel(policy: LibraryRetentionPolicy): str
       return "당일만 (KST 자정 리셋)";
     case "kst_month":
       return "당월만 (다음달 1일 리셋)";
+    case "kst_month_3":
+      return "3개월 (완료월 포함 3달, 4번째 달 1일 리셋)";
     case "days":
     default:
       return `${policy.days}일 (KST 자정 기준)`;

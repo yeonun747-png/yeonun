@@ -70,13 +70,25 @@ export function kstStartOfMonth(date: Date = new Date()): Date {
   return new Date(`${year}-${pad2(month)}-01T00:00:00+09:00`);
 }
 
+/** 완료 월 기준 +monthOffset 달의 1일 00:00 KST (만료 시각 등) */
+export function kstStartOfMonthOffset(date: Date, monthOffset: number): Date {
+  const { year, month } = getKstParts(date);
+  let y = year;
+  let m = month + monthOffset;
+  while (m > 12) {
+    m -= 12;
+    y += 1;
+  }
+  while (m < 1) {
+    m += 12;
+    y -= 1;
+  }
+  return new Date(`${y}-${pad2(m)}-01T00:00:00+09:00`);
+}
+
 /** KST 다음 달 1일 00:00:00 — 당월 보관 만료 시각 */
 export function kstStartOfNextMonth(date: Date = new Date()): Date {
-  const { year, month } = getKstParts(date);
-  if (month >= 12) {
-    return new Date(`${year + 1}-01-01T00:00:00+09:00`);
-  }
-  return new Date(`${year}-${pad2(month + 1)}-01T00:00:00+09:00`);
+  return kstStartOfMonthOffset(date, 1);
 }
 
 /** KST 이번 주 월요일 00:00:00 */
