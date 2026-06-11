@@ -4,11 +4,21 @@ export type NoticeView = {
   slug: string;
   category: NoticeCategory;
   title: string;
+  /** YYYY-MM-DD — 목록 정렬용 */
+  publishedOn: string;
   date: string;
   bodyHtml: string;
   showNewDot: boolean;
   sortOrder: number;
 };
+
+/** 공지 목록 — 게시일 기준 내림차순(최신 먼저) */
+export function compareNoticesByPublishedDateDesc(
+  a: { publishedOn: string },
+  b: { publishedOn: string },
+): number {
+  return b.publishedOn.localeCompare(a.publishedOn);
+}
 
 export function escapeNoticeHtml(s: string): string {
   return s

@@ -2,6 +2,7 @@ import "server-only";
 
 import { NOTICES_SEED_DATA } from "@/lib/notices-seed-data";
 import {
+  compareNoticesByPublishedDateDesc,
   formatNoticeDate,
   noticeBodyToHtml,
   type NoticeCategory,
@@ -31,6 +32,7 @@ function rowToView(row: NoticeRecord): NoticeView {
     slug: row.slug,
     category: row.category,
     title: row.title,
+    publishedOn: row.published_on,
     date: formatNoticeDate(row.published_on),
     bodyHtml: noticeBodyToHtml(row.body),
     showNewDot: row.show_new_dot,
@@ -39,15 +41,21 @@ function rowToView(row: NoticeRecord): NoticeView {
 }
 
 function seedFallback(): NoticeView[] {
-  return NOTICES_SEED_DATA.map((n) => ({
-    slug: n.slug,
-    category: n.category,
-    title: n.title,
-    date: formatNoticeDate(n.published_on),
-    bodyHtml: noticeBodyToHtml(n.body),
-    showNewDot: n.show_new_dot,
-    sortOrder: n.sort_order,
-  }));
+  return [...NOTICES_SEED_DATA]
+    .sort((a, b) => compareNoticesByPublishedDateDesc(
+      { publishedOn: a.published_on },
+      { publishedOn: b.published_on },
+    ))
+    .map((n) => ({
+      slug: n.slug,
+      category: n.category,
+      title: n.title,
+      publishedOn: n.published_on,
+      date: formatNoticeDate(n.published_on),
+      bodyHtml: noticeBodyToHtml(n.body),
+      showNewDot: n.show_new_dot,
+      sortOrder: n.sort_order,
+    }));
 }
 
 function parseRows(data: unknown): NoticeRecord[] {
@@ -62,7 +70,6 @@ export async function listPublishedNotices(): Promise<NoticeView[]> {
       .from("notices")
       .select(NOTICE_SELECT)
       .eq("is_published", true)
-      .order("sort_order", { ascending: false })
       .order("published_on", { ascending: false });
 
     if (error || !data?.length) {

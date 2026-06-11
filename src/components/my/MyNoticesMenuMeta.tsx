@@ -25,7 +25,7 @@ export function MyNoticesMenuItemContent({ fallbackDesc = "이벤트 · 운영 �
         slug: n.slug,
         title: n.title,
         showNewDot: n.showNewDot,
-        sortOrder: n.sortOrder,
+        publishedOn: n.publishedOn,
       }));
       setMeta(noticeMenuMeta(notices));
     } catch {

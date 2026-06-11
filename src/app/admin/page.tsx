@@ -134,11 +134,9 @@ function text(v: unknown, fallback = "-") {
 }
 
 function sortNoticeRows(rows: Row[]): Row[] {
-  return [...rows].sort((a, b) => {
-    const orderDiff = Number(b.sort_order ?? 0) - Number(a.sort_order ?? 0);
-    if (orderDiff !== 0) return orderDiff;
-    return String(b.published_on ?? "").localeCompare(String(a.published_on ?? ""));
-  });
+  return [...rows].sort((a, b) =>
+    String(b.published_on ?? "").localeCompare(String(a.published_on ?? "")),
+  );
 }
 
 function sortReviewRows(rows: Row[]): Row[] {
@@ -283,7 +281,7 @@ export default async function AdminHomePage() {
       readRows(
         "notices",
         "slug,category,title,published_on,body,is_published,show_new_dot,sort_order,updated_at",
-        "sort_order",
+        "published_on",
         50,
       ),
     ]);
@@ -441,7 +439,7 @@ export default async function AdminHomePage() {
             <StatusPill tone={notices.ready ? "good" : "warn"}>{notices.ready ? "CRUD 활성" : "마이그레이션 필요"}</StatusPill>
           </div>
           <p className="y-admin-muted" style={{ margin: "0 0 14px" }}>
-            마이탭 공지사항 목록·상세에 노출됩니다. <code>sort_order</code>가 클수록 목록 상단(최신순)입니다.
+            마이탭 공지사항 목록·상세에 노출됩니다. 목록은 <code>published_on</code>(게시일) 기준 최신순으로 정렬됩니다.
           </p>
           <div className="y-admin-card" style={{ marginBottom: 12 }}>
               <h3>공지 새로 등록</h3>

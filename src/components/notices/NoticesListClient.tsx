@@ -5,7 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { MySheetLink } from "@/components/my/MySheetLink";
 import { MySubpageSheet } from "@/components/my/MySubpageSheet";
 import { readNoticeSlugsFromStorage } from "@/lib/notice-reads";
-import { noticeBadgeClass, noticeCategoryLabel, type NoticeView } from "@/lib/notices-types";
+import {
+  compareNoticesByPublishedDateDesc,
+  noticeBadgeClass,
+  noticeCategoryLabel,
+  type NoticeView,
+} from "@/lib/notices-types";
 
 type Props = {
   notices: NoticeView[];
@@ -19,11 +24,7 @@ export function NoticesListClient({ notices }: Props) {
   }, []);
 
   const sorted = useMemo(
-    () =>
-      [...notices].sort((a, b) => {
-        if (b.sortOrder !== a.sortOrder) return b.sortOrder - a.sortOrder;
-        return b.date.localeCompare(a.date);
-      }),
+    () => [...notices].sort(compareNoticesByPublishedDateDesc),
     [notices],
   );
 

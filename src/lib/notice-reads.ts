@@ -6,6 +6,8 @@ export type NoticeReadItem = {
   slug: string;
   title: string;
   showNewDot: boolean;
+  /** YYYY-MM-DD — 목록·메뉴 부제 정렬용 */
+  publishedOn?: string;
   sortOrder?: number;
 };
 
@@ -53,12 +55,14 @@ export function markNoticeReadInStorage(slug: string): void {
   }
 }
 
+function compareNoticeReadItemsByDateDesc(a: NoticeReadItem, b: NoticeReadItem): number {
+  const dateDiff = (b.publishedOn ?? "").localeCompare(a.publishedOn ?? "");
+  if (dateDiff !== 0) return dateDiff;
+  return a.title.localeCompare(b.title);
+}
+
 export function getUnreadNotices(notices: NoticeReadItem[], readSlugs: Set<string> = readNoticeSlugsFromStorage()) {
-  const sorted = [...notices].sort((a, b) => {
-    const orderDiff = (b.sortOrder ?? 0) - (a.sortOrder ?? 0);
-    if (orderDiff !== 0) return orderDiff;
-    return a.title.localeCompare(b.title);
-  });
+  const sorted = [...notices].sort(compareNoticeReadItemsByDateDesc);
   return sorted.filter((n) => n.showNewDot && !readSlugs.has(n.slug));
 }
 
@@ -71,7 +75,7 @@ export function noticeMenuMeta(notices: NoticeReadItem[]) {
   const readSlugs = readNoticeSlugsFromStorage();
   const unread = getUnreadNotices(notices, readSlugs);
   const unreadCount = unread.length;
-  const latest = [...notices].sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))[0];
+  const latest = [...notices].sort(compareNoticeReadItemsByDateDesc)[0];
 
   let desc = "이벤트 · 운영 안내";
   if (unreadCount === 1) {
