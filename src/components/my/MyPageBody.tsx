@@ -93,7 +93,7 @@ export function MyPageBody() {
                   모든 인연이 기억합니다
                 </h1>
                 <p className="y-my-guest-desc">
-                  가입은 3초. 그 후엔 4명이 당신의 사주를 알고
+                  가입은 3초, 가입 시 5,000 크레딧. 그 후엔 4명이 당신의 사주를 알고
                   <br />
                   매일 새 한 마디를 보냅니다.
                 </p>

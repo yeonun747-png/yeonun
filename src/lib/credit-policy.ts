@@ -14,8 +14,14 @@ export const CREDIT_VOICE_PER_SECOND = CREDIT_VOICE_PER_MINUTE / 60;
 /** 채팅 상담: 사용자 메시지 1건당 */
 export const CREDIT_CHAT_PER_USER_MESSAGE = 130;
 
-/** 신규 가입 무료 크레딧 (음성 3분 상당) */
-export const CREDIT_FREE_TRIAL_GRANT = 1170;
+/** 비로그인 기기 체험 크레딧 (음성 3분 상당) — 기기(브라우저)당 1회 */
+export const CREDIT_DEVICE_TRIAL_GRANT = 1170;
+
+/** 신규 가입 웰컴 크레딧 (계정당 1회, 서버 지갑) */
+export const CREDIT_SIGNUP_GRANT = 5000;
+
+/** @deprecated 기기 체험 — `CREDIT_DEVICE_TRIAL_GRANT` 사용 */
+export const CREDIT_FREE_TRIAL_GRANT = CREDIT_DEVICE_TRIAL_GRANT;
 
 /** 무료 크레딧 만료(일) — 지급일 기준 */
 export const CREDIT_FREE_TRIAL_VALID_DAYS = 30;
@@ -67,4 +73,9 @@ export function packageBonusPercentRounded(pkgKey: keyof typeof CREDIT_PACKAGES)
 
 export function firstChargeTotalCredits(baseGrant: number): number {
   return Math.round(baseGrant * 1.1);
+}
+
+/** UI 표시용 — 예: 5,000 */
+export function formatCreditsKo(credits: number): string {
+  return credits.toLocaleString("ko-KR");
 }

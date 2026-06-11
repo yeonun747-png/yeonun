@@ -129,11 +129,11 @@ export function AboutPageClient() {
             </div>
           </div>
           <div className="ab-stat">
-            <div className="ab-stat-num">3분</div>
+            <div className="ab-stat-num">5,000</div>
             <div className="ab-stat-label">
-              무료
+              가입
               <br />
-              체험
+              크레딧
             </div>
           </div>
           <div className="ab-stat">
@@ -278,9 +278,9 @@ export function AboutPageClient() {
               지금, 한 번의 부름
             </h2>
             <p className="ab-cta-desc">
-              가입 즉시 음성 상담 3분 무료.
+              가입만 하면 5,000 크레딧(5,000원 상당).
               <br />
-              카드 등록 없이 시작할 수 있습니다.
+              음성 상담·점사에 바로 쓸 수 있어요.
             </p>
             <Link className="ab-cta-btn" href="/meet">
               무료로 상담 시작 →

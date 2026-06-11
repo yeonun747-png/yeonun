@@ -1,5 +1,5 @@
 import {
-  CREDIT_FREE_TRIAL_GRANT,
+  CREDIT_DEVICE_TRIAL_GRANT,
   CREDIT_FREE_TRIAL_VALID_DAYS,
 } from "@/lib/credit-policy";
 import { LS_VOICE_BALANCE_SEC, LS_VOICE_FREE_REMAINING_SEC, readVoiceBalanceSecClient, readVoiceFreeRemainingSecClient } from "@/lib/voice-balance-local";
@@ -72,11 +72,11 @@ function migrateFromLegacyVoiceIfNeeded(): void {
     const freeFromLegacy = Math.round(Math.max(0, vf) * 6.5);
     const w: Wallet = {
       paid: paidFromLegacy,
-      free: freeFromLegacy > 0 ? freeFromLegacy : CREDIT_FREE_TRIAL_GRANT,
+      free: freeFromLegacy > 0 ? freeFromLegacy : CREDIT_DEVICE_TRIAL_GRANT,
       freeExpiresAtMs: defaultFreeExpiry(),
       firstPurchaseDone: false,
     };
-    if (w.paid === 0 && w.free === 0) w.free = CREDIT_FREE_TRIAL_GRANT;
+    if (w.paid === 0 && w.free === 0) w.free = CREDIT_DEVICE_TRIAL_GRANT;
     writeWallet(w);
     localStorage.setItem(LS_MIGRATED, "1");
     localStorage.setItem(LS_CONSULT_TRIAL_DEVICE, "1");
@@ -101,14 +101,14 @@ function runConsultTrialLegacyInstallGateOnce(): void {
 
 /**
  * 음성·채팅 상담 공통 — 기기당 최초 1회 무료 체험 크레딧(1170).
- * 가입 시 서버에서 별도 1170 지급(기기 잔여는 이전하지 않음).
+ * 가입 시 서버에서 별도 웰컴 크레딧 지급(기기 잔여는 이전하지 않음).
  * @returns 이번 호출에서 신규 지급했으면 true
  */
 export function ensureConsultTrialCreditsIfEligible(): boolean {
   if (typeof window === "undefined") return false;
   try {
     if (localStorage.getItem(LS_CONSULT_TRIAL_DEVICE) === "1") return false;
-    applyBonusCredits(CREDIT_FREE_TRIAL_GRANT);
+    applyBonusCredits(CREDIT_DEVICE_TRIAL_GRANT);
     localStorage.setItem(LS_CONSULT_TRIAL_DEVICE, "1");
     return true;
   } catch {

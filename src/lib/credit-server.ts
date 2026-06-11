@@ -1,6 +1,6 @@
 import { syntheticEmail } from "@/lib/auth/social-user-service";
 import type { SocialProvider } from "@/lib/auth/types";
-import { CREDIT_FREE_TRIAL_GRANT, CREDIT_FREE_TRIAL_VALID_DAYS } from "@/lib/credit-policy";
+import { CREDIT_FREE_TRIAL_VALID_DAYS, CREDIT_SIGNUP_GRANT } from "@/lib/credit-policy";
 import { resolveCreditGrantBase } from "@/lib/credit-grant-resolve";
 import { supabaseServer } from "@/lib/supabase/server";
 
@@ -65,7 +65,7 @@ export async function getWallet(userId: string): Promise<CreditWalletRow | null>
   return data as CreditWalletRow | null;
 }
 
-/** 신규 회원 지갑 — 항상 가입 체험 1170. 비로그인 기기 잔여는 이전하지 않음(별도 기기 체험). */
+/** 신규 회원 지갑 — 항상 가입 웰컴 크레딧. 비로그인 기기 잔여는 이전하지 않음(별도 기기 체험). */
 export async function ensureWallet(userId: string): Promise<CreditWalletRow> {
   const existing = await getWallet(userId);
   if (existing) return existing;
@@ -76,7 +76,7 @@ export async function ensureWallet(userId: string): Promise<CreditWalletRow> {
     .insert({
       user_id: userId,
       paid_balance: 0,
-      free_balance: CREDIT_FREE_TRIAL_GRANT,
+      free_balance: CREDIT_SIGNUP_GRANT,
       free_expires_at: defaultFreeExpiresAt(),
       first_purchase_done: false,
     })
@@ -91,11 +91,11 @@ export async function ensureWallet(userId: string): Promise<CreditWalletRow> {
 
   await insertLedger(userId, {
     delta_paid: 0,
-    delta_free: CREDIT_FREE_TRIAL_GRANT,
+    delta_free: CREDIT_SIGNUP_GRANT,
     paid_after: wallet.paid_balance,
     free_after: wallet.free_balance,
     kind: "trial_grant",
-    memo: "신규 회원 무료 체험",
+    memo: "신규 회원 가입 크레딧",
   });
 
   return wallet;

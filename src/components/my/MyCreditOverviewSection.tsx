@@ -74,7 +74,9 @@ export function MyCreditOverviewSection() {
       <section className="y-my-credit-guest-panel" aria-label="크레딧 안내">
         <div className="y-my-credit-login-card">
           <p className="y-my-credit-login-title">상담 크레딧</p>
-          <p className="y-my-credit-login-desc">로그인 후 잔여 크레딧을 확인할 수 있어요.</p>
+          <p className="y-my-credit-login-desc">
+            로그인 후 잔여 크레딧을 확인할 수 있어요. 신규 가입 시 5,000 크레딧이 지급됩니다.
+          </p>
           <Link className="y-my-credit-login-btn" href="/my?modal=auth">
             로그인
           </Link>

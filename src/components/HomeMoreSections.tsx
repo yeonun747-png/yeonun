@@ -205,9 +205,9 @@ export function HomeMoreSections({ serverCatalog }: { serverCatalog: ContentCata
           <div className="y-final-cta-eyebrow">START YOUR JOURNEY</div>
           <h2>지금, 한 번의 부름</h2>
           <p>
-            가입 즉시 3분 무료 음성 상담.
+            가입만 하면 5,000 크레딧(5,000원 상당).
             <br />
-            카드 등록 없이 시작할 수 있습니다.
+            음성 상담·점사에 바로 쓸 수 있어요. 카드 등록 없이 시작할 수 있습니다.
           </p>
           <Link className="y-final-cta-btn" href="/meet">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">

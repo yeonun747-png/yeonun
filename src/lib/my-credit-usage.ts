@@ -91,7 +91,7 @@ export function mapCreditUsageRow(row: CreditUsageLedgerRow, ctx: CreditUsageCon
   } else if (row.kind === "spend_fortune" && row.ref_type === "product" && row.ref_id) {
     title = ctx.productNames.get(row.ref_id) ?? row.ref_id;
   } else if (row.kind === "trial_grant") {
-    title = "신규 회원 무료 체험";
+    title = "신규 회원 가입 크레딧";
   } else if (row.kind === "purchase") {
     title = "크레딧 충전";
   } else if (row.kind === "spend_fortune") {

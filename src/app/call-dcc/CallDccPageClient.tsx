@@ -18,7 +18,7 @@ import {
   voiceConsultCreditsShortfall,
 } from "@/lib/voice-consult-credit-gate";
 import {
-  CREDIT_FREE_TRIAL_GRANT,
+  CREDIT_DEVICE_TRIAL_GRANT,
   CREDIT_VOICE_PER_MINUTE,
   CREDIT_VOICE_PER_SECOND,
 } from "@/lib/credit-policy";
@@ -111,7 +111,7 @@ function buildVoiceCreditLines(): { line1: string; line2: string } {
   const freeExpired = wallet.freeExpiresAtMs < now;
   const freeRem = freeExpired ? 0 : Math.max(0, wallet.free);
   let line1: string;
-  if (!freeExpired && freeRem > CREDIT_FREE_TRIAL_GRANT) {
+  if (!freeExpired && freeRem > CREDIT_DEVICE_TRIAL_GRANT) {
     line1 = `무료·보너스 크레딧 ${freeRem.toLocaleString("ko-KR")} 잔여`;
   } else if (!freeExpired && freeRem > 0) {
     line1 = `무료 크레딧 ${freeRem.toLocaleString("ko-KR")} 잔여`;
@@ -145,7 +145,7 @@ function buildVoiceMeterSessionLines(opts: {
   const line2 = `이후 분당 ${CREDIT_VOICE_PER_MINUTE.toLocaleString("ko-KR")} 크레딧`;
 
   /** 무료 버킷 소진 중 — 잔여가 통화 시간에 따라 줄어듦(무료 먼저 차감) */
-  if (!snapFreeExpired && snapFreeRem > CREDIT_FREE_TRIAL_GRANT && freeRemNow > 0) {
+  if (!snapFreeExpired && snapFreeRem > CREDIT_DEVICE_TRIAL_GRANT && freeRemNow > 0) {
     return {
       line1: `무료·보너스 크레딧 ${freeRemNow.toLocaleString("ko-KR")} 잔여`,
       line2,
