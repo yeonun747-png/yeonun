@@ -12,6 +12,7 @@ import { WriteReviewSheetProvider } from "@/components/reviews/WriteReviewSheetP
 import { AppProviders } from "@/app/providers";
 import { YeonunToastHost } from "@/components/YeonunToastHost";
 import { ChunkLoadRecovery } from "@/components/ChunkLoadRecovery";
+import { SiteVisitTracker } from "@/components/analytics/SiteVisitTracker";
 import { getSiteUrl } from "@/lib/site-url";
 
 const SITE_TITLE = "연운 緣運 — 운명을, 듣다";
@@ -114,6 +115,7 @@ export default function RootLayout({
           <ArchiveReviewProvider>
             <WriteReviewSheetProvider>
               <PrimaryTabScrollClient />
+              <SiteVisitTracker />
               <ContentCatalogPreloader />
               {children}
               {modal}

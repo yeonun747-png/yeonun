@@ -6,6 +6,7 @@ const EXACT_KEYS = [
   "yeonun_credit_wallet_migrated_v1",
   "yeonun_consult_trial_device_v1",
   "yeonun_voice_visitor_ref",
+  "yeonun_site_visitor_ref_v1",
   "yeonun_pg_pending_v1",
   "payment_success_oid",
   "payment_success_timestamp",

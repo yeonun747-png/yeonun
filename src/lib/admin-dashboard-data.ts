@@ -19,6 +19,10 @@ export type AdminDashboardPeriodSlice = {
     fortuneCount: number;
     newSignups: number;
   };
+  visitors: {
+    pageViews: number;
+    uniqueVisitors: number;
+  };
   characterUsage: { key: string; name: string; han: string; color: string; count: number; pct: number }[];
   productRank: { rank: number; title: string; meta: string; count: number; han: string; color: string; charKey: string }[];
   funnel: {
@@ -90,6 +94,7 @@ type FortuneRow = { product_slug: string; created_at: string; status: string; us
 type ChatSessionRow = { user_ref?: string | null; started_at: string; character_key?: string | null };
 type SocialRow = { provider: string; created_at: string };
 type ProductRow = { slug: string; title: string; price_krw: number; character_key: string };
+type VisitRow = { visitor_ref: string; created_at: string };
 
 function inRange(iso: string, from: Date, to: Date): boolean {
   const t = new Date(iso).getTime();
@@ -134,6 +139,16 @@ function countDistinctUserRefs(
     if (ref) refs.add(`c:${ref}`);
   }
   return refs.size;
+}
+
+function countVisitStats(visits: VisitRow[], from: Date, to: Date): AdminDashboardPeriodSlice["visitors"] {
+  const inPeriod = visits.filter((v) => inRange(v.created_at, from, to));
+  const refs = new Set<string>();
+  for (const v of inPeriod) {
+    const ref = String(v.visitor_ref ?? "").trim();
+    if (ref) refs.add(ref);
+  }
+  return { pageViews: inPeriod.length, uniqueVisitors: refs.size };
 }
 
 function charKeyFromSlug(slug: string): string {
@@ -251,6 +266,7 @@ function buildSlice(
   chatSessions: ChatSessionRow[],
   chatCount: number,
   products: Map<string, ProductRow>,
+  visits: VisitRow[],
 ): AdminDashboardPeriodSlice {
   let from: Date;
   let to: Date;
@@ -307,6 +323,7 @@ function buildSlice(
         fortuneCount: fortuneInPeriod.length,
         newSignups: signups,
       },
+      visitors: countVisitStats(visits, from, to),
       characterUsage: buildCharacterUsage(voices, fortunes, chatSessions, from, to),
       productRank: buildProductRank(orders, products, from, to),
       funnel: {
@@ -344,6 +361,7 @@ function buildSlice(
       fortuneCount: fortuneInPeriod.length,
       newSignups: signups,
     },
+    visitors: countVisitStats(visits, from, to),
     characterUsage: buildCharacterUsage(voices, fortunes, chatSessions, from, to),
     productRank: buildProductRank(orders, products, from, to),
     funnel: {
@@ -362,7 +380,7 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
   const since30 = kstAddDays(today, -30).toISOString();
   const yesterday = kstAddDays(today, -1);
 
-  const [productsRes, charactersRes, reviewsRes, ordersRes, paymentsRes, socialRes, voiceRes, fortuneRes, chatRes, chatSessionsRes, paymentsProbe, llmErrRes] =
+  const [productsRes, charactersRes, reviewsRes, ordersRes, paymentsRes, socialRes, voiceRes, fortuneRes, chatRes, chatSessionsRes, paymentsProbe, llmErrRes, visitsRes] =
     await Promise.all([
       sb.from("products").select("slug,title,price_krw,character_key"),
       sb.from("characters").select("key", { count: "exact", head: true }),
@@ -400,6 +418,7 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
         .eq("service", "chat")
         .gte("created_at", yesterday.toISOString())
         .lt("created_at", today.toISOString()),
+      sb.from("site_visit_events").select("visitor_ref,created_at").gte("created_at", since30).limit(100000),
     ]);
 
   const productRows = (productsRes.data ?? []) as ProductRow[];
@@ -469,12 +488,13 @@ export async function loadAdminDashboardData(): Promise<AdminDashboardData> {
   }
 
   const chatSessions = chatSessionsRes.error ? [] : ((chatSessionsRes.data ?? []) as ChatSessionRow[]);
+  const visits = visitsRes.error ? [] : ((visitsRes.data ?? []) as VisitRow[]);
 
   const slices: Record<AdminDashboardPeriod, AdminDashboardPeriodSlice> = {
-    today: buildSlice("today", today, orders, socials, voices, fortunes, chatSessions, chatToday, products),
-    yesterday: buildSlice("yesterday", today, orders, socials, voices, fortunes, chatSessions, chatYesterday, products),
-    "7d": buildSlice("7d", today, orders, socials, voices, fortunes, chatSessions, chat7d, products),
-    "30d": buildSlice("30d", today, orders, socials, voices, fortunes, chatSessions, chat30d, products),
+    today: buildSlice("today", today, orders, socials, voices, fortunes, chatSessions, chatToday, products, visits),
+    yesterday: buildSlice("yesterday", today, orders, socials, voices, fortunes, chatSessions, chatYesterday, products, visits),
+    "7d": buildSlice("7d", today, orders, socials, voices, fortunes, chatSessions, chat7d, products, visits),
+    "30d": buildSlice("30d", today, orders, socials, voices, fortunes, chatSessions, chat30d, products, visits),
   };
   const dayBeforeYesterday = kstAddDays(today, -2);
 

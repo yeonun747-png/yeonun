@@ -1010,6 +1010,20 @@ body:has(.y-admin-shell--v2) {
   color: #ada49a;
   margin-top: 2px;
 }
+.y-admin-v2-visitor-card {
+  padding: 18px 22px;
+}
+.y-admin-v2-visitor-row {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+.y-admin-v2-visitor-row .y-admin-v2-mini-val .unit {
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 2px;
+  color: #ada49a;
+}
 .y-admin-v2-rank-rows {
   display: flex;
   flex-direction: column;

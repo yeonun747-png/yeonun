@@ -404,6 +404,25 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
           </span>
         </div>
       </div>
+
+      <div className="y-admin-v2-card y-admin-v2-visitor-card">
+        <div className="y-admin-v2-mini-row y-admin-v2-visitor-row">
+          {[
+            ["방문자 수 (횟수집계)", slice.visitors.pageViews, "회"],
+            ["방문자 수 (중복제거)", slice.visitors.uniqueVisitors, "명"],
+          ].map(([lbl, val, unit]) => (
+            <div key={String(lbl)} className="y-admin-v2-mini-item">
+              <div className="y-admin-v2-mini-lbl">{lbl}</div>
+              <div className="y-admin-v2-mini-val">
+                {Number(val).toLocaleString("ko-KR")}
+                <span className="unit">{unit}</span>
+              </div>
+              <div className="y-admin-v2-mini-sub">{periodSub(period)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="y-admin-v2-sl">매출 · 이용 현황</div>
       <div className="y-admin-v2-row y-admin-v2-row-60-40">
         <div className="y-admin-v2-card">
