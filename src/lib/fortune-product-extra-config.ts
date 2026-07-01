@@ -1,3 +1,5 @@
+import type { SajuInputProfile } from "@/lib/data/content";
+
 export type FortuneExtraFieldKind = "textarea" | "text" | "date_ymd" | "gender" | "choice";
 
 export type FortuneExtraFieldDef = {
@@ -258,13 +260,48 @@ export const FORTUNE_PRODUCT_EXTRA_BY_SLUG: Record<string, FortuneProductExtraCo
   },
 };
 
-export function getFortuneProductExtraConfig(slug: string): FortuneProductExtraConfig | null {
-  const k = slug.trim();
-  return FORTUNE_PRODUCT_EXTRA_BY_SLUG[k] ?? null;
+/** 어드민 `saju_input_profile=pair` 상품 — slug별 정의가 없을 때 기본 상대 명식 입력 */
+function buildPairDefaultExtraConfig(slug: string): FortuneProductExtraConfig {
+  return {
+    slug,
+    screenTitle: "상대방 정보",
+    screenHint: "상대 생년·성별을 입력해 주세요. 아시는 만큼만 적어도 괜찮아요.",
+    mascotBubble: "상대분 생년월일과 성별을 알려주세요 🌙 없으면 비워 두셔도 돼요.",
+    fields: [
+      {
+        id: "counterpart_birth_ymd",
+        label: "상대방 생년월일",
+        hint: "양력 기준 연·월·일",
+        kind: "date_ymd",
+        required: true,
+      },
+      {
+        id: "counterpart_gender",
+        label: "상대방 성별",
+        kind: "gender",
+        required: true,
+      },
+    ],
+  };
 }
 
-export function fortuneProductHasExtraInputs(slug: string): boolean {
-  const c = getFortuneProductExtraConfig(slug);
+export type FortuneProductExtraConfigOpts = {
+  sajuInputProfile?: SajuInputProfile;
+};
+
+export function getFortuneProductExtraConfig(
+  slug: string,
+  opts?: FortuneProductExtraConfigOpts,
+): FortuneProductExtraConfig | null {
+  const k = slug.trim();
+  const explicit = FORTUNE_PRODUCT_EXTRA_BY_SLUG[k];
+  if (explicit) return explicit;
+  if (opts?.sajuInputProfile === "pair") return buildPairDefaultExtraConfig(k);
+  return null;
+}
+
+export function fortuneProductHasExtraInputs(slug: string, opts?: FortuneProductExtraConfigOpts): boolean {
+  const c = getFortuneProductExtraConfig(slug, opts);
   return Boolean(c?.fields?.length);
 }
 

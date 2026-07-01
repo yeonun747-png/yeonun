@@ -480,7 +480,9 @@ export function FortuneStreamModal() {
       const partner_info = streamProfile === "pair" ? partnerInfoFromPartnerStorage(productSlug) : null;
 
       const extraAnswers = readFortuneExtraAnswers(productSlug);
-      const extraCfg = getFortuneProductExtraConfig(productSlug);
+      const extraCfg = getFortuneProductExtraConfig(productSlug, {
+        sajuInputProfile: streamProfile === "pair" ? "pair" : "single",
+      });
       const fortune_extra_context = (() => {
         if (!extraCfg) return "";
         return formatFortuneExtraForPrompt(extraCfg, extraAnswers).trim();

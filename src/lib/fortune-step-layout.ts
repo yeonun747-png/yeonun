@@ -1,3 +1,4 @@
+import type { SajuInputProfile } from "@/lib/data/content";
 import { fortuneProductHasExtraInputs } from "@/lib/fortune-product-extra-config";
 import type { FortuneStep } from "@/components/fortune/fortuneFlowTypes";
 
@@ -13,8 +14,8 @@ export type FortuneStepLayout = {
   stepResult: FortuneStep;
 };
 
-export function getFortuneStepLayout(productSlug: string): FortuneStepLayout {
-  const hasProductExtras = fortuneProductHasExtraInputs(productSlug);
+export function getFortuneStepLayout(productSlug: string, sajuInputProfile?: SajuInputProfile): FortuneStepLayout {
+  const hasProductExtras = fortuneProductHasExtraInputs(productSlug, { sajuInputProfile });
   if (!hasProductExtras) {
     return {
       hasProductExtras: false,

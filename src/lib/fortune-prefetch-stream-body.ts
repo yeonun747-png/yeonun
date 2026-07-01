@@ -28,7 +28,9 @@ export function buildFortunePrefetchStreamBody(
   const partner_info = profile === "pair" ? partnerInfoFromPartnerStorage(productSlug) : null;
 
   const extraAnswers = readFortuneExtraAnswers(productSlug);
-  const extraCfg = getFortuneProductExtraConfig(productSlug);
+  const extraCfg = getFortuneProductExtraConfig(productSlug, {
+    sajuInputProfile: profile === "pair" ? "pair" : "single",
+  });
   const fortune_extra_context = (() => {
     if (!extraCfg) return "";
     return formatFortuneExtraForPrompt(extraCfg, extraAnswers).trim();

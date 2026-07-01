@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { dismissFortuneSoftKeyboard } from "@/lib/fortune-keyboard";
 
+import type { SajuInputProfile } from "@/lib/data/content";
 import type { FortuneExtraFieldDef } from "@/lib/fortune-product-extra-config";
 import { getFortuneProductExtraConfig } from "@/lib/fortune-product-extra-config";
 import { readFortuneExtraAnswers, writeFortuneExtraAnswers, type FortuneExtraAnswers } from "@/lib/fortune-extra-input-storage";
@@ -121,14 +122,19 @@ function splitYmd(stored: string): { y: string; m: string; d: string } {
 
 export function StepProductExtraInputs({
   productSlug,
+  sajuInputProfile,
   onBack,
   onContinue,
 }: {
   productSlug: string;
+  sajuInputProfile?: SajuInputProfile;
   onBack: () => void;
   onContinue: () => void;
 }) {
-  const cfg = useMemo(() => getFortuneProductExtraConfig(productSlug), [productSlug]);
+  const cfg = useMemo(
+    () => getFortuneProductExtraConfig(productSlug, { sajuInputProfile }),
+    [productSlug, sajuInputProfile],
+  );
   const [answers, setAnswers] = useState<FortuneExtraAnswers>(() => readFortuneExtraAnswers(productSlug));
   const [ymdParts, setYmdParts] = useState<Record<string, { y: string; m: string; d: string }>>(() => {
     const init: Record<string, { y: string; m: string; d: string }> = {};

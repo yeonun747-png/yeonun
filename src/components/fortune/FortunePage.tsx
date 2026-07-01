@@ -111,6 +111,7 @@ function buildFortuneGuide(
   step: FortuneStep,
   layout: FortuneStepLayout,
   productSlug: string,
+  sajuInputProfile: Product["saju_input_profile"],
   step1MascotCorner: "tl" | "tr",
   mascot: "yeon" | "un",
   characterName: string,
@@ -121,7 +122,7 @@ function buildFortuneGuide(
   const idle = mascot === "yeon" ? YEON.idle : UN.idle;
   const day = manse?.day;
   const displayName = userName || "회원";
-  const extraCfg = getFortuneProductExtraConfig(productSlug);
+  const extraCfg = getFortuneProductExtraConfig(productSlug, { sajuInputProfile });
 
   if (step === 0) return { mascot, name, pos: "welcome", text: "이전에 저장된 정보가 있어요! 🌸 이걸로 봐드릴까요?", clip: idle };
   if (step === 1) return { mascot, name, pos: "tl", text: "생년월일을 알려주세요! 🌸 정확할수록 좋아요", clip: idle };
@@ -170,7 +171,7 @@ export function FortunePage({
   const router = useRouter();
   const profile = (product.saju_input_profile === "pair" ? "pair" : "single") as DemoProfile;
   const characterName = character?.name?.trim() || product.character_key;
-  const layout = useMemo(() => getFortuneStepLayout(product.slug), [product.slug]);
+  const layout = useMemo(() => getFortuneStepLayout(product.slug, product.saju_input_profile), [product.slug, product.saju_input_profile]);
   const questions = useMemo(() => parseProductFortuneQuestions(product.fortune_questions), [product.fortune_questions]);
   const [step, setStep] = useState<FortuneStep>(0);
   const headerSubtitle = useMemo(
@@ -518,7 +519,7 @@ export function FortunePage({
       if (!r) return false;
       setForm(normalized);
       setManse(r.manse);
-      if (!fortuneProductHasExtraInputs(product.slug)) startPrefetch(normalized);
+      if (!fortuneProductHasExtraInputs(product.slug, { sajuInputProfile: product.saju_input_profile })) startPrefetch(normalized);
       return true;
     },
     [product.slug, startPrefetch],
@@ -659,7 +660,7 @@ export function FortunePage({
   }, []);
 
   const guide = useMemo(() => {
-    const base = buildFortuneGuide(step, layout, product.slug, step1MascotCorner, mascot, characterName, form.name, manse);
+    const base = buildFortuneGuide(step, layout, product.slug, product.saju_input_profile, step1MascotCorner, mascot, characterName, form.name, manse);
     let text = base.text;
     if (guideTextOverride) text = guideTextOverride;
     const pos = step === 1 && step1MascotCorner === "tr" ? "tr" : base.pos;
@@ -787,7 +788,12 @@ export function FortunePage({
           />
         ) : null}
         {layout.hasProductExtras && step === 2 ? (
-          <StepProductExtraInputs productSlug={product.slug} onBack={() => go(1, "back")} onContinue={onExtraContinue} />
+          <StepProductExtraInputs
+            productSlug={product.slug}
+            sajuInputProfile={product.saju_input_profile}
+            onBack={() => go(1, "back")}
+            onContinue={onExtraContinue}
+          />
         ) : null}
         {step === layout.stepCharIntro ? (
           <Step2CharIntro
