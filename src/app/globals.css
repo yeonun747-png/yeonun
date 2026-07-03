@@ -11024,6 +11024,211 @@ button.y-my-menu-item {
   color: #c94b6a;
   transform: translateX(1px);
 }
+.y-admin-v2-visitor-lbl-btn {
+  margin-bottom: 4px;
+}
+.y-admin-visitors-panel .y-admin-signups-period {
+  margin-bottom: 12px;
+}
+.y-admin-visitors-metric-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.y-admin-visitors-metric-tabs button {
+  border: 1px solid #e6e0d8;
+  background: #faf8f5;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  color: #7a7169;
+  cursor: pointer;
+}
+.y-admin-visitors-metric-tabs button.on {
+  border-color: #8c2a40;
+  background: #fff5f7;
+  color: #8c2a40;
+  font-weight: 600;
+}
+.y-admin-visitors-kpi--active {
+  outline: 1px solid #e8c4cd;
+  background: #fff9fa;
+}
+.y-admin-visitors-split-val {
+  font-size: 22px;
+}
+.y-admin-visitors-charts-row {
+  margin-bottom: 8px;
+}
+.y-admin-visitors-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+.y-admin-visitors-path-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.y-admin-visitors-path-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1815;
+  line-height: 1.35;
+}
+.y-admin-visitors-path-raw {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: #ada49a;
+  word-break: break-all;
+}
+.y-admin-visitors-visitor-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.y-admin-visitors-visitor-sub {
+  font-size: 11px;
+  color: #ada49a;
+  line-height: 1.35;
+}
+.y-admin-visitors-guest-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1815;
+}
+.y-admin-visitors-paths-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.y-admin-visitors-paths-summary {
+  font-size: 13px;
+  color: #1a1815;
+  line-height: 1.4;
+}
+.y-admin-visitors-paths-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.y-admin-visitors-path-chip {
+  display: inline-block;
+  border-radius: 999px;
+  background: #f3efe9;
+  color: #5c554d;
+  font-size: 11px;
+  padding: 3px 8px;
+  line-height: 1.3;
+}
+.y-admin-visitors-unique-table {
+  table-layout: fixed;
+}
+.y-admin-visitors-unique-table col.y-admin-visitors-col-no {
+  width: 36px;
+}
+.y-admin-visitors-unique-table col.y-admin-visitors-col-visitor {
+  width: 13%;
+}
+.y-admin-visitors-unique-table col.y-admin-visitors-col-views {
+  width: 52px;
+}
+.y-admin-visitors-unique-table col.y-admin-visitors-col-pages {
+  width: 42%;
+}
+.y-admin-visitors-unique-table col.y-admin-visitors-col-time {
+  width: 108px;
+}
+.y-admin-visitors-unique-table th:nth-child(1),
+.y-admin-visitors-unique-table td:nth-child(1) {
+  width: 36px;
+  padding-left: 10px;
+  padding-right: 6px;
+}
+.y-admin-visitors-unique-table th:nth-child(3),
+.y-admin-visitors-unique-table td:nth-child(3) {
+  width: 52px;
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+.y-admin-visitors-unique-table th:nth-child(5),
+.y-admin-visitors-unique-table td:nth-child(5),
+.y-admin-visitors-unique-table th:nth-child(6),
+.y-admin-visitors-unique-table td:nth-child(6) {
+  width: 108px;
+  padding-left: 8px;
+  padding-right: 10px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #5c554d;
+  white-space: nowrap;
+}
+.y-admin-visitors-unique-table th:nth-child(4),
+.y-admin-visitors-unique-table td:nth-child(4) {
+  width: 42%;
+  min-width: 240px;
+}
+.y-admin-visitors-unique-table td {
+  vertical-align: top;
+}
+.y-admin-visitors-path-row .y-admin-v2-rr-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.y-admin-visitors-path-row .y-admin-v2-rr-meta {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+}
+.y-admin-visitors-path-row .y-admin-v2-rr-dot {
+  display: none;
+}
+.y-admin-visitors-type {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.y-admin-visitors-type--member {
+  background: #eef4ff;
+  color: #2f5f9e;
+}
+.y-admin-visitors-type--guest {
+  background: #f3efe9;
+  color: #7a7169;
+}
+.y-admin-visitors-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.y-admin-visitors-pager button {
+  border: 1px solid #e6e0d8;
+  background: #fff;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+}
+.y-admin-visitors-pager button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.y-admin-visitors-pager span {
+  font-size: 12px;
+  color: #7a7169;
+}
 
 /* ===== Auth / Call / Payment 기본 스타일 (목업에서 필요한 부분 이식) ===== */
 .yBtnLogin {
@@ -11736,6 +11941,81 @@ button.y-my-menu-item {
   color: #fff;
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
+}
+
+.y-signup-promo-sheet {
+  max-height: min(88vh, 520px);
+}
+.y-signup-promo-body {
+  padding: 8px 24px calc(env(safe-area-inset-bottom, 0px) + 28px);
+  text-align: center;
+}
+.y-signup-promo-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--y-rose);
+  margin-bottom: 10px;
+}
+.y-signup-promo-title {
+  margin: 0;
+  font-family: "Noto Serif KR", serif;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--y-ink);
+  letter-spacing: -0.02em;
+}
+.y-signup-promo-sub {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #7a7169;
+}
+.y-signup-promo-context {
+  margin: 18px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #3d3832;
+}
+.y-signup-promo-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #ada49a;
+}
+.y-signup-promo-cta {
+  display: block;
+  width: 100%;
+  margin-top: 22px;
+  border: none;
+  border-radius: 100px;
+  padding: 14px 20px;
+  background: var(--y-ink);
+  color: var(--y-rose-soft);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.y-signup-promo-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #7a7169;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.y-signup-promo-dismiss {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  border: none;
+  background: none;
+  padding: 8px;
+  font-size: 12px;
+  color: #ada49a;
+  font-family: inherit;
   cursor: pointer;
 }
 .y-social-btn:disabled {

@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 
 const PANEL_IDS = [
   "dashboard",
+  "visitors",
   "content",
   "reviews",
   "notices",
@@ -20,6 +21,7 @@ export type AdminPanelId = (typeof PANEL_IDS)[number];
 
 const LABELS: Record<AdminPanelId, string> = {
   dashboard: "대시보드",
+  visitors: "방문자 현황",
   content: "콘텐츠",
   reviews: "리뷰",
   notices: "공지",
@@ -34,7 +36,7 @@ const LABELS: Record<AdminPanelId, string> = {
 };
 
 const NAV_GROUPS: { section: string; items: AdminPanelId[] }[] = [
-  { section: "메인", items: ["dashboard", "content", "reviews", "notices"] },
+  { section: "메인", items: ["dashboard", "visitors", "content", "reviews", "notices"] },
   { section: "운영", items: ["commerce", "inquiries", "signups", "credits", "voice", "fortune", "chat"] },
   { section: "시스템", items: ["logs"] },
 ];

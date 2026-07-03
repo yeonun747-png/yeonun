@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { AdminDashboardPeriod } from "@/lib/admin-dashboard-data";
+import { navigateAdminPanel } from "@/lib/admin-panel-nav";
 import type { AdminVisitorStats } from "@/lib/admin-visitor-stats";
 
 type Props = {
@@ -24,6 +25,13 @@ export function AdminDashboardVisitorCard({ period, initial, periodLabel }: Prop
     setError(null);
   }, [period, initial.pageViews, initial.uniqueVisitors]);
 
+  const openVisitors = useCallback(
+    (tab: "views" | "unique") => {
+      navigateAdminPanel("visitors", { period, tab });
+    },
+    [period],
+  );
+
   const refresh = useCallback(async () => {
     const reqId = ++reqIdRef.current;
     setLoading(true);
@@ -33,11 +41,14 @@ export function AdminDashboardVisitorCard({ period, initial, periodLabel }: Prop
     const timer = window.setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
 
     try {
-      const res = await fetch(`/api/admin/visitors?period=${encodeURIComponent(period)}`, {
-        cache: "no-store",
-        credentials: "same-origin",
-        signal: ctrl.signal,
-      });
+      const res = await fetch(
+        `/api/admin/visitors?period=${encodeURIComponent(period)}&mode=summary`,
+        {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: ctrl.signal,
+        },
+      );
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         error?: string;
@@ -78,12 +89,16 @@ export function AdminDashboardVisitorCard({ period, initial, periodLabel }: Prop
         </p>
       ) : null}
       <div className="y-admin-v2-mini-row y-admin-v2-visitor-row">
-        {[
-          ["방문자 수 (횟수집계)", stats.pageViews, "회"],
-          ["방문자 수 (중복제거)", stats.uniqueVisitors, "명"],
-        ].map(([lbl, val, unit]) => (
-          <div key={String(lbl)} className="y-admin-v2-mini-item">
-            <div className="y-admin-v2-mini-lbl">{lbl}</div>
+        {(
+          [
+            ["방문자 수 (횟수집계)", stats.pageViews, "회", "views"] as const,
+            ["방문자 수 (중복제거)", stats.uniqueVisitors, "명", "unique"] as const,
+          ] as const
+        ).map(([lbl, val, unit, tab]) => (
+          <div key={lbl} className="y-admin-v2-mini-item">
+            <button type="button" className="y-admin-v2-fr-label-btn y-admin-v2-visitor-lbl-btn" onClick={() => openVisitors(tab)}>
+              {lbl}
+            </button>
             <div className="y-admin-v2-mini-val">
               {Number(val).toLocaleString("ko-KR")}
               <span className="unit">{unit}</span>

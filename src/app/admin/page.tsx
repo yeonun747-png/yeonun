@@ -9,6 +9,7 @@ import { AdminDashboardPanel } from "@/components/admin/AdminDashboardPanel";
 import { AdminInquiriesPanel } from "@/components/admin/AdminInquiriesPanel";
 import { AdminMemberCreditsClient } from "@/components/admin/AdminMemberCreditsClient";
 import { AdminSignupsPanel } from "@/components/admin/AdminSignupsPanel";
+import { AdminVisitorsPanel } from "@/components/admin/AdminVisitorsPanel";
 import { AdminReviewCreateForm } from "@/components/admin/AdminReviewCreateForm";
 import { AdminReviewEditor } from "@/components/admin/AdminReviewEditor";
 import { AdminCategoryEditor } from "@/components/admin/AdminCategoryEditor";
@@ -320,6 +321,7 @@ export default async function AdminHomePage() {
     <AdminWorkspace
       navBadges={{ inquiries: pendingInquiryCount }}
       dashboard={<AdminDashboardPanel data={dashboardData} />}
+      visitors={<AdminVisitorsPanel />}
       content={
         <section className="y-admin-section">
           <div className="y-admin-section-head">

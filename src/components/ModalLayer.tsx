@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 
+import { AuthModal } from "@/components/modals/AuthModal";
 import { SajuModal } from "@/components/modals/SajuModal";
 
-const AuthModal = dynamic(() => import("@/components/modals/AuthModal").then((m) => m.AuthModal), { ssr: false });
 const PaymentModal = dynamic(() => import("@/components/modals/PaymentModal").then((m) => m.PaymentModal), { ssr: false });
 const FortuneStreamModal = dynamic(() => import("@/components/modals/FortuneStreamModal").then((m) => m.FortuneStreamModal), {
   ssr: false,

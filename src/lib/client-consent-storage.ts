@@ -30,6 +30,9 @@ export function hasStorageNoticeAck(): boolean {
 
 export function ackStorageNotice(): void {
   writeFlag(STORAGE_NOTICE_KEY);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("yeonun:storage-notice-acked"));
+  }
 }
 
 export function hasSessionSajuConsent(): boolean {

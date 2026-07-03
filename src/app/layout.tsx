@@ -3,6 +3,7 @@ import "./globals.css";
 import { YeonunAuthProvider } from "@/components/auth/YeonunAuthProvider";
 import {
   ModalLayerClient,
+  SignupCreditPromoSheetClient,
   StorageNoticeBannerClient,
 } from "@/components/layout/LayoutClientOverlays";
 import { ContentCatalogPreloader } from "@/components/content/ContentCatalogPreloader";
@@ -122,6 +123,7 @@ export default function RootLayout({
               <ChunkLoadRecovery />
               <YeonunToastHost />
               <StorageNoticeBannerClient />
+              <SignupCreditPromoSheetClient />
             </WriteReviewSheetProvider>
           </ArchiveReviewProvider>
           <ModalLayerClient />
