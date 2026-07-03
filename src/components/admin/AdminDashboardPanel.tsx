@@ -286,6 +286,14 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
     navigateAdminPanel("signups", { period: p });
   }, []);
 
+  const openVoicePanel = useCallback(() => {
+    navigateAdminPanel("voice");
+  }, []);
+
+  const openCommercePanel = useCallback(() => {
+    navigateAdminPanel("commerce");
+  }, []);
+
   const funnelSteps = [
     { label: "소셜 계정 누적", val: slice.funnel.membersTotal, width: 100, cvr: null as string | null, onClick: () => openSignupsPanel(period) },
     {
@@ -306,6 +314,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
         slice.funnel.newSignups > 0
           ? `가입 대비 ${Math.round((slice.funnel.fortuneOrVoice / slice.funnel.newSignups) * 100)}%`
           : null,
+      onClick: openVoicePanel,
     },
     {
       label: "결제 완료 주문",
@@ -316,6 +325,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
           ? `이용 건 대비 ${Math.round((slice.funnel.paidOrders / slice.funnel.fortuneOrVoice) * 100)}%`
           : null,
       accent: true,
+      onClick: openCommercePanel,
     },
   ];
 
@@ -472,7 +482,9 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
         </div>
       </div>
 
-      <div className="y-admin-v2-sl">결제 · 유저 현황</div>
+      <div className="y-admin-v2-sl" id="admin-dashboard-pay-users">
+        결제 · 유저 현황
+      </div>
       <AdminPaymentUsersPanel />
 
       <div className="y-admin-v2-sl">콘텐츠 · 전환</div>
