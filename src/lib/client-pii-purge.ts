@@ -21,7 +21,6 @@ const PREFIXES = [
   "yeonun_pg_pending_v1:",
   "yeonun:chat-consult:",
   "yeonun:context-notice:",
-  "yeonun:storage-notice:",
   "yeonun:saju-consent",
   "yeonun:legal-consent",
 ] as const;
