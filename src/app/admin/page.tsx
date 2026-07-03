@@ -6,7 +6,9 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { createAdminTtsPreviewToken } from "@/lib/admin-tts-preview-token";
 
 import { AdminDashboardPanel } from "@/components/admin/AdminDashboardPanel";
+import { AdminInquiriesPanel } from "@/components/admin/AdminInquiriesPanel";
 import { AdminMemberCreditsClient } from "@/components/admin/AdminMemberCreditsClient";
+import { AdminSignupsPanel } from "@/components/admin/AdminSignupsPanel";
 import { AdminReviewCreateForm } from "@/components/admin/AdminReviewCreateForm";
 import { AdminReviewEditor } from "@/components/admin/AdminReviewEditor";
 import { AdminCategoryEditor } from "@/components/admin/AdminCategoryEditor";
@@ -19,6 +21,7 @@ import { ProductEditorBlock } from "@/components/admin/ProductEditorClient";
 import { ProductNewFormClient } from "@/components/admin/ProductNewFormClient";
 import { TtsVoiceListPreview } from "@/components/admin/TtsVoiceListPreview";
 import { loadAdminDashboardData } from "@/lib/admin-dashboard-data";
+import { countPendingInquiries } from "@/lib/user-inquiries-server";
 import { resolveFortuneRequestStatusDetail } from "@/lib/admin-fortune-ops-detail";
 import { isFortuneMenuCatalogProductSlug } from "@/lib/credit-package-products";
 import { cardVariantForSlug } from "@/lib/ui/content-card-variant";
@@ -311,9 +314,11 @@ export default async function AdminHomePage() {
   const fortuneRequestsEnriched = await enrichFortuneRequestsForOps(fortuneRequests, products.rows);
 
   const dashboardData = await loadAdminDashboardData();
+  const pendingInquiryCount = await countPendingInquiries();
 
   return (
     <AdminWorkspace
+      navBadges={{ inquiries: pendingInquiryCount }}
       dashboard={<AdminDashboardPanel data={dashboardData} />}
       content={
         <section className="y-admin-section">
@@ -520,6 +525,8 @@ export default async function AdminHomePage() {
           />
         </section>
       }
+      inquiries={<AdminInquiriesPanel />}
+      signups={<AdminSignupsPanel />}
       credits={
         <section className="y-admin-section">
           <div className="y-admin-section-head">

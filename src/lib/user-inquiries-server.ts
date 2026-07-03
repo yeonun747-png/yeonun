@@ -198,6 +198,76 @@ export async function listPendingInquiries(limit = 50): Promise<UserInquiryRow[]
   return (res.data ?? []).map((row) => normalizeUserInquiryRow(row as Record<string, unknown>));
 }
 
+export type AdminInquiryListTab = "pending" | "resolved";
+export type AdminInquiryMemberFilter = "all" | "member" | "guest";
+
+export type AdminInquiryListParams = {
+  tab: AdminInquiryListTab;
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  member?: AdminInquiryMemberFilter;
+};
+
+export type AdminInquiryListResult = {
+  rows: UserInquiryRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+function escapeIlikePattern(raw: string): string {
+  return raw.replace(/[%_\\]/g, "\\$&");
+}
+
+export async function countPendingInquiries(): Promise<number> {
+  const sb = supabaseServer();
+  const res = await sb.from("user_inquiries").select("id", { count: "exact", head: true }).eq("status", "pending");
+  return res.count ?? 0;
+}
+
+export async function listAdminInquiries(params: AdminInquiryListParams): Promise<AdminInquiryListResult> {
+  const page = Math.max(1, params.page ?? 1);
+  const pageSize = Math.min(100, Math.max(10, params.pageSize ?? 30));
+  const tab = params.tab;
+  const member = params.member ?? "all";
+  const q = params.q?.trim() ?? "";
+
+  const sb = supabaseServer();
+  const orderCol = tab === "pending" ? "created_at" : "resolved_at";
+
+  async function runQuery(select: string) {
+    let query = sb.from("user_inquiries").select(select, { count: "exact" }).eq("status", tab === "pending" ? "pending" : "resolved");
+
+    if (member === "member") query = query.not("user_id", "is", null);
+    if (member === "guest") query = query.is("user_id", null);
+
+    if (q) {
+      const pattern = `%${escapeIlikePattern(q)}%`;
+      query = query.or(`name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern},body.ilike.${pattern}`);
+    }
+
+    const from = (page - 1) * pageSize;
+    return query.order(orderCol, { ascending: false }).range(from, from + pageSize - 1);
+  }
+
+  let res = await runQuery(INQUIRY_SELECT);
+  if (res.error && isMissingInquiryReplyColumnError(res.error)) {
+    res = await runQuery(INQUIRY_SELECT_LEGACY);
+  }
+
+  if (res.error) {
+    return { rows: [], total: 0, page, pageSize };
+  }
+
+  return {
+    rows: (res.data ?? []).map((row) => normalizeUserInquiryRow(row as unknown as Record<string, unknown>)),
+    total: res.count ?? 0,
+    page,
+    pageSize,
+  };
+}
+
 export async function listRecentResolvedInquiries(limit = 40): Promise<UserInquiryRow[]> {
   const sb = supabaseServer();
   let res: SupabaseListResult = await sb

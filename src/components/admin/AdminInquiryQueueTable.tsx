@@ -23,12 +23,14 @@ export function AdminInquiryQueueTable({
   busyId,
   onOpenMember,
   onRequestReply,
+  onRowClick,
 }: {
   rows: UserInquiryRow[];
   mode: "pending" | "resolved";
   busyId?: string | null;
   onOpenMember?: (userId: string) => void;
   onRequestReply?: (row: UserInquiryRow) => void;
+  onRowClick?: (row: UserInquiryRow) => void;
 }) {
   if (rows.length === 0) {
     return (
@@ -57,14 +59,25 @@ export function AdminInquiryQueueTable({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id}>
+              <tr
+                key={row.id}
+                className={onRowClick ? "y-admin-inq-row-clickable" : undefined}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 <td>{row.name}</td>
                 <td>{row.email}</td>
                 <td className="y-admin-inq-mono">{row.phone || "—"}</td>
                 <td>
                   {row.user_id ? (
                     onOpenMember ? (
-                      <button type="button" className="y-admin-inq-link" onClick={() => onOpenMember(row.user_id!)}>
+                      <button
+                        type="button"
+                        className="y-admin-inq-link"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenMember(row.user_id!);
+                        }}
+                      >
                         회원 CS
                       </button>
                     ) : (
@@ -92,9 +105,23 @@ export function AdminInquiryQueueTable({
                       type="button"
                       className="y-admin-cs-inquiry-resolve-btn"
                       disabled={busyId === row.id}
-                      onClick={() => onRequestReply?.(row)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRequestReply?.(row);
+                      }}
                     >
                       답변 작성
+                    </button>
+                  ) : onRowClick ? (
+                    <button
+                      type="button"
+                      className="y-admin-inq-ghost-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRowClick(row);
+                      }}
+                    >
+                      상세
                     </button>
                   ) : (
                     "—"

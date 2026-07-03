@@ -1,10 +1,11 @@
 ﻿"use client";
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AdminInquiryQueueModal } from "@/components/admin/AdminPendingInquiriesPanel";
+import { AdminDashboardVisitorCard } from "@/components/admin/AdminDashboardVisitorCard";
 import { AdminMemberFileModal } from "@/components/admin/AdminMemberFileModal";
 import { AdminPaymentUsersPanel } from "@/components/admin/AdminPaymentUsersPanel";
 import type { AdminMemberFileTab } from "@/components/admin/AdminMemberFilePanel";
+import { navigateAdminPanel } from "@/lib/admin-panel-nav";
 import type { AdminDashboardData, AdminDashboardPeriod } from "@/lib/admin-dashboard-data";
 
 const PERIODS: { id: AdminDashboardPeriod; label: string }[] = [
@@ -193,7 +194,7 @@ function RevenueChart({ points }: { points: { label: string; krw: number }[] }) 
   );
 }
 
-function SocialDonut({ social }: { social: AdminDashboardData["socialLogin"] }) {
+function SocialDonut({ social, onClick }: { social: AdminDashboardData["socialLogin"]; onClick?: () => void }) {
   const { segments, total } = useMemo(() => {
     const items = [
       { key: "google", color: "#4285F4", label: "구글", count: social.google },
@@ -214,7 +215,7 @@ function SocialDonut({ social }: { social: AdminDashboardData["socialLogin"] }) 
   }, [social]);
 
   return (
-    <div className="y-admin-v2-donut-block">
+    <button type="button" className="y-admin-v2-donut-block y-admin-v2-donut-block--link" onClick={onClick} disabled={!onClick}>
       <div className="y-admin-v2-donut-subtitle">소셜 계정 누적 (provider)</div>
       <div className="y-admin-v2-donut-row">
         <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden>
@@ -246,13 +247,12 @@ function SocialDonut({ social }: { social: AdminDashboardData["socialLogin"] }) 
           ))}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
 export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
   const [period, setPeriod] = useState<AdminDashboardPeriod>("today");
-  const [inquiryModalOpen, setInquiryModalOpen] = useState(false);
   const [csUserId, setCsUserId] = useState<string | null>(null);
   const [csInitialTab, setCsInitialTab] = useState<AdminMemberFileTab>("inquiries");
   const slice = data.slices[period];
@@ -276,15 +276,18 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
   const openMemberCs = useCallback((userId: string) => {
     setCsUserId(userId);
     setCsInitialTab("inquiries");
-    setInquiryModalOpen(false);
   }, []);
 
   const openInquiryFromAlert = useCallback(() => {
-    setInquiryModalOpen(true);
+    navigateAdminPanel("inquiries", { tab: "pending", highlight: "1" });
+  }, []);
+
+  const openSignupsPanel = useCallback((p: AdminDashboardPeriod = "today") => {
+    navigateAdminPanel("signups", { period: p });
   }, []);
 
   const funnelSteps = [
-    { label: "소셜 계정 누적", val: slice.funnel.membersTotal, width: 100, cvr: null as string | null },
+    { label: "소셜 계정 누적", val: slice.funnel.membersTotal, width: 100, cvr: null as string | null, onClick: () => openSignupsPanel(period) },
     {
       label: "기간 소셜 가입",
       val: slice.funnel.newSignups,
@@ -293,6 +296,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
         slice.funnel.membersTotal > 0
           ? `누적 대비 ${Math.round((slice.funnel.newSignups / slice.funnel.membersTotal) * 100)}%`
           : null,
+      onClick: () => openSignupsPanel(period),
     },
     {
       label: "음성 세션 + 점사 요청",
@@ -375,13 +379,15 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
           </strong>
           <span className={"y-admin-v2-kc-delta " + dauDelta.cls}>{dauDelta.text}</span>
         </div>
-        <div className="y-admin-v2-kc">
-          <div className="y-admin-v2-kc-label">어제 소셜 가입</div>
-          <strong className="y-admin-v2-kc-val">
-            {ops.yesterdaySignups}
-            <span className="unit">명</span>
-          </strong>
-          <span className={"y-admin-v2-kc-delta " + signupDelta.cls}>{signupDelta.text}</span>
+        <div className="y-admin-v2-kc y-admin-v2-kc--link">
+          <button type="button" className="y-admin-v2-kc-link" onClick={() => openSignupsPanel("yesterday")}>
+            <div className="y-admin-v2-kc-label">어제 소셜 가입</div>
+            <strong className="y-admin-v2-kc-val">
+              {ops.yesterdaySignups}
+              <span className="unit">명</span>
+            </strong>
+            <span className={"y-admin-v2-kc-delta " + signupDelta.cls}>{signupDelta.text}</span>
+          </button>
         </div>
         <div className="y-admin-v2-kc">
           <div className="y-admin-v2-kc-label">어제 크레딧 충전</div>
@@ -405,23 +411,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
         </div>
       </div>
 
-      <div className="y-admin-v2-card y-admin-v2-visitor-card">
-        <div className="y-admin-v2-mini-row y-admin-v2-visitor-row">
-          {[
-            ["방문자 수 (횟수집계)", slice.visitors.pageViews, "회"],
-            ["방문자 수 (중복제거)", slice.visitors.uniqueVisitors, "명"],
-          ].map(([lbl, val, unit]) => (
-            <div key={String(lbl)} className="y-admin-v2-mini-item">
-              <div className="y-admin-v2-mini-lbl">{lbl}</div>
-              <div className="y-admin-v2-mini-val">
-                {Number(val).toLocaleString("ko-KR")}
-                <span className="unit">{unit}</span>
-              </div>
-              <div className="y-admin-v2-mini-sub">{periodSub(period)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <AdminDashboardVisitorCard period={period} initial={slice.visitors} periodLabel={periodSub(period)} />
 
       <div className="y-admin-v2-sl">매출 · 이용 현황</div>
       <div className="y-admin-v2-row y-admin-v2-row-60-40">
@@ -438,7 +428,13 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
             ].map(([lbl, val]) => (
               <div key={lbl} className="y-admin-v2-mini-item">
                 <div className="y-admin-v2-mini-lbl">{lbl}</div>
-                <div className="y-admin-v2-mini-val">{val}</div>
+                {lbl === "소셜 가입" ? (
+                  <button type="button" className="y-admin-v2-mini-val y-admin-v2-mini-val-btn" onClick={() => openSignupsPanel(period)}>
+                    {val}
+                  </button>
+                ) : (
+                  <div className="y-admin-v2-mini-val">{val}</div>
+                )}
                 <div className="y-admin-v2-mini-sub">{periodSub(period)}</div>
               </div>
             ))}
@@ -472,7 +468,7 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
               ))
             )}
           </div>
-          <SocialDonut social={data.socialLogin} />
+          <SocialDonut social={data.socialLogin} onClick={() => openSignupsPanel(period)} />
         </div>
       </div>
 
@@ -541,7 +537,13 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
             {funnelSteps.map((step) => (
               <div key={step.label} className="y-admin-v2-fr">
                 <div className="y-admin-v2-fr-top">
-                  <span className="y-admin-v2-fr-label">{step.label}</span>
+                  {step.onClick ? (
+                    <button type="button" className="y-admin-v2-fr-label-btn" onClick={step.onClick}>
+                      {step.label}
+                    </button>
+                  ) : (
+                    <span className="y-admin-v2-fr-label">{step.label}</span>
+                  )}
                   <span className="y-admin-v2-fr-val">{step.val.toLocaleString("ko-KR")}</span>
                 </div>
                 <div className="y-admin-v2-fr-track">
@@ -593,11 +595,6 @@ export function AdminDashboardPanel({ data }: { data: AdminDashboardData }) {
         </div>
       </div>
 
-      <AdminInquiryQueueModal
-        open={inquiryModalOpen}
-        onClose={() => setInquiryModalOpen(false)}
-        onOpenMember={openMemberCs}
-      />
       <AdminMemberFileModal
         userId={csUserId}
         initialTab={csInitialTab}
